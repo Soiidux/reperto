@@ -8,6 +8,7 @@ interface IUser extends Document{
   password: string;
   role: UserRole;
   phone: string;
+  profileImageUrl?: string;      // URL from Cloudinary
   isActive: boolean;
   doctorProfile?: {
       qualifications: string[];     // e.g., ['BHMS', 'MD (Materia Medica)']
@@ -15,7 +16,6 @@ interface IUser extends Document{
       specializations: string[];    // e.g., ['Skin', 'Respiratory', 'Pediatrics']
       languagesSpoken: string[];    // e.g., ['English', 'Hindi']
       consultationFee: number;      // e.g., 500
-      profileImageUrl: string;      // URL from Cloudinary
     };
 }
 
@@ -47,6 +47,7 @@ const UserSchema: Schema = new Schema({
     required: [true, 'Phone is required'],
     trim: true,
   },
+  profileImageUrl: { type: String, default: '' },
   isActive: {
     type: Boolean,
     default: true,
@@ -57,7 +58,6 @@ const UserSchema: Schema = new Schema({
       specializations: [{ type: String, trim: true }],
       languagesSpoken: [{ type: String, trim: true }],
       consultationFee: { type: Number, min: 0 },
-      profileImageUrl: { type: String, default: '' }
     }
 }, {
   timestamps: true,
