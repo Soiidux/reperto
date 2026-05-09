@@ -2,6 +2,16 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 type UserRole = 'admin' | 'doctor' | 'staff' | 'patient';
 
+const DoctorProfileSchema = new Schema({
+  qualifications: [{ type: String, trim: true }],
+  experienceYears: { type: Number, min: 0 },
+  specializations: [{ type: String, trim: true }],
+  languagesSpoken: [{ type: String, trim: true }],
+  consultationFee: { type: Number, min: 0 },
+}, { 
+  _id: false // Prevents Mongoose from creating a separate _id for this sub-doc
+});
+
 interface IUser extends Document{
   name: string;
   email: string;
@@ -10,13 +20,7 @@ interface IUser extends Document{
   phone: string;
   profileImageUrl?: string;      // URL from Cloudinary
   isActive: boolean;
-  doctorProfile?: {
-      qualifications: string[];     // e.g., ['BHMS', 'MD (Materia Medica)']
-      experienceYears: number;      // e.g., 10
-      specializations: string[];    // e.g., ['Skin', 'Respiratory', 'Pediatrics']
-      languagesSpoken: string[];    // e.g., ['English', 'Hindi']
-      consultationFee: number;      // e.g., 500
-    };
+  doctorProfile?: typeof DoctorProfileSchema;
 }
 
 const UserSchema: Schema = new Schema({
@@ -53,12 +57,10 @@ const UserSchema: Schema = new Schema({
     default: true,
   },
   doctorProfile: {
-      qualifications: [{ type: String, trim: true }],
-      experienceYears: { type: Number, min: 0 },
-      specializations: [{ type: String, trim: true }],
-      languagesSpoken: [{ type: String, trim: true }],
-      consultationFee: { type: Number, min: 0 },
-    }
+    type: DoctorProfileSchema,
+    required: false,
+    default: undefined,
+  }
 }, {
   timestamps: true,
 });
