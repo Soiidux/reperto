@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
-
+import appointmentRoutes from "./routes/appointment.routes";
 const app = express();
 
 //Middlewares
@@ -20,6 +20,7 @@ app.post("/api/test", (req, res) => {
 });
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/appointment", appointmentRoutes);
 
 
 export default app;
