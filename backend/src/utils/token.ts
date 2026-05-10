@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import config from '../config';
+import { Request } from 'express';
 
 // Access Token remains a JWT for speed
 export const generateAccessToken = (userId: string, role: string) => {
@@ -16,7 +17,7 @@ export const generateRefreshToken = () => {
 
 
 //Validate the jwt token
-export const validateAcessToken = (token: string) => {
+export const validateAccessToken = (token: string) => {
   try {
     const decoded = jwt.verify(token, config.jwt.jwtSecret);
     return decoded as { userId: string, role: string };
@@ -28,13 +29,13 @@ export const validateAcessToken = (token: string) => {
 
 
 //Get token from headers
-export function getBearerToken(req: Request): string {
-	const authHeader = req.headers.get("Authorization");
+export function getBearerToken(req: Request): string | null{
+	const authHeader = req.header("Authorization");
 	if (!authHeader) {
-		throw new Error("No Authorization header");
+    return null;
 	}
 	if (!authHeader.startsWith("Bearer ")) {
-		throw new Error("Invalid Authorization format");
+    return null;
 	}
 	const token = authHeader.split(" ")[1];
 	return token;

@@ -2,14 +2,13 @@ import {Request, Response} from "express";
 import User from "../db/models/user.model";
 import RefreshToken from "../db/models/token.model"
 import bcrypt from "bcrypt";
-import { generateAccessToken, generateRefreshToken, validateAcessToken, getBearerToken} from "../utils/token";
+import { generateAccessToken, generateRefreshToken, validateAccessToken, getBearerToken} from "../utils/token";
 import { uploadToCloudinary } from "../utils/cloudinary";
-import config from "../config";
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
     //1.Get information
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
     const existingUser = await User.findOne({ email });
     
     //2.Check if user already exists
@@ -28,6 +27,20 @@ export const registerUser = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    
+    //Set default role to patient and check if admin was the one that made the request, if yes then change roles
+    let roleToAssign = 'patient';
+    const token = getBearerToken(req);
+    if (token) {
+      try {
+        const decoded = validateAccessToken(token);
+        if (decoded.role === "admin" && role) {
+          roleToAssign = role;
+        }
+      } catch (error) {
+        console.log("Not an admin request or token expired, defaulting to patient");
+      }
+    }
     //5.Create User
     const newUser = new User({
       name,
@@ -35,6 +48,8 @@ export const registerUser = async (req: Request, res: Response) => {
       password: hashedPassword,
       phone,
       profileImageUrl,
+      role: roleToAssign,
+      ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorDetails })
     })
     
     //6.Save User
