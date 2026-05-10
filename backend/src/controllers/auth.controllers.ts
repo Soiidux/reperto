@@ -52,7 +52,7 @@ export const registerUser = async (req: Request, res: Response) => {
       gender,
       dateOfBirth,
       bloodGroup,
-      ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorDetails }),
+      ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorProfile }),
     })
     
     //6.Save User

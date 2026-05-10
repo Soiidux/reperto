@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
 import appointmentRoutes from "./routes/appointment.routes";
+import consultationRoutes from "./routes/consultation.routes";
 const app = express();
 
 //Middlewares
@@ -21,6 +22,7 @@ app.post("/api/test", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/appointment", appointmentRoutes);
+app.use("/api/consultation", consultationRoutes);
 
 
 export default app;
