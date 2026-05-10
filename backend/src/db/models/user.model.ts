@@ -18,9 +18,18 @@ interface IUser extends Document{
   password: string;
   role: UserRole;
   phone: string;
+  gender: 'male' | 'female' | 'other';
+  dateOfBirth: Date;
+  bloodGroup: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
   profileImageUrl?: string;      // URL from Cloudinary
   isActive: boolean;
-  doctorProfile?: typeof DoctorProfileSchema;
+  doctorProfile?: {
+      qualifications: string[];
+      experienceYears: number;
+      specializations: string[];
+      languagesSpoken: string[];
+      consultationFee: number;
+    };
 }
 
 const UserSchema: Schema = new Schema({
@@ -50,6 +59,20 @@ const UserSchema: Schema = new Schema({
     type: String,
     required: [true, 'Phone is required'],
     trim: true,
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other'],
+    required: [true, 'Gender is required'],
+  },
+  dateOfBirth: {
+    type: Date,
+    required: [true, 'Date of birth is required'],
+  },
+  bloodGroup: {
+    type: String,
+    enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+    required: [true, 'Blood group is required'],
   },
   profileImageUrl: { type: String, default: '' },
   isActive: {

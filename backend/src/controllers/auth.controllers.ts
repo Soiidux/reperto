@@ -8,7 +8,7 @@ import { uploadToCloudinary } from "../utils/cloudinary";
 export const registerUser = async (req: Request, res: Response) => {
   try {
     //1.Get information
-    const { name, email, password, phone, role } = req.body;
+    const { name, email, password, phone, role, gender, dateOfBirth, bloodGroup} = req.body;
     const existingUser = await User.findOne({ email });
     
     //2.Check if user already exists
@@ -49,7 +49,10 @@ export const registerUser = async (req: Request, res: Response) => {
       phone,
       profileImageUrl,
       role: roleToAssign,
-      ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorDetails })
+      gender,
+      dateOfBirth,
+      bloodGroup,
+      ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorDetails }),
     })
     
     //6.Save User
