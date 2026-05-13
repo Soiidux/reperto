@@ -1,88 +1,157 @@
 import { Request, Response } from "express";
 import Appointment from "../db/models/appointment.model";
 import User from "../db/models/user.model";
+import { MASTER_SLOTS } from "../constants/slots";
+
+const timeToMinutes = (timeStr: string) => {
+  const [time, modifier] = timeStr.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (modifier === "PM" && hours !== 12) hours += 12;
+  if (modifier === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+};
 
 export const bookAppointment = async (req: Request, res: Response) => {
   try {
-    const { doctorId, appointmentDate, timeSlot, intakeDetails, consultationType } = req.body;
-    
-    if (!doctorId || !appointmentDate || !timeSlot || !intakeDetails || !consultationType) {
-      return res.status(400).json({ message: "Please provide all required fields" });
+    const {
+      doctorId,
+      appointmentDate,
+      timeSlot,
+      intakeDetails,
+      consultationType,
+      durationInMinutes,
+    } = req.body;
+
+    if (
+      !doctorId ||
+      !appointmentDate ||
+      !timeSlot ||
+      !intakeDetails ||
+      !consultationType ||
+      !durationInMinutes
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Please provide all required fields" });
     }
-    
+
     const doctor = await User.findOne({ _id: doctorId, role: "doctor" });
     if (!doctor) {
       return res.status(404).json({ message: "Selected doctor not found" });
     }
-    
-    const selectedDate = new Date(appointmentDate);
+
+    const [year, month, day] = appointmentDate.split("-").map(Number);
+    const selectedDate = new Date(Date.UTC(year, month - 1, day));
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     if (selectedDate < today) {
-      return res.status(400).json({ message: "Selected date cannot be in the past" });
+      return res
+        .status(400)
+        .json({ message: "Selected date cannot be in the past" });
     }
-    
-    const existingAppointment = await Appointment.findOne({ doctorId, appointmentDate: selectedDate, timeSlot, status: { $ne: 'cancelled' } });
+
+    const alreadyBookedToday = await Appointment.findOne({
+      patientId: req.user.id,
+      appointmentDate: selectedDate,
+      status: { $ne: "cancelled" },
+    });
+    if (alreadyBookedToday) {
+      return res
+        .status(400)
+        .json({ message: "You have already booked an appointment for today" });
+    }
+
+    const existingAppointment = await Appointment.findOne({
+      doctorId,
+      appointmentDate: selectedDate,
+      timeSlot,
+      status: { $ne: "cancelled" },
+    });
     if (existingAppointment) {
-      return res.status(400).json({ message: "Selected time slot is already booked" });
+      return res
+        .status(400)
+        .json({ message: "Selected time slot is already booked" });
     }
-    
+
     const newAppointment = new Appointment({
       patientId: req.user.id,
       doctorId,
       appointmentDate: selectedDate,
       timeSlot,
+      durationInMinutes,
       intakeDetails,
-      consultationType: consultationType || 'Initial',
-      status: 'pending',
+      consultationType: consultationType || "Initial",
+      status: "pending",
     });
-    
+
     await newAppointment.save();
-    res.status(201).json({ message: "Appointment booked successfully", appointment: newAppointment });
+    res.status(201).json({
+      message: "Appointment booked successfully",
+      appointment: newAppointment,
+    });
   } catch (error: any) {
     // Handle the Mongo Unique Index error specifically if it bypasses our check
     if (error.code === 11000) {
-      return res.status(400).json({ message: "Conflict: This slot was just taken by someone else!" });
+      return res.status(400).json({
+        message: "Conflict: This slot was just taken by someone else!",
+      });
     }
     return res.status(500).json({ message: "Internal erver Error" });
   }
-}
+};
 
 export const getAppointments = async (req: Request, res: Response) => {
   try {
-    const isDoctor = req.user.role === 'doctor';
-    let query : any = isDoctor ? { doctorId: req.user.id } : { patientId: req.user.id };
-    
+    const isDoctor = req.user.role === "doctor";
+    let query: any = isDoctor
+      ? { doctorId: req.user.id }
+      : { patientId: req.user.id };
+
     const appointments = await Appointment.find(query)
       .populate(
-        isDoctor ? 'patientId' : 'doctorId',
-        'name email phone profileImageUrl gender dateOfBirth'
-      ).sort({ appointmentDate: -1, timeSlot: 1 });
-  
+        isDoctor ? "patientId" : "doctorId",
+        "name email phone profileImageUrl gender dateOfBirth",
+      )
+      .sort({ appointmentDate: -1, timeSlot: 1 });
+
     res.status(200).json({
       success: true,
       message: "All appointments",
-      count:appointments.length,
+      count: appointments.length,
       data: appointments,
-    })
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Internal server error', error: error instanceof Error ? error.message : String(error) });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
 export const getTodaysAppointments = async (req: any, res: Response) => {
   try {
-    const isDoctor = req.user.role === 'doctor';
-    
-    // Calculate Today's boundaries
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
+    const isDoctor = req.user.role === "doctor";
+
+    // 1. Get the current time specifically in India Timezone
+    const indiaTime = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+    );
+
+    // 2. Create the anchor using India's current Day, Month, and Year
+    const todayAnchor = new Date(
+      Date.UTC(
+        indiaTime.getFullYear(),
+        indiaTime.getMonth(),
+        indiaTime.getDate(),
+      ),
+    );
 
     const query: any = {
-      appointmentDate: { $gte: start, $lte: end },
-      status: { $ne: 'cancelled' } // Doctors usually don't want to see cancelled slots in their active queue
+      appointmentDate: todayAnchor,
+      status: { $ne: "cancelled" }, // Doctors usually don't want to see cancelled slots in their active queue
     };
 
     // Apply role-based filtering
@@ -93,16 +162,21 @@ export const getTodaysAppointments = async (req: any, res: Response) => {
     }
 
     const appointments = await Appointment.find(query)
-      .populate(isDoctor ? 'patientId' : 'doctorId', 'name email phone profileImageUrl gender dateOfBirth')
+      .populate(
+        isDoctor ? "patientId" : "doctorId",
+        "name email phone profileImageUrl gender dateOfBirth",
+      )
       .sort({ timeSlot: 1 }); // Sorted by time for the daily schedule
 
     res.status(200).json({
       success: true,
       count: appointments.length,
-      data: appointments
+      data: appointments,
     });
   } catch (error: any) {
-    res.status(500).json({ message: "Error fetching today's queue", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching today's queue", error: error.message });
   }
 };
 
@@ -115,12 +189,13 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     const appointment = await Appointment.findById(id);
 
     if (!appointment) {
-      return res.status(404).json({ success: false, message: "Appointment not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Appointment not found" });
     }
-
     // 2. Role-Based Permission Logic
-    const isDoctor = req.user.role === 'doctor';
-    const isPatient = req.user.role === 'patient';
+    const isDoctor = req.user.role === "doctor";
+    const isPatient = req.user.role === "patient";
     const isOwner = appointment.patientId.toString() === req.user.id;
     const isAssignedDoctor = appointment.doctorId.toString() === req.user.id;
 
@@ -131,10 +206,14 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
      */
     if (isPatient) {
       if (!isOwner) {
-        return res.status(403).json({ message: "Not authorized to modify this appointment" });
+        return res
+          .status(403)
+          .json({ message: "Not authorized to modify this appointment" });
       }
-      if (status !== 'cancelled') {
-        return res.status(400).json({ message: "Patients can only cancel appointments" });
+      if (status !== "cancelled") {
+        return res
+          .status(400)
+          .json({ message: "Patients can only cancel appointments" });
       }
     }
 
@@ -143,15 +222,36 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     }
 
     // 3. Prevent logic errors (e.g., cancelling a completed appointment)
-    if (appointment.status === 'completed') {
-      return res.status(400).json({ message: "Cannot change status of a completed appointment" });
+    if (appointment.status === "completed") {
+      return res
+        .status(400)
+        .json({ message: "Cannot change status of a completed appointment" });
     }
 
     // 4. Update the fields
     appointment.status = status;
 
-    if (status === 'cancelled') {
-      appointment.cancellationReason = cancellationReason || 'No reason provided';
+    if (status === "cancelled") {
+      const now = new Date();
+      const selectedDate = new Date(appointment.appointmentDate);
+      const isToday =
+        selectedDate.getUTCDate() === now.getUTCDate() &&
+        selectedDate.getUTCMonth() === now.getUTCMonth() &&
+        selectedDate.getUTCFullYear() === now.getUTCFullYear();
+      if (isPatient && isToday) {
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const timeSlotMinutes = timeToMinutes(appointment.timeSlot);
+        
+        const differenceInMinutes = timeSlotMinutes - nowMinutes;
+        if (differenceInMinutes < 120 && differenceInMinutes > 0) {
+          return res
+            .status(400)
+            .json({ message: "Cannot cancel appointment within 2 hours of the slot" });
+        }
+      }
+      
+      appointment.cancellationReason =
+        cancellationReason || "No reason provided";
     }
 
     await appointment.save();
@@ -159,14 +259,63 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     res.status(200).json({
       success: true,
       message: `Appointment status updated to ${status}`,
-      data: appointment
+      data: appointment,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getAvailableSlots = async (req: Request, res: Response) => {
+  try {
+    const { doctorId, date, durationInMinutes = 15 } = req.query;
+    const duration = Number(durationInMinutes);
+
+    const [year, month, day] = (date as string).split("-").map(Number);
+    const selectedDate = new Date(Date.UTC(year, month - 1, day));
+    const now = new Date(); // Current time
+
+    // 1. Get all booked appointments for the day (including cancelled - cancelled slots should be freed up)
+    // @ts-ignore
+    const bookings = await Appointment.find({
+      doctorId: doctorId as string,
+      appointmentDate: selectedDate,
+      status: { $ne: "cancelled" },
     });
 
-  } catch (error: any) {
-    res.status(500).json({ 
-      success: false, 
-      message: "Internal server error", 
-      error: error.message 
+    // 2. Map bookings to their numeric start and end times
+    const busyPeriods = bookings.map((booking) => {
+      const start = timeToMinutes(booking.timeSlot);
+      return { start, end: start + Number(booking.durationInMinutes) };
     });
+
+    // 3. Check each Master Slot to see if it's a valid starting point
+    const availableSlots = MASTER_SLOTS.filter((slot) => {
+      const slotStart = timeToMinutes(slot);
+      const slotEnd = slotStart + duration;
+
+      const isToday =
+        selectedDate.getUTCDate() === now.getUTCDate() &&
+        selectedDate.getUTCMonth() === now.getUTCMonth() &&
+        selectedDate.getUTCFullYear() === now.getUTCFullYear();
+      if (isToday) {
+        const totalMinutesNow = now.getHours() * 60 + now.getMinutes();
+        if (slotStart < totalMinutesNow + 15) return false;
+      }
+      // Check if this new "potential" block overlaps with ANY busy period
+      const isOverlapping = busyPeriods.some((busy) => {
+        return slotStart < busy.end && slotEnd > busy.start;
+      });
+
+      return !isOverlapping;
+    });
+
+    res.json({ success: true, data: availableSlots });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

@@ -31,7 +31,8 @@ interface IAppointment extends Document{
   doctorId: mongoose.Types.ObjectId;
   appointmentDate: Date;
   timeSlot: string;
-  status: 'pending' | 'arrived' | 'completed' | 'cancelled';
+  durationInMinutes: number;
+  status: 'pending' | 'arrived' | 'completed' | 'cancelled' | 'no-show';
   consultationType: 'Initial' | 'Follow-up' | 'Acute';
   intakeDetails: {
     primaryComplaint: string;
@@ -47,8 +48,9 @@ const AppointmentSchema = new Schema({
   patientId: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
   doctorId: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
   appointmentDate: { type: Date, required: true },
-  timeSlot: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'arrived', 'completed', 'cancelled'], required: true },
+  timeSlot: { type: String, required: true ,default: 15},
+  durationInMinutes: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'arrived', 'completed', 'cancelled','no-show'], required: true },
   consultationType: { type: String, enum: ['Initial', 'Follow-up', 'Acute'], required: true },
   intakeDetails: { type: intakeDetailsSchema, required: true },
   cancellationReason: { type: String, default: '' },

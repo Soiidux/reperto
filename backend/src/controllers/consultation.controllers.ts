@@ -69,9 +69,9 @@ export const getPatientHistory = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'You are not authorized to view this patient history' });
     }
     
-    const history = await Consultation.find({ patientId })
-      .populate('doctorId', 'name')
-      .sort({ createdAt: -1 });
+    const history = await Consultation.find({ patientId, status: 'completed' })
+      .populate('doctorId', 'name profileImageUrl')
+      .sort({ appointmentDate: -1 });
     
     return res.status(200).json({
       success: true,
@@ -91,9 +91,9 @@ export const getPatientHistory = async (req: Request, res: Response) => {
 export const getLatestConsultation = async (req: any, res: Response) => {
   try {
     const { patientId } = req.params;
-    const latest = await Consultation.findOne({ patientId })
-      .populate('doctorId', 'name')
-      .sort({ createdAt: -1 })
+    const latest = await Consultation.findOne({ patientId, status: 'completed' })
+      .populate('doctorId', 'name profileImageUrl')
+      .sort({ appointmentDate: -1 })
       .limit(1);
 
     res.status(200).json({ success: true, data: latest });
