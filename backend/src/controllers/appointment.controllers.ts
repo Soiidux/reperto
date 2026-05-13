@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Appointment from "../db/models/appointment.model";
 import User from "../db/models/user.model";
+import Leave from "../db/models/leave.model";
 import { MASTER_SLOTS } from "../constants/slots";
 
 const timeToMinutes = (timeStr: string) => {
@@ -278,7 +279,21 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     const [year, month, day] = (date as string).split("-").map(Number);
     const selectedDate = new Date(Date.UTC(year, month - 1, day));
     const now = new Date(); // Current time
-
+    
+    //All blocked slots
+    //@ts-ignore
+    const blocks = await Leave.find({doctorId,
+      startingDate: { $lte: selectedDate },
+      $or: [
+        { endingDate: { $gte: selectedDate } },
+        { endingDate: { $exists: false } },
+        { endingDate: null }
+      ]
+    });
+    
+    if (blocks.some(b => b.type === 'full-day')) {
+          return res.json({ success: true, data: [], message: "Doctor is on leave" });
+        }
     // 1. Get all booked appointments for the day (including cancelled - cancelled slots should be freed up)
     // @ts-ignore
     const bookings = await Appointment.find({
@@ -302,10 +317,43 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
         selectedDate.getUTCDate() === now.getUTCDate() &&
         selectedDate.getUTCMonth() === now.getUTCMonth() &&
         selectedDate.getUTCFullYear() === now.getUTCFullYear();
+      
       if (isToday) {
         const totalMinutesNow = now.getHours() * 60 + now.getMinutes();
         if (slotStart < totalMinutesNow + 15) return false;
       }
+      
+      const isBlockedByLeave = blocks.some((block) => {
+        
+        const currentDate = selectedDate.getTime();
+        const startDate = block.startingDate.getTime();
+        const endDate = block.endingDate ? block.endingDate.getTime() : startDate;
+        
+        // CASE 1: Single Day Partial Leave (Starts and Ends Today)
+        if (currentDate === startDate && currentDate === endDate) {
+          const bStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
+          const bEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
+          return slotStart < bEnd && slotEnd > bStart;
+        }
+        
+        // CASE 2: Starting Day of multiday leave
+        if (currentDate === startDate) {
+          const blockStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
+          return slotStart < 1440 && slotEnd > blockStart;
+        }
+        // CASE 3: Ending Day of multiday leave
+        if (block.endingDate && currentDate === endDate) {
+          const blockEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
+          return slotStart < blockEnd && slotEnd > 0;
+        }
+        // CASE 4: Multiday leave in the middle
+        if (currentDate > startDate && currentDate < endDate) return true;
+        
+        return false;
+      })
+      
+      if (isBlockedByLeave) return false;
+      
       // Check if this new "potential" block overlaps with ANY busy period
       const isOverlapping = busyPeriods.some((busy) => {
         return slotStart < busy.end && slotEnd > busy.start;
