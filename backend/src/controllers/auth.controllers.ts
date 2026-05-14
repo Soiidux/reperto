@@ -149,3 +149,73 @@ export const logoutUser = async (req: Request, res: Response) => {
   })
  res.status(200).json({ message: "Logged out successfully" });
 }
+
+export const updateEmail = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    const userId = req.user.id;
+    const user = await User.findOne({ _id: userId });
+    if (!user || !user.isActive) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+    
+    const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email is already in use" });
+    }
+    user.email = email;
+    await user.save();
+    return res.status(200).json({ message: "Email updated successfully" });
+    
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }  
+}
+
+export const updatePhone = async (req: Request, res: Response) => {
+  try {
+    const { phone, password } = req.body;
+    const userId = req.user.id;
+    const user = await User.findOne({ _id: userId });
+    if (!user || !user.isActive) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password" });
+    } else {
+      user.phone = phone;
+      await user.save();
+      return res.status(200).json({ message: "Phone updated successfully" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+const updatePassword = async (req: Request, res: Response) => {
+  try {
+    const { newPassword, oldPassword } = req.body;
+    const userId = req.user.id;
+    const user = await User.findOne({ _id: userId });
+    if (!user || !user.isActive) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password" });
+    } else {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+      user.password = hashedPassword;
+      await user.save();
+      return res.status(200).json({ message: "Password updated successfully" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
