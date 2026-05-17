@@ -1,23 +1,28 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface AuthState {
   user: any | null;
   accessToken: string | null;
   login: (userData: any, token: string) => void;
   logout: () => void;
+  setToken: (token: string) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: JSON.parse(localStorage.getItem('user') || 'null'),
-  accessToken: localStorage.getItem('accessToken') || 'null',
+  user: JSON.parse(localStorage.getItem("user") || "null"),
+  accessToken: localStorage.getItem("accessToken") || "null",
   login: (userData, token) => {
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('accessToken', token);
+    localStorage.setItem("user", JSON.stringify(userData));
+    localStorage.setItem("accessToken", token);
     set({ user: userData, accessToken: token });
   },
   logout: () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('accessToken');
+    localStorage.removeItem("user");
+    localStorage.removeItem("accessToken");
     set({ user: null, accessToken: null });
   },
-}))
+  setToken: (token: string) => {
+    localStorage.setItem("accessToken", token);
+    set({ accessToken: token });
+  },
+}));
