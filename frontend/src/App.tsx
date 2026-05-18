@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuthStore } from './store/authStore'; // Imported to check session state
 import './App.css';
 import Login from './pages/Login';
+import Register from './pages/Register';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -31,6 +32,7 @@ function App() {
           {/* Nested under PublicGate inline wrapper */}
           <Route element={<PublicGate />}>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
           </Route>
           <Route path="/"/>
         </Route>
