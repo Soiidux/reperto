@@ -6,6 +6,7 @@ import { useAuthStore } from './store/authStore'; // Imported to check session s
 import './App.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import FindDoctors from './pages/FindDoctors';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -34,6 +35,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
           </Route>
+          <Route path="/doctors" element={<FindDoctors/>}/>
           <Route path="/"/>
         </Route>
 
@@ -43,6 +45,7 @@ function App() {
           {/* 🔐 PATIENT WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["patient"]} />}>
             <Route path="/patient/dashboard" element={<PatientDashboard />} />
+            <Route path="/patient/doctors" element={<FindDoctors />} />
           </Route>
         
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}
