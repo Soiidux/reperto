@@ -50,13 +50,12 @@ const RegisterForm = () => {
   const onSubmit = async (formData: registerFormSchema) => {
     try {
       const response = await register(formData);
-      if (response.success) {
+      if (response.data.success) {
         toast.success("Registration successful! Please log in.");
-        navigate("/login");
-      }
+        navigate("/login");      }
       
     } catch (err: unknown) {
-      const serverErrorMessage = (err as any).response?.message || "Internal Server Error";
+      const serverErrorMessage = (err as any).response?.data.message || "Internal Server Error";
       toast.error(serverErrorMessage);
     }
   };

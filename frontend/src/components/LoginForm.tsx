@@ -24,14 +24,14 @@ const LoginForm = () => {
   const onSubmit = async (formData: loginFormSchema) => {
     try {
       const response = await login({ email: formData.email, password: formData.password });
-      if (response.success && response.data) {
-        const { user, accessToken } = response.data;
+      if (response.data.success && response.data.data) {
+        const { user, accessToken } = response.data.data;
         loginGlobal(user, accessToken);
         navigate(`/${user.role}/dashboard`);
         toast.success("Login successful");
       }
     } catch (err: unknown) {
-      const serverErrorMessage = (err as any).response?.message || "Invalid credentials. Please try again.";
+      const serverErrorMessage = (err as any).response?.data.message || "Invalid credentials. Please try again.";
       toast.error(serverErrorMessage);
     }
   };

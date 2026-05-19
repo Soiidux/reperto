@@ -29,7 +29,7 @@ const useDoctorStore = create<DoctorStore>((set) => ({
     try {
       set({ isLoading: true })
       const response = await getDoctors();
-      const doctors = response.data;
+      const doctors = response.data.data;
       set({ doctors, isLoading: false })
     } catch (error) {
       set({ error: 'Failed to fetch doctors', isLoading: false })
@@ -37,4 +37,4 @@ const useDoctorStore = create<DoctorStore>((set) => ({
   },
 }))
 
-export { useDoctorStore, Doctor };
+export { useDoctorStore, type Doctor };

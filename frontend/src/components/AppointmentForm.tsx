@@ -74,8 +74,8 @@ export default function AppointmentForm() {
       if (doctorId && appointmentDate && durationInMinutes) {
         async function fetchSlots() {
           const response = await getAvailableSlots(doctorId, appointmentDate, durationInMinutes)
-          if (response.success) {
-            setFreeSlots(response.data);
+          if (response.data.success) {
+            setFreeSlots(response.data.data);
           }
           setIsSlotsLoading(false);
         }

@@ -21,10 +21,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       const response = await logout();
-      if (response?.success) {
-        toast.success(response.message || "Logged out successfully!");
+      if (response?.data.success) {
+        toast.success(response.data.message || "Logged out successfully!");
       } else {
-        toast.error(response?.message || "Failed to disconnect cleanly.");
+        toast.error(response?.data.message || "Failed to disconnect cleanly.");
       }
     } catch (error) {
       toast.error("An unexpected error occurred during logout.");
