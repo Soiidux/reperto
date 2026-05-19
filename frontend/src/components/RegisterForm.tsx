@@ -32,32 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-
-const registerSchema = z.object({
-  name: z.string({message: "Name is required"}),
-  email: z.string({message: "Email is required"}).email({message: "Invalid email address"}),
-  password: z.string({message: "Password is required"}).min(8, {message: "Password must be at least 8 characters"}),
-  phone: z
-    .string({message: "Phone number is required"})
-    .length(10, {message: "Phone number must be exactly 10 digits"})
-    .regex(/^\d+$/, {message: "Phone number must contain only numbers"}),
-  gender: z.enum(["male", "female", "other"], {
-    message: "Please select a valid gender",
-  }),
-  dateOfBirth: z.string({message: "Date of birth is required"}),
-  bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"], {
-    message: "Please select a valid blood group",
-  }),
-});
-
-type FormSchema = z.infer<typeof registerSchema>;
-
+import type { registerFormSchema } from "@/lib/zodSchemas";
+import { registerSchema } from "@/lib/zodSchemas";
 const RegisterForm = () => {
   const {
     control,
     handleSubmit,
     formState: { isSubmitting },
-  } = useForm<FormSchema>({
+  } = useForm<registerFormSchema>({
     resolver: zodResolver(registerSchema),
   });
 
@@ -65,19 +47,16 @@ const RegisterForm = () => {
   const [open, setOpen] = useState(false);
 
 
-  const onSubmit = async (formData: FormSchema) => {
+  const onSubmit = async (formData: registerFormSchema) => {
     try {
       const response = await register(formData);
-      if (response.data.success) {
+      if (response.success) {
         toast.success("Registration successful! Please log in.");
         navigate("/login");
       }
       
     } catch (err: unknown) {
-      const serverErrorMessage =
-        err instanceof Error
-          ? err.message
-          : "Invalid credentials. Please try again.";
+      const serverErrorMessage = (err as any).response?.message || "Internal Server Error";
       toast.error(serverErrorMessage);
     }
   };
@@ -214,37 +193,59 @@ const RegisterForm = () => {
                   name="dateOfBirth"
                   control={control}
                   render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid} className="flex flex-col gap-1.5">
-                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Date of birth</FieldLabel>
+                    <Field
+                      data-invalid={fieldState.invalid}
+                      className="flex flex-col gap-1.5"
+                    >
+                      <FieldLabel
+                        className="font-semibold text-neutral-700"
+                        htmlFor={field.name}
+                      >
+                        Date of Birth
+                      </FieldLabel>
                       <Popover open={open} onOpenChange={setOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             id={field.name}
+                            type="button"
                             aria-invalid={fieldState.invalid}
                             className="w-full justify-start font-normal bg-transparent rounded-md border border-input text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
                           >
-                            {/* Controlled read: reads the string value currently saved in hook form state */}
                             {field.value ? field.value : <span className="text-muted-foreground">Select date</span>}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            // Controlled write: parses string back to date object for calendar visual initialization
-                            selected={field.value ? new Date(field.value) : undefined}
-                            defaultMonth={field.value ? new Date(field.value) : undefined}
+                            // Appends a safe local time string space so formatting parses the exact date typed
+                            selected={field.value ? new Date(`${field.value}T12:00:00`) : undefined}
+                            defaultMonth={field.value ? new Date(`${field.value}T12:00:00`) : undefined}
                             captionLayout="dropdown"
                             onSelect={(selectedDate) => {
-                              field.onChange(selectedDate ? selectedDate.toISOString().split("T")[0] : "");
+                              if (selectedDate) {
+                                // 🚀 Extract the year, month, and day based on the user's local timezone
+                                const year = selectedDate.getFullYear();
+                                const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+                                const day = String(selectedDate.getDate()).padStart(2, "0");
+                                
+                                field.onChange(`${year}-${month}-${day}`);
+                                setOpen(false); // Cleanly close popover overlay upon selection
+                              } else {
+                                field.onChange("");
+                              }
                             }}
-                            disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                            disabled={(date) =>
+                              date > new Date(new Date().setHours(0, 0, 0, 0)) || date < new Date("1900-01-01")
+                            }
                           />
                         </PopoverContent>
-                        </Popover>
-                        {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-                      </Field>
+                      </Popover>
+                      {fieldState.invalid && (
+                        <FieldError errors={[fieldState.error]} />
                       )}
+                    </Field>
+                  )}
                 />
                 <Controller
                   name="bloodGroup"

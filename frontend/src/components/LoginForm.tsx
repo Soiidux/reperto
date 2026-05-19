@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
@@ -9,17 +8,11 @@ import {login} from "@/api/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8,"Password must be at least 8 characters"),
-})
-
-
-type FormSchema = z.infer<typeof loginSchema>;
+import { loginSchema } from "@/lib/zodSchemas";
+import type { loginFormSchema } from "@/lib/zodSchemas";
 
 const LoginForm = () => {
-  const {control , handleSubmit, formState: { isSubmitting }} = useForm<FormSchema>({
+  const {control , handleSubmit, formState: { isSubmitting }} = useForm<loginFormSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
@@ -28,17 +21,17 @@ const LoginForm = () => {
   });
   const navigate = useNavigate();
   const loginGlobal = useAuthStore((state) => state.login);
-  const onSubmit = async (formData: FormSchema) => {
+  const onSubmit = async (formData: loginFormSchema) => {
     try {
       const response = await login({ email: formData.email, password: formData.password });
-      if (response.data.success && response.data.data) {
-        const { user, accessToken } = response.data.data;
+      if (response.success && response.data) {
+        const { user, accessToken } = response.data;
         loginGlobal(user, accessToken);
         navigate(`/${user.role}/dashboard`);
         toast.success("Login successful");
       }
     } catch (err: unknown) {
-      const serverErrorMessage = (err as any).response?.data?.message || "Invalid credentials. Please try again.";
+      const serverErrorMessage = (err as any).response?.message || "Invalid credentials. Please try again.";
       toast.error(serverErrorMessage);
     }
   };

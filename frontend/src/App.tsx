@@ -7,6 +7,7 @@ import './App.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import FindDoctors from './pages/FindDoctors';
+import BookAppointment from './pages/BookAppointment';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -46,6 +47,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={["patient"]} />}>
             <Route path="/patient/dashboard" element={<PatientDashboard />} />
             <Route path="/patient/doctors" element={<FindDoctors />} />
+            <Route path="/patient/book-appointment" element={<BookAppointment />} />
           </Route>
         
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}

@@ -1,25 +1,15 @@
 import API from "./axios";
 
-export const login = async (credentials: { email: string; password: string }) => {
-  return API.post("/auth/login", credentials);
+import type { loginFormSchema, registerFormSchema } from "@/lib/zodSchemas";
+export const login = async (data: loginFormSchema) => {
+  const response = await API.post("/auth/login", data);
+  return response.data;
 };
 
-type RegisterData = {
-  name: string;
-  email: string;
-  password: string;
-  phone: string;
-  gender: string;
-  dateOfBirth: string;
-  bloodGroup: string;
-}
-export const register = async (data: RegisterData) => {
-  return API.post("/auth/register", data);
-};
 
-export const refreshAccessToken = async (): Promise<{ accessToken: string }> => {
-  const response = await API.post('/auth/refresh');
-  return response.data.data.accessToken;
+export const register = async (data: registerFormSchema) => {
+  const response = await API.post("/auth/register", data);
+  return response.data;
 };
 
 export const logout = async () => {

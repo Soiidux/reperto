@@ -29,7 +29,7 @@ const menuConfigs = {
       url: "/patient/dashboard",
       icon: LayoutDashboard,
     },
-    { title: "Book Appointment", url: "/patient/book", icon: CalendarPlus },
+    { title: "Book Appointment", url: "/patient/book-appointment", icon: CalendarPlus },
     {
       title: "Upcoming Bookings",
       url: "/patient/appointments",

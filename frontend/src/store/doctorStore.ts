@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { getDoctors } from "@/api/user";
 
 interface Doctor {
-  id: string;
+  _id: string;
   name: string;
   profileImageUrl: string;
   doctorProfile: {
