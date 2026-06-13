@@ -8,6 +8,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import FindDoctors from './pages/FindDoctors';
 import BookAppointment from './pages/BookAppointment';
+import Appointments from './pages/Appointments';
+import AllAppointments from './pages/AllAppointments';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -48,11 +50,15 @@ function App() {
             <Route path="/patient/dashboard" element={<PatientDashboard />} />
             <Route path="/patient/doctors" element={<FindDoctors />} />
             <Route path="/patient/book-appointment" element={<BookAppointment />} />
+            <Route path="/patient/appointments" element={<Appointments />} />
+            <Route path="/patient/appointments/all" element={<AllAppointments />} />
           </Route>
         
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+            <Route path="/doctor/appointments" element={<Appointments />} />
+            <Route path="/doctor/appointments/all" element={<AllAppointments />} />
           </Route>
         </Route>
         {/* Catch-all Absolute Fallback for unexpected URLs */}

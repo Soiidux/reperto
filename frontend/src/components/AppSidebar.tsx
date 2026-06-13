@@ -31,7 +31,7 @@ const menuConfigs = {
     },
     { title: "Book Appointment", url: "/patient/book-appointment", icon: CalendarPlus },
     {
-      title: "Upcoming Bookings",
+      title: "Appointments",
       url: "/patient/appointments",
       icon: CalendarDays,
     },
@@ -51,7 +51,13 @@ const menuConfigs = {
     },
     { title: "Active Consultation", url: "/doctor/consult", icon: Stethoscope },
     { title: "Patient Directory", url: "/doctor/patients", icon: Users },
-    { title: "Past Appointments", url: "/doctor/history", icon: History },
+    {
+      title: "Appointments",
+      url: "/doctor/appointments",
+      icon: CalendarDays,
+    },
+    { title: "Consultation History", url: "/doctor/history", icon: History },
+    { title: "Past Appointments", url: "/doctor/past-appointments", icon: History },
     {
       title: "Schedule Adjustments",
       url: "/doctor/schedule",
