@@ -17,6 +17,7 @@ import {
   UserSquare2,
   SlidersHorizontal,
   Users,
+  ClipboardList,
   CalendarOff,
   Stethoscope,
   Pill,
@@ -35,7 +36,7 @@ const menuConfigs = {
       url: "/patient/appointments",
       icon: CalendarDays,
     },
-    { title: "Consultation History", url: "/patient/history", icon: History },
+    { title: "Consultation History", url: `/patient/consultation/history/`, icon: History },
     { title: "Find Doctors", url: "/patient/doctors", icon: SlidersHorizontal },
     {
       title: "My Profile Settings",
@@ -49,6 +50,7 @@ const menuConfigs = {
       url: "/doctor/dashboard",
       icon: LayoutDashboard,
     },
+    { title: "Active Patients", url: "/doctor/active-patients", icon: ClipboardList },
     { title: "Active Consultation", url: "/doctor/consult", icon: Stethoscope },
     { title: "Patient Directory", url: "/doctor/patients", icon: Users },
     {

@@ -10,6 +10,10 @@ import FindDoctors from './pages/FindDoctors';
 import BookAppointment from './pages/BookAppointment';
 import Appointments from './pages/Appointments';
 import AllAppointments from './pages/AllAppointments';
+import TakeConsultation from './pages/TakeConsultation';
+import ViewAppointment from './pages/ViewAppointment';
+import ViewConsultation from './pages/ViewConsultation';
+import ConsultationHistory from './pages/ConsultationHistory';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -52,6 +56,9 @@ function App() {
             <Route path="/patient/book-appointment" element={<BookAppointment />} />
             <Route path="/patient/appointments" element={<Appointments />} />
             <Route path="/patient/appointments/all" element={<AllAppointments />} />
+            <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
+            <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
+            <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
           </Route>
         
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}
@@ -59,6 +66,11 @@ function App() {
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
             <Route path="/doctor/appointments" element={<Appointments />} />
             <Route path="/doctor/appointments/all" element={<AllAppointments />} />
+            <Route path="/doctor/appointments/:id" element={<ViewAppointment />} />
+            <Route path="/doctor/start-consultation/:id" element={<TakeConsultation />} />
+            <Route path="/doctor/consultation/:id" element={<ViewConsultation />} />
+            <Route path="/doctor/consultation/history/:patientId" element={<ConsultationHistory />} />
+            
           </Route>
         </Route>
         {/* Catch-all Absolute Fallback for unexpected URLs */}

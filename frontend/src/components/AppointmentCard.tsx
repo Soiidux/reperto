@@ -1,11 +1,10 @@
 import { Calendar as CalendarIcon, Clock, User, Hourglass, Hand, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card"; // Adjust paths to your primitives
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"; // Adjust paths to your primitives
 import { Badge } from "@/components/ui/badge";
 import getAge from "@/utils/getAge";
-import { get } from "react-hook-form";
-
-// import { Button } from "@/components/ui/button";
-
+import { Link } from "react-router-dom";
+import { Button } from "./ui/button";
+import { useAuthStore } from "@/store/authStore";
 const statusStyles: Record<string, { label: string; variantClass: string }> = {
   pending: { label: "Pending", variantClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50" },
   arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
@@ -36,7 +35,7 @@ interface AppointmentCardProps {
 }
 export default function AppointmentCard({ _id, patientId, doctorId, appointmentDate, timeSlot, durationInMinutes, status, consultationType }: AppointmentCardProps) {
   const currentStatus = statusStyles[status] || statusStyles.pending;
-  
+  const { user } = useAuthStore();
   // Clean string formatter for human-readable Indian local timeline presentation
   const formattedDate = new Date(appointmentDate).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -166,9 +165,20 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
 
         </div>
       </CardContent>
-
-      {/* Card Footer: Contextual Patient Cancellation Actions */}
-      
+      <CardFooter className="flex gap-2 justify-between items-center">
+        <Button variant="default"><Link to={`/${user.role}/appointments/${_id}`}>View Details</Link></Button>
+        {/* Card Footer: Contextual Patient Cancellation Actions */}
+        {status === "pending" && user?.role === "patient" && (
+          <Button variant="destructive">Cancel Appointment</Button>
+        )}
+        {status === "pending" && user?.role === "doctor" && (
+          <Button variant="outline"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>
+        )}
+        {status === "completed" && (
+          <Button variant="default"><Link to={`/${user.role}/consultation/${_id}`}>View Consultation</Link></Button>
+        )}
+        
+      </CardFooter>
     </Card>
   );
 }

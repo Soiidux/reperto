@@ -23,6 +23,16 @@ export const getAllAppointments = async () => {
   return response;
 };
 
+export const getAppointmentById = async (id: string) => {
+  const response = await API.get(`/appointment/${id}`);
+  return response;
+};
+
+export const getArrivedAppointments = async () => {
+  const response = await API.get("/appointment/arrived");
+  return response;
+};
+
 export const bookAppointment = async (data: appointmentFormSchema) => {
   return await API.post("/appointment/", data);
 };
