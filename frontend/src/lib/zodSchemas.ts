@@ -117,7 +117,11 @@ export const consultationSchema = z.object({
   doctorNotes: z.string("Enter doctor notes").min(1, "Enter doctor notes"),
 });
 
+export const cancellationSchema = z.object({
+  reason: z.string().optional(),
+})
 export type appointmentFormSchema = z.infer<typeof appointmentSchema>;
 export type loginFormSchema = z.infer<typeof loginSchema>;
 export type registerFormSchema = z.infer<typeof registerSchema>;
 export type consultationFormSchema = z.infer<typeof consultationSchema>;
+export type cancellationFormSchema = z.infer<typeof cancellationSchema>;

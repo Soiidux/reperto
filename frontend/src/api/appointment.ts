@@ -36,3 +36,7 @@ export const getArrivedAppointments = async () => {
 export const bookAppointment = async (data: appointmentFormSchema) => {
   return await API.post("/appointment/", data);
 };
+
+export const updateAppointmentStatus = async (id: string, data: {status: string, cancellationReason: string | undefined}) => {
+  return await API.patch(`/appointment/${id}/status`, data);
+};

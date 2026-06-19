@@ -5,6 +5,7 @@ import getAge from "@/utils/getAge";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useAuthStore } from "@/store/authStore";
+import { CancellationButton } from "./CancellationButton";
 const statusStyles: Record<string, { label: string; variantClass: string }> = {
   pending: { label: "Pending", variantClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50" },
   arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
@@ -169,7 +170,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
         <Button variant="default"><Link to={`/${user.role}/appointments/${_id}`}>View Details</Link></Button>
         {/* Card Footer: Contextual Patient Cancellation Actions */}
         {status === "pending" && user?.role === "patient" && (
-          <Button variant="destructive">Cancel Appointment</Button>
+          <CancellationButton appointmentId={_id} />
         )}
         {status === "pending" && user?.role === "doctor" && (
           <Button variant="outline"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>

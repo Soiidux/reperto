@@ -21,6 +21,7 @@ import { getAppointmentById } from "@/api/appointment";
 import { Calendar,VenusAndMars, Clock, User, Hourglass, Hand, AlertCircle, NotepadText, CalendarClockIcon, LucideTimer, Pill, History, CheckCircle } from "lucide-react";
 import getAge from "@/utils/getAge";
 import { useAuthStore } from "@/store/authStore";
+import { CancellationButton } from "./CancellationButton";
 
 
 interface Appointment {
@@ -177,7 +178,7 @@ export default function AppointmentDetails() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="flex items-center justify-center w-32 h-32 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/50 text-neutral-600 dark:text-neutral-300">
                     <img
-                      src={doctor.profileImageUrl}
+                      src={doctor!.profileImageUrl}
                       alt="Doctor Profile"
                       className="w-full h-full object-cover rounded-lg"
                     />
@@ -190,7 +191,7 @@ export default function AppointmentDetails() {
                       Doctor Name
                     </span>
                     <span className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
-                      {doctor.name}
+                      {doctor!.name}
                     </span>
                   </div>
                 </div>
@@ -202,7 +203,7 @@ export default function AppointmentDetails() {
                       Date
                     </span>              
                     <span className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
-                      {new Date(appointmentDate).toLocaleDateString("en-IN", {
+                      {new Date(appointmentDate!).toLocaleDateString("en-IN", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",
@@ -251,7 +252,7 @@ export default function AppointmentDetails() {
                     </span>
               
                     <span className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                      {status.charAt(0).toUpperCase() + status!.slice(1)}
                     </span>
                   </div>
                 </div>
@@ -337,7 +338,7 @@ export default function AppointmentDetails() {
             
           </CardContent>
           <CardFooter className="flex justify-center items-center">
-          {status === "pending" && user.role === "patient" && <Button variant="destructive" className="font-medium text-lg">Cancel Appointment</Button>}
+          {status === "pending" && user.role === "patient" && <CancellationButton appointmentId={_id!} />}
           {status === "arrived" && user.role === "doctor" && <Button variant="default" className="font-medium text-lg"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>}
           {status === "completed" && (
             <Button variant="default"><Link to={`/${user.role}/consultation/${_id}`}>View Consultation</Link></Button>
