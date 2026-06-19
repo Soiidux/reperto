@@ -28,7 +28,8 @@ import { getAppointmentById } from "@/api/appointment";
 import { Calendar,VenusAndMars, Clock, User, Hourglass, Hand, AlertCircle, NotepadText, CalendarClockIcon, LucideTimer, Pill, History } from "lucide-react";
 import getAge from "@/utils/getAge";
 import { createConsultation } from "@/api/consultation";
-
+import { Link } from "react-router-dom";
+import { useAuthStore } from "@/store/authStore";
 type Prescription = {
   remedyName: string;
   potency: string | null;
@@ -69,6 +70,8 @@ interface Appointment {
 };
 
 export default function ConsultationForm() {
+  const { user } = useAuthStore();
+  
   const {
     control,
     handleSubmit,
@@ -160,8 +163,25 @@ export default function ConsultationForm() {
           <CardContent className="space-y-6">
             <FieldSeparator className="my-2 border-neutral-100" />
             <FieldSet className="space-y-4">
-              <FieldLegend className="text-lg font-bold text-primary border-b border-neutral-100 pb-1 w-full">
+              <FieldLegend className="flex items-center justify-between text-lg font-bold text-primary border-b border-neutral-100 pb-1 w-full">
                 Patient Information
+                {appointmentData && typeof appointmentData.patientId !== "string" && (
+                  <Link
+                    to={`/${user.role}/consultation/history/${appointmentData.patientId._id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+                      inline-flex items-center justify-center
+                      rounded-md px-4 py-2
+                      text-sm font-medium
+                      bg-primary text-primary-foreground
+                      hover:bg-primary/90
+                      transition-colors
+                    "
+                  >
+                    Consultation History
+                  </Link>
+                )}
               </FieldLegend>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Name */}
