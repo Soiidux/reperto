@@ -149,6 +149,56 @@ export const passwordSchema = z.object({
     .min(8, { message: "Password must be at least 8 characters" }),
 });
 
+export const createUserSchema = z.object({
+  name: z.string({ message: "Name is required" }).min(1, { message: "Name is required" }),
+  email: z
+    .string({ message: "Email is required" })
+    .email({ message: "Invalid email address" }),
+  password: z
+    .string({ message: "Password is required" })
+    .min(8, { message: "Password must be at least 8 characters" }),
+  phone: z
+    .string({ message: "Phone number is required" })
+    .length(10, { message: "Phone number must be exactly 10 digits" })
+    .regex(/^\d+$/, { message: "Phone number must contain only numbers" }),
+  gender: z.enum(["male", "female", "other"], {
+    message: "Please select a valid gender",
+  }),
+  dateOfBirth: z.string({ message: "Date of birth is required" }),
+  bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"], {
+    message: "Please select a valid blood group",
+  }),
+  role: z.enum(["patient", "doctor", "staff", "admin"], {
+    message: "Please select a valid role",
+  }),
+  doctorProfile: z
+    .object({
+      qualifications: z.array(z.string()).nullable().optional(),
+      experienceYears: z.number().nullable().optional(),
+      specializations: z.array(z.string()).nullable().optional(),
+      languagesSpoken: z.array(z.string()).nullable().optional(),
+      consultationFee: z.number().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const leaveSchema = z
+  .object({
+    type: z.enum(["full-day", "half-day", "emergency"], {
+      message: "Please select a leave type",
+    }),
+    startingDate: z.string({ message: "Starting date is required" }).min(1, { message: "Starting date is required" }),
+    startingTime: z.string().optional(),
+    endingDate: z.string().optional(),
+    endingTime: z.string().optional(),
+    reason: z.string().optional(),
+  })
+  .refine(
+    (data) => !data.startingTime || !data.endingTime || data.startingTime <= data.endingTime,
+    { message: "Starting time cannot be after ending time", path: ["endingTime"] },
+  );
+
 export type appointmentFormSchema = z.infer<typeof appointmentSchema>;
 export type loginFormSchema = z.infer<typeof loginSchema>;
 export type registerFormSchema = z.infer<typeof registerSchema>;
@@ -157,3 +207,5 @@ export type cancellationFormSchema = z.infer<typeof cancellationSchema>;
 export type emailFormSchema = z.infer<typeof emailSchema>;
 export type phoneFormSchema = z.infer<typeof phoneSchema>;
 export type passwordFormSchema = z.infer<typeof passwordSchema>;
+export type createUserFormSchema = z.infer<typeof createUserSchema>;
+export type leaveFormSchema = z.infer<typeof leaveSchema>;

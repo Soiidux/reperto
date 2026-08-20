@@ -31,14 +31,11 @@ export default function AllAppointments() {
   const { user } = useAuthStore();
   
   useEffect(() => {
-    async function fetchAppointments() {
+    (async () => {
       const response = await getAllAppointments();
       setAppointments(response.data.data.appointments);
       setCount(response.data.data.count);
-      console.log("appointments", appointments);
-      console.log("count", count);
-    }
-    fetchAppointments();
+    })();
   }, []);
 
   return (

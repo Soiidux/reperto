@@ -5,7 +5,7 @@ export const login = async (data: loginFormSchema) => {
   return await API.post("/auth/login", data);;
 };
 
-export const register = async (data: registerFormSchema) => {
+export const register = async (data: registerFormSchema & { role?: string; doctorProfile?: unknown }) => {
   return await API.post("/auth/register", data);
 };
 

@@ -19,8 +19,8 @@ import {
   Users,
   ClipboardList,
   CalendarOff,
-  Stethoscope,
-  Pill,
+  FileClock,
+  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 const menuConfigs = {
@@ -51,21 +51,39 @@ const menuConfigs = {
       icon: LayoutDashboard,
     },
     { title: "Active Patients", url: "/doctor/active-patients", icon: ClipboardList },
-    { title: "Active Consultation", url: "/doctor/consult", icon: Stethoscope },
     { title: "Patient Directory", url: "/doctor/patients", icon: Users },
     {
       title: "Appointments",
       url: "/doctor/appointments",
       icon: CalendarDays,
     },
-    { title: "Consultation History", url: "/doctor/history", icon: History },
+    { title: "All Appointments", url: "/doctor/appointments/all", icon: FileClock },
     { title: "Past Appointments", url: "/doctor/past-appointments", icon: History },
     {
       title: "Schedule Adjustments",
       url: "/doctor/schedule",
       icon: CalendarOff,
     },
-    { title: "Remedy Inventory", url: "/doctor/inventory", icon: Pill },
+    { title: "Profile", url: "/doctor/profile", icon: UserSquare2 },
+  ],
+  admin: [
+    {
+      title: "Admin Dashboard",
+      url: "/admin/dashboard",
+      icon: ShieldCheck,
+    },
+  ],
+  staff: [
+    {
+      title: "Staff Dashboard",
+      url: "/staff/dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Appointments",
+      url: "/staff/appointments",
+      icon: CalendarDays,
+    },
   ],
 };
 
@@ -94,10 +112,10 @@ export default function AppSidebar() {
             {menu?.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <a href={item.url}>
+                  <Link to={item.url}>
                     <item.icon className="size-4" />
                     <span>{item.title}</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

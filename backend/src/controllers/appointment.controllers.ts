@@ -26,6 +26,43 @@ const forbiddenResponse: ApiResponse<null> = {
   data: null,
 };
 
+type PopulateSpec = { path: string; select: string };
+
+// Role-aware scope: patients see their own, doctors see theirs,
+// staff/admin can view everything with both sides populated.
+const getAppointmentScope = (req: Request): { query: Record<string, any>; populates: PopulateSpec[] } => {
+  const role = req.user.role;
+  if (role === "patient") {
+    return {
+      query: { patientId: req.user.id },
+      populates: [{ path: "doctorId", select: "name profileImageUrl" }],
+    };
+  }
+  if (role === "doctor") {
+    return {
+      query: { doctorId: req.user.id },
+      populates: [
+        { path: "patientId", select: "name profileImageUrl gender dateOfBirth" },
+      ],
+    };
+  }
+  return {
+    query: {},
+    populates: [
+      { path: "patientId", select: "name profileImageUrl gender dateOfBirth" },
+      { path: "doctorId", select: "name profileImageUrl" },
+    ],
+  };
+};
+
+const applyPopulates = (query: any, populates: PopulateSpec[]) => {
+  let q = query;
+  for (const spec of populates) {
+    q = q.populate(spec.path, spec.select);
+  }
+  return q;
+};
+
 export const bookAppointment = async (req: Request, res: Response) => {
   try {
     const {
@@ -139,32 +176,41 @@ export const bookAppointment = async (req: Request, res: Response) => {
 
 export const getAppointments = async (req: Request, res: Response) => {
   try {
-    const isDoctor = req.user.role === "doctor";
-    let query: any = isDoctor
-      ? { doctorId: req.user.id }
-      : { patientId: req.user.id };
+    const { query, populates } = getAppointmentScope(req);
 
-    const appointments = await Appointment.find(query)
-      .populate(
-        isDoctor ? "patientId" : "doctorId",
-        isDoctor
-          ? "name profileImageUrl gender dateOfBirth"
-          : "name profileImageUrl"
-      )
+    const { status } = req.query;
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 0;
+    const skip = (page - 1) * limit;
+
+    let appointmentQuery = applyPopulates(Appointment.find(query), populates)
       .sort({ appointmentDate: -1, createdAt: -1, timeSlot: 1 });
 
-    const appointmentsResponse: ApiResponse<{
-      count: number;
-      appointments: typeof appointments;
-    }> = {
+    const totalItems = await Appointment.countDocuments(query);
+    if (limit > 0) appointmentQuery = appointmentQuery.skip(skip).limit(limit);
+
+    const appointments = await appointmentQuery;
+    const totalPages = Math.ceil(totalItems / Math.max(limit, 1));
+
+    res.status(200).json({
       success: true,
       message: "All appointments",
       data: {
         count: appointments.length,
-        appointments: appointments,
+        appointments,
+        pagination: {
+          totalItems,
+          currentPage: page,
+          totalPages,
+          hasNextPage: limit > 0 && page < totalPages,
+          hasPrevPage: limit > 0 && page > 1,
+        },
       },
-    };
-    res.status(200).json(appointmentsResponse);
+    });
   } catch (error) {
     return res.status(500).json(InternalServerErrorResponse);
   }
@@ -204,20 +250,11 @@ export const getAppointment = async (req: Request, res: Response) => {
 
 export const getActiveAppointments = async (req: Request, res: Response) => {
   try {
-    const isDoctor = req.user.role === "doctor";
-    let query: any = isDoctor
-      ? { doctorId: req.user.id }
-      : { patientId: req.user.id };
+    const { query, populates } = getAppointmentScope(req);
 
     query.status = { $nin: ["completed", "cancelled", "no-show"] };
 
-    const appointments = await Appointment.find(query)
-      .populate(
-        isDoctor ? "patientId" : "doctorId",
-        isDoctor
-          ? "name profileImageUrl gender dateOfBirth"
-          : "name profileImageUrl",
-      )
+    const appointments = await applyPopulates(Appointment.find(query), populates)
       .sort({ appointmentDate: -1, timeSlot: 1 });
 
     const appointmentsResponse: ApiResponse<{
@@ -239,20 +276,11 @@ export const getActiveAppointments = async (req: Request, res: Response) => {
 
 export const getArrivedPatients = async (req: any, res: Response) => {
   try {
-    const isDoctor = req.user.role === "doctor";
-    let query: any = isDoctor
-      ? { doctorId: req.user.id }
-      : { patientId: req.user.id };
+    const { query, populates } = getAppointmentScope(req);
 
     query.status = "arrived";
 
-    const appointments = await Appointment.find(query)
-      .populate(
-        isDoctor ? "patientId" : "doctorId",
-        isDoctor
-          ? "name profileImageUrl gender dateOfBirth"
-          : "name profileImageUrl",
-      )
+    const appointments = await applyPopulates(Appointment.find(query), populates)
       .sort({ appointmentDate: -1, timeSlot: 1 });
 
     const appointmentsResponse: ApiResponse<{
@@ -274,8 +302,6 @@ export const getArrivedPatients = async (req: any, res: Response) => {
 
 export const getTodaysAppointments = async (req: any, res: Response) => {
   try {
-    const isDoctor = req.user.role === "doctor";
-
     // 1. Get the current time specifically in India Timezone
     const indiaTime = new Date(
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
@@ -295,18 +321,19 @@ export const getTodaysAppointments = async (req: any, res: Response) => {
       status: { $ne: "cancelled" }, // Doctors usually don't want to see cancelled slots in their active queue
     };
 
-    // Apply role-based filtering
-    if (isDoctor) {
+    const role = req.user.role;
+    if (role === "doctor") {
       query.doctorId = req.user.id;
-    } else {
+    } else if (role === "patient") {
       query.patientId = req.user.id;
     }
 
-    const appointments = await Appointment.find(query)
-      .populate(
-        isDoctor ? "patientId" : "doctorId",
-        "name email phone profileImageUrl gender dateOfBirth",
-      )
+    const populates: PopulateSpec[] =
+      role === "patient"
+        ? [{ path: "doctorId", select: "name profileImageUrl gender dateOfBirth" }]
+        : [{ path: "patientId", select: "name email phone profileImageUrl gender dateOfBirth" }];
+
+    const appointments = await applyPopulates(Appointment.find(query), populates)
       .sort({ timeSlot: 1 }); // Sorted by time for the daily schedule
 
     const response: ApiResponse<{

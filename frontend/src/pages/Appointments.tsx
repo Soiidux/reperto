@@ -30,14 +30,11 @@ export default function Appointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const { user } = useAuthStore();
   useEffect(() => {
-    async function fetchAppointments() {
+    (async () => {
       const response = await getActiveAppointments();
       setAppointments(response.data.data.appointments);
       setCount(response.data.data.count);
-      console.log("appointments", appointments);
-      console.log("count", count);
-    }
-    fetchAppointments();
+    })();
   }, []);
 
   return (

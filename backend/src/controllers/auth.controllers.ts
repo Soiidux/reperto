@@ -4,6 +4,7 @@ import RefreshToken from "../db/models/token.model"
 import bcrypt from "bcrypt";
 import { generateAccessToken, generateRefreshToken, validateAccessToken, getBearerToken} from "../utils/token";
 import { uploadToCloudinary } from "../utils/cloudinary";
+import { hashToken } from "../utils/tokenHash";
 
 
 const InternalServerErrorResponse : ApiResponse<null> = {
@@ -114,7 +115,7 @@ export const loginUser = async (req: Request, res: Response) => {
     
     await RefreshToken.create({
       userId: user._id,
-      token: refreshToken,
+      tokenHash: hashToken(refreshToken),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isRevoked: false,
     })
@@ -160,26 +161,57 @@ export const refreshAccessToken = async (req: Request, res: Response) => {
       }
       return res.status(401).json(unauthenticatedResponse);
     }
-    
-    const storedToken = await RefreshToken.findOne({ token: incomingRefreshToken, isRevoked: false });
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+
+    const incomingHash = hashToken(incomingRefreshToken);
+
+    const storedToken = await RefreshToken.findOne({ tokenHash: incomingHash, isRevoked: false });
+    if (!storedToken) {
+      // Token was not found among active sessions.
+      const tampered = await RefreshToken.findOne({ tokenHash: incomingHash });
+      if (tampered) {
+        // The token exists but is revoked: someone reused a rotated/revoked token.
+        // Treat as session theft: revoke every refresh token for that user.
+        await RefreshToken.updateMany({ userId: tampered.userId }, { isRevoked: true });
+        const reuseResponse = {
+          success: false,
+          message: "Session expired, please log in again",
+          data: null,
+        }
+        return res.status(401).json(reuseResponse);
+      }
       const invalidTokenResponse = {
         success: false,
-        message: "Refresh token has expired or is inavlid",
+        message: "Refresh token has expired or is invalid",
+        data: null,
+      }
+      return res.status(401).json(invalidTokenResponse);
+    }
+
+    if (storedToken.expiresAt < new Date()) {
+      const invalidTokenResponse = {
+        success: false,
+        message: "Refresh token has expired or is invalid",
         data: null,
       }
       return res.status(401).json(invalidTokenResponse);
     }
     
     const user = await User.findOne({ _id: storedToken.userId })
-    const newAccessToken = generateAccessToken(user!._id.toString(), user!.role);
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "Account is disabled or no longer exists",
+        data: null,
+      });
+    }
+    const newAccessToken = generateAccessToken(user._id.toString(), user.role);
 
     // Rotate the refresh token: revoke the old one and issue a fresh one
     await RefreshToken.updateOne({ _id: storedToken._id }, { isRevoked: true });
     const newRefreshToken = generateRefreshToken();
     await RefreshToken.create({
-      userId: user!._id,
-      token: newRefreshToken,
+      userId: user._id,
+      tokenHash: hashToken(newRefreshToken),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       isRevoked: false,
     });
@@ -205,7 +237,12 @@ export const refreshAccessToken = async (req: Request, res: Response) => {
 export const logoutUser = async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.cookies;
-    await RefreshToken.findOneAndUpdate({ token: refreshToken }, { isRevoked: true });
+    if (refreshToken) {
+      await RefreshToken.findOneAndUpdate(
+        { tokenHash: hashToken(refreshToken) },
+        { isRevoked: true },
+      );
+    }
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: false,

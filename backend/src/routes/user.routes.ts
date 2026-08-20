@@ -6,5 +6,5 @@ const router = Router();
 
 router.get("/me", protect, getMe);
 router.get("/doctors", getDoctors);
-router.get("/patients", protect, authorize("doctor"), getPatients);
+router.get("/patients", protect, authorize("doctor", "staff", "admin"), getPatients);
 export default router;

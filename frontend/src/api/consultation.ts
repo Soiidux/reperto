@@ -17,3 +17,15 @@ export const getPatientHistory = async (patientId: string) => {
   const response = await API.get(`/consultation/history/${patientId}`);
   return response;
 };
+
+
+export const getLatestConsultation = async (patientId: string) => {
+  const response = await API.get(`/consultation/latest/${patientId}`);
+  return response;
+};
+
+export const getPrescription = async (consultationId: string) => {
+  return await API.get(`/consultation/${consultationId}/prescription`, {
+    responseType: "blob",
+  });
+};

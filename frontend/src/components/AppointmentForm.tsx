@@ -39,7 +39,13 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 
-export default function AppointmentForm() {
+export default function AppointmentForm({
+  defaultDoctorId = "",
+  defaultType = "Initial",
+}: {
+  defaultDoctorId?: string;
+  defaultType?: appointmentFormSchema["consultationType"];
+}) {
   const {
     control,
     handleSubmit,
@@ -48,10 +54,10 @@ export default function AppointmentForm() {
   } = useForm<appointmentFormSchema>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
-      doctorId: "",
+      doctorId: defaultDoctorId,
       appointmentDate: "",
-      durationInMinutes: "30",
-      consultationType: "Initial",
+      durationInMinutes: defaultType === "Follow-up" ? "15" : "30",
+      consultationType: defaultType,
     },
   });
   const consultationType = useWatch({ control, name: "consultationType" });
@@ -71,23 +77,26 @@ export default function AppointmentForm() {
     }
   }, [consultationType, setValue]);
   useEffect(() => {
-    try {
-      if (doctorId && appointmentDate && durationInMinutes) {
-        async function fetchSlots() {
-          const response = await getAvailableSlots(doctorId, appointmentDate, durationInMinutes)
-          if (response.data.success) {
-            setFreeSlots(response.data.data);
-          }
-          setIsSlotsLoading(false);
-        }
-        fetchSlots();
-      }
-    } catch (error) {
-      console.error(error);
-      setFreeSlots([]);
-      setIsSlotsLoading(false);
+    let active = true;
+    if (doctorId && appointmentDate && durationInMinutes) {
+      getAvailableSlots(doctorId, appointmentDate, durationInMinutes)
+        .then((response) => {
+          if (!active) return;
+          setFreeSlots(response.data.success ? response.data.data : []);
+        })
+        .catch((error) => {
+          if (!active) return;
+          console.error(error);
+          setFreeSlots([]);
+        })
+        .finally(() => {
+          if (active) setIsSlotsLoading(false);
+        });
     }
-    }, [doctorId, appointmentDate, durationInMinutes]);
+    return () => {
+      active = false;
+    };
+  }, [doctorId, appointmentDate, durationInMinutes]);
   const onSubmit = async (formData: appointmentFormSchema) => {
     try {
       const response = await bookAppointment(formData);

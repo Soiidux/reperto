@@ -6,6 +6,7 @@ import userRoutes from "./routes/user.routes";
 import appointmentRoutes from "./routes/appointment.routes";
 import consultationRoutes from "./routes/consultation.routes";
 import leaveRoutes from "./routes/leave.routes";
+import adminRoutes from "./routes/admin.routes";
 const app = express();
 
 //Middlewares
@@ -24,6 +25,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/appointment", appointmentRoutes);
 app.use("/api/consultation", consultationRoutes);
 app.use("/api/leave", leaveRoutes);
+app.use("/api/admin", adminRoutes);
 
 
 export default app;

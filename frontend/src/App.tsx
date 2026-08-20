@@ -16,12 +16,20 @@ import ViewConsultation from './pages/ViewConsultation';
 import ConsultationHistory from './pages/ConsultationHistory';
 import ActivePatients from './pages/ActivePatients';
 import Profile from './pages/Profile';
+import PatientDirectory from './pages/PatientDirectory';
+import PastAppointments from './pages/PastAppointments';
+import Schedule from './pages/Schedule';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
 
 // Doctor Viewports
 import DoctorDashboard from '@/pages/DoctorDashboard';
+
+// Admin / Staff Viewports
+import AdminDashboard from '@/pages/AdminDashboard';
+import StaffDashboard from '@/pages/StaffDashboard';
+
 // 🚀 INLINE PUBLIC GATE DISPATCHER
 // Prevents authenticated users from seeing public entry forms
 const PublicGate = () => {
@@ -67,15 +75,34 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
             <Route path="/doctor/active-patients" element={<ActivePatients />} />
+            <Route path="/doctor/patients" element={<PatientDirectory />} />
             <Route path="/doctor/appointments" element={<Appointments />} />
             <Route path="/doctor/appointments/all" element={<AllAppointments />} />
             <Route path="/doctor/appointments/:id" element={<ViewAppointment />} />
+            <Route path="/doctor/past-appointments" element={<PastAppointments />} />
+            <Route path="/doctor/schedule" element={<Schedule />} />
             <Route path="/doctor/start-consultation/:id" element={<TakeConsultation />} />
             <Route path="/doctor/consultation/:id" element={<ViewConsultation />} />
             <Route path="/doctor/consultation/history/:patientId" element={<ConsultationHistory />} />
-            
+            <Route path="/doctor/profile" element={<Profile />} />
+          </Route>
+
+          {/* 🔐 ADMIN WORKSPACE ROUTE TREE */}
+          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          </Route>
+
+          {/* 🔐 STAFF WORKSPACE ROUTE TREE */}
+          <Route element={<ProtectedRoute allowedRoles={["staff"]} />}>
+            <Route path="/staff/dashboard" element={<StaffDashboard />} />
+            <Route path="/staff/appointments" element={<Appointments />} />
+            <Route path="/staff/appointments/all" element={<AllAppointments />} />
+            <Route path="/staff/appointments/:id" element={<ViewAppointment />} />
           </Route>
         </Route>
+
+        {/* Root redirects to the doctors directory for guests */}
+        <Route path="/" element={<Navigate to="/doctors" replace />} />
         {/* Catch-all Absolute Fallback for unexpected URLs */}
         <Route path="*" element={<Navigate to="/login" replace />} />
 

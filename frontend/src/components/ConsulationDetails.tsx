@@ -42,7 +42,12 @@ import {
 } from "lucide-react";
 
 import { getAppointmentById } from "@/api/appointment";
-import { getConsultation } from "@/api/consultation";
+import { getConsultation, getPrescription } from "@/api/consultation";
+import { useAuthStore } from "@/store/authStore";
+import { getErrorMessage } from "@/lib/utils";
+import { toast } from "sonner";
+import { Button } from "./ui/button";
+import { Link } from "react-router-dom";
 
 import getAge from "@/utils/getAge";
 
@@ -183,6 +188,26 @@ export default function ConsultationDetails() {
   const [consultationData, setConsultationData] =
     useState<Consultation>();
 
+  const { user } = useAuthStore();
+
+  const downloadPrescription = async () => {
+    if (!consultationData) return;
+    try {
+      const response = await getPrescription(consultationData._id);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("Prescription downloaded");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to download prescription"));
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
 
@@ -264,6 +289,19 @@ export default function ConsultationDetails() {
           <CardDescription className="text-center text-xl font-semibold">
             Appointment Id : {_id}
           </CardDescription>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={downloadPrescription}>
+              <FileText className="mr-2 size-4" /> Download Prescription
+            </Button>
+            {user?.role === "patient" && (
+              <Button size="sm">
+                <Link to={`/patient/book-appointment?doctorId=${doctor._id}&type=Follow-up`}>
+                  Book Follow-up
+                </Link>
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-8">

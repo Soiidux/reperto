@@ -79,6 +79,20 @@ export const addLeave = async (req: Request, res: Response) => {
   } 
 };
 
+export const getLeaves = async (req: Request, res: Response) => {
+  try {
+    const doctorId = req.user.id;
+    const leaves = await Leave.find({ doctorId }).sort({ startingDate: -1 });
+    return res.status(200).json({
+      success: true,
+      message: "Leave records fetched successfully",
+      data: leaves,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to fetch leave records" });
+  }
+};
+
 export const removeLeave = async (req: Request, res: Response) => {
   try {
     const { leaveId } = req.params;
