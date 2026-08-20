@@ -5,24 +5,25 @@ import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
 import appointmentRoutes from "./routes/appointment.routes";
 import consultationRoutes from "./routes/consultation.routes";
+import leaveRoutes from "./routes/leave.routes";
 const app = express();
 
 //Middlewares
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 
 //Routes 
-// // Add this right above app.use("/api/auth", authRoutes);
-app.post("/api/test", (req, res) => {
-    res.json({ message: "Post is working!" });
-});
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/appointment", appointmentRoutes);
 app.use("/api/consultation", consultationRoutes);
+app.use("/api/leave", leaveRoutes);
 
 
 export default app;

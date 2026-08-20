@@ -24,23 +24,13 @@ import { Input } from "./ui/input";
 import type { consultationFormSchema } from "@/lib/zodSchemas";
 import { consultationSchema } from "@/lib/zodSchemas";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils";
 import { getAppointmentById } from "@/api/appointment";
-import { Calendar,VenusAndMars, Clock, User, Hourglass, Hand, AlertCircle, NotepadText, CalendarClockIcon, LucideTimer, Pill, History } from "lucide-react";
+import { Calendar,VenusAndMars, Clock, User, Hourglass, NotepadText, CalendarClockIcon, LucideTimer, Pill, History } from "lucide-react";
 import getAge from "@/utils/getAge";
 import { createConsultation } from "@/api/consultation";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
-type Prescription = {
-  remedyName: string;
-  potency: string | null;
-  dosage: string;
-  durationInDays: number;
-};
-
-type FormValues = {
-  prescriptions: Prescription[];
-};
-
 interface Appointment {
   _id: string;
   patientId: {
@@ -107,6 +97,7 @@ export default function ConsultationForm() {
   useEffect(() => {
     try {
       const fetchAppointment = async () => {
+        if (!id) return;
         const response = await getAppointmentById(id);
         setAppointmentData(response.data.data);
         setValue("pastMedicalHistory", response.data.data.intakeDetails.pastMedicalHistory);
@@ -116,9 +107,9 @@ export default function ConsultationForm() {
       console.error(error);
     }
     }, [id, setValue]);
-  const onSubmit = async (formData: consultationFormSchema & { appointmentId: string }) => {
+  const onSubmit = async (formData: consultationFormSchema) => {
     try {
-      const response = await createConsultation({ ...formData, appointmentId: id });
+      const response = await createConsultation({ ...formData, appointmentId: id! });
       if (response.data.success) {
         toast.success("Appointment booked successfully!");
         navigate(`/doctor/appointments`);
@@ -126,7 +117,7 @@ export default function ConsultationForm() {
     } catch (err: unknown) {
       console.log("Raw submission rejection payload:", err); // 🚀 Add this!
       const serverErrorMessage =
-        (err as any)?.response?.data?.message || "Internal Server Error";
+        getErrorMessage(err, "Internal Server Error");
       toast.error(serverErrorMessage);
     }
   };
@@ -167,7 +158,7 @@ export default function ConsultationForm() {
                 Patient Information
                 {appointmentData && typeof appointmentData.patientId !== "string" && (
                   <Link
-                    to={`/${user.role}/consultation/history/${appointmentData.patientId._id}`}
+                    to={`/${user!.role}/consultation/history/${appointmentData.patientId._id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="
@@ -401,7 +392,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Head, Upper Abdomin, Lower Abdomin, Finger, etc."
                       />
@@ -429,7 +420,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Burning, Pricking, Stinging, Tearing, etc."
                       />
@@ -457,7 +448,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Bending, Walking, Standing, etc."
                       />
@@ -485,7 +476,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Pressure, warmth, lying down  etc."
                       />
@@ -513,7 +504,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Nausea, Pain, Vertigo, Heartburn etc."
                       />
@@ -542,7 +533,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="High BP, Virtigo, etc."
                       />
@@ -577,7 +568,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Hot, Ambithermal, Cold etc."
                       />
@@ -605,7 +596,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="1L, 2L, 1-2 Glasses etc."
                       />
@@ -633,7 +624,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Changes in appetite and cravings(like sweet,sour,savory,etc.)"
                       />
@@ -661,7 +652,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Quality of sleep(disturbed, sound), Types of dreams etc."
                       />
@@ -690,7 +681,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Mood, Nature, Weeps, Irritability, Anger, Anxiety etc."
                       />
@@ -719,7 +710,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Diabetes, Thyroid, Arthritis etc."
                       />
@@ -798,7 +789,7 @@ export default function ConsultationForm() {
                         </FieldLabel>
                         <Input
                           type="number"
-                          value={field.value}
+                          value={field.value ?? ""}
                           onChange={(e) =>
                             field.onChange(Number(e.target.value))
                           }
@@ -847,7 +838,7 @@ export default function ConsultationForm() {
                       <Textarea
                         id={field.name}
                         name={field.name}
-                        value={field.value}
+                        value={field.value ?? ""}
                         onChange={field.onChange}
                         placeholder="Patient Improvements, Remarks, Analysis on Medicine , Suggestions etc."
                       />

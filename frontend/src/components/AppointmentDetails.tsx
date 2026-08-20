@@ -7,18 +7,15 @@ import {
   CardTitle,
 } from "./ui/card";
 import {
-  FieldLabel,
-  Field,
-  FieldError,
   FieldSet,
   FieldLegend,
   FieldSeparator,
 } from "./ui/field";
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { useNavigate, useParams ,Link} from "react-router-dom";
+import { useParams ,Link} from "react-router-dom";
 import { getAppointmentById } from "@/api/appointment";
-import { Calendar,VenusAndMars, Clock, User, Hourglass, Hand, AlertCircle, NotepadText, CalendarClockIcon, LucideTimer, Pill, History, CheckCircle } from "lucide-react";
+import { Calendar,VenusAndMars, Clock, User, Hourglass, NotepadText, CalendarClockIcon, LucideTimer, Pill, History, CheckCircle } from "lucide-react";
 import getAge from "@/utils/getAge";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
@@ -53,13 +50,13 @@ interface Appointment {
 };
 
 export default function AppointmentDetails() {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [appointmentData, setAppointmentData] = useState<Appointment | undefined>(undefined);
   const { id } = useParams<{ id: string }>();
   useEffect(() => {
     try {
       const fetchAppointment = async () => {
+        if (!id) return;
         const response = await getAppointmentById(id);
         setAppointmentData(response.data.data);
         return;
@@ -69,7 +66,7 @@ export default function AppointmentDetails() {
       console.error(error);
     }
     }, [id]);
-  const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status, consultationType, intakeDetails, cancellationReason } = appointmentData || {};
+  const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status } = appointmentData || {};
   if (!appointmentData) {
     return (
       <div className="w-full max-w-5xl mx-auto p-4 md:p-6">
@@ -107,7 +104,7 @@ export default function AppointmentDetails() {
             <div className="flex items-center justify-center gap-3">
               <div className="flex items-center justify-center w-56 h-56 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/50 text-neutral-600 dark:text-neutral-300">
                   <img
-                    src={patient.profileImageUrl}
+                    src={patient?.profileImageUrl}
                     alt="Patient Profile"
                     className="w-full h-full object-cover rounded-lg"
                   />
@@ -252,7 +249,7 @@ export default function AppointmentDetails() {
                     </span>
               
                     <span className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
-                      {status.charAt(0).toUpperCase() + status!.slice(1)}
+                      {status ? status.charAt(0).toUpperCase() + status.slice(1) : ""}
                     </span>
                   </div>
                 </div>
@@ -338,10 +335,10 @@ export default function AppointmentDetails() {
             
           </CardContent>
           <CardFooter className="flex justify-center items-center">
-          {status === "pending" && user.role === "patient" && <CancellationButton appointmentId={_id!} />}
-          {status === "arrived" && user.role === "doctor" && <Button variant="default" className="font-medium text-lg"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>}
+          {status === "pending" && user!.role === "patient" && <CancellationButton appointmentId={_id!} />}
+          {status === "arrived" && user!.role === "doctor" && <Button variant="default" className="font-medium text-lg"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>}
           {status === "completed" && (
-            <Button variant="default"><Link to={`/${user.role}/consultation/${_id}`}>View Consultation</Link></Button>
+            <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
           )}
           </CardFooter>
       </Card>

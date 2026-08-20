@@ -71,7 +71,10 @@ export const addLeave = async (req: Request, res: Response) => {
     await leave.save();
     
     return res.status(201).json({ success: true, message: "Leave record added successfully" , data: leave });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, message: "A leave record already exists for this date." });
+    }
     return res.status(500).json({ success: false, message: "Failed to add leave record", error: error.message });
   } 
 };

@@ -31,7 +31,7 @@ const useDoctorStore = create<DoctorStore>((set) => ({
       const response = await getDoctors();
       const doctors = response.data.data;
       set({ doctors, isLoading: false })
-    } catch (error) {
+    } catch {
       set({ error: 'Failed to fetch doctors', isLoading: false })
     }
   },

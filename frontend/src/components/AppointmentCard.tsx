@@ -1,5 +1,5 @@
-import { Calendar as CalendarIcon, Clock, User, Hourglass, Hand, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"; // Adjust paths to your primitives
+import { Calendar as CalendarIcon, Clock, User, Hourglass, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardFooter } from "@/components/ui/card"; // Adjust paths to your primitives
 import { Badge } from "@/components/ui/badge";
 import getAge from "@/utils/getAge";
 import { Link } from "react-router-dom";
@@ -11,7 +11,7 @@ const statusStyles: Record<string, { label: string; variantClass: string }> = {
   arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
   completed: { label: "Completed", variantClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50" },
   cancelled: { label: "Cancelled", variantClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50" },
-  no_show: { label: "No Show", variantClass: "bg-neutral-100 text-neutral-600 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700" },
+  'no-show': { label: "No Show", variantClass: "bg-neutral-100 text-neutral-600 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700" },
 };
 
 interface AppointmentCardProps {
@@ -167,7 +167,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
         </div>
       </CardContent>
       <CardFooter className="flex gap-2 justify-between items-center">
-        <Button variant="default"><Link to={`/${user.role}/appointments/${_id}`}>View Details</Link></Button>
+        <Button variant="default"><Link to={`/${user!.role}/appointments/${_id}`}>View Details</Link></Button>
         {/* Card Footer: Contextual Patient Cancellation Actions */}
         {status === "pending" && user?.role === "patient" && (
           <CancellationButton appointmentId={_id} />
@@ -176,7 +176,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
           <Button variant="outline"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>
         )}
         {status === "completed" && (
-          <Button variant="default"><Link to={`/${user.role}/consultation/${_id}`}>View Consultation</Link></Button>
+          <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
         )}
         
       </CardFooter>

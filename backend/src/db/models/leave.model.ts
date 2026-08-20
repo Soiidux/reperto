@@ -22,6 +22,6 @@ const LeaveSchema: Schema = new Schema({
   reason: { type: String, required: true, default: "Personal Leave" },
 });
 
-LeaveSchema.index({ doctorId: 1, startingDate: 1, endingDate: 1 }, { unique: true });
+LeaveSchema.index({ doctorId: 1, startingDate: 1 }, { unique: true });
 
 export default mongoose.model<ILeave>('Leave', LeaveSchema);

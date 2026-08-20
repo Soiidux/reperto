@@ -120,8 +120,40 @@ export const consultationSchema = z.object({
 export const cancellationSchema = z.object({
   reason: z.string().optional(),
 })
+
+export const emailSchema = z.object({
+  email: z
+    .string({ message: "Email is required" })
+    .email({ message: "Invalid email address" }),
+  password: z
+    .string({ message: "Password is required" })
+    .min(8, { message: "Password must be at least 8 characters" }),
+});
+
+export const phoneSchema = z.object({
+  phone: z
+    .string({ message: "Phone number is required" })
+    .length(10, { message: "Phone number must be exactly 10 digits" })
+    .regex(/^\d+$/, { message: "Phone number must contain only numbers" }),
+  password: z
+    .string({ message: "Password is required" })
+    .min(8, { message: "Password must be at least 8 characters" }),
+});
+
+export const passwordSchema = z.object({
+  oldPassword: z
+    .string({ message: "Current password is required" })
+    .min(1, { message: "Current password is required" }),
+  newPassword: z
+    .string({ message: "New password is required" })
+    .min(8, { message: "Password must be at least 8 characters" }),
+});
+
 export type appointmentFormSchema = z.infer<typeof appointmentSchema>;
 export type loginFormSchema = z.infer<typeof loginSchema>;
 export type registerFormSchema = z.infer<typeof registerSchema>;
 export type consultationFormSchema = z.infer<typeof consultationSchema>;
 export type cancellationFormSchema = z.infer<typeof cancellationSchema>;
+export type emailFormSchema = z.infer<typeof emailSchema>;
+export type phoneFormSchema = z.infer<typeof phoneSchema>;
+export type passwordFormSchema = z.infer<typeof passwordSchema>;

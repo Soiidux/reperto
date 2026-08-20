@@ -8,6 +8,10 @@ export interface IPrescription {
   durationInDays: number;     // e.g., 15
 }
 
+export interface Modalities {
+  Aggravation: string;
+  Amlioration: string;
+}
 // 2. The Main Consultation Interface
 export interface IConsultation extends Document {
   appointmentId: mongoose.Types.ObjectId;
@@ -17,7 +21,7 @@ export interface IConsultation extends Document {
   chiefComplaintDetails: {
     location: string;
     sensation: string;
-    modalities: string;       // What makes it better or worse
+    modalities: Modalities;       // What makes it better or worse
     concomitants: string;     // Accompanying symptoms
   };
   
@@ -46,7 +50,10 @@ const ConsultationSchema: Schema = new Schema({
   chiefComplaintDetails: {
     location: { type: String, default: '' },
     sensation: { type: String, default: '' },
-    modalities: { type: String, default: '' },
+    modalities: {
+      Aggravation: { type: String, default: '' },
+      Amlioration: { type: String, default: '' }
+    },
     concomitants: { type: String, default: '' }
   },
 

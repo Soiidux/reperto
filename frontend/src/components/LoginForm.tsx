@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldGroup, FieldLabel, Field, FieldError } from "./ui/field";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import {login} from "@/api/auth";
+import { login } from "@/api/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils";
 import { loginSchema } from "@/lib/zodSchemas";
 import type { loginFormSchema } from "@/lib/zodSchemas";
 
@@ -31,7 +32,7 @@ const LoginForm = () => {
         toast.success("Login successful");
       }
     } catch (err: unknown) {
-      const serverErrorMessage = (err as any).response?.data.message || "Invalid credentials. Please try again.";
+      const serverErrorMessage = getErrorMessage(err, "Invalid credentials. Please try again.");
       toast.error(serverErrorMessage);
     }
   };

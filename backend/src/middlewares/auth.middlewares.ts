@@ -5,7 +5,7 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = getBearerToken(req);
     if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
+      return res.status(401).json({ message: 'Invalid token' });
     }
     const decoded = validateAccessToken(token);
     if (!decoded) {

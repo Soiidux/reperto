@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -25,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { register } from "@/api/auth";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -54,8 +54,8 @@ const RegisterForm = () => {
         toast.success("Registration successful! Please log in.");
         navigate("/login");      }
       
-    } catch (err: unknown) {
-      const serverErrorMessage = (err as any).response?.data.message || "Internal Server Error";
+} catch (err: unknown) {
+      const serverErrorMessage = getErrorMessage(err, "Registration failed. Please try again.");
       toast.error(serverErrorMessage);
     }
   };

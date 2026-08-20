@@ -14,6 +14,8 @@ import TakeConsultation from './pages/TakeConsultation';
 import ViewAppointment from './pages/ViewAppointment';
 import ViewConsultation from './pages/ViewConsultation';
 import ConsultationHistory from './pages/ConsultationHistory';
+import ActivePatients from './pages/ActivePatients';
+import Profile from './pages/Profile';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -43,7 +45,6 @@ function App() {
             <Route path="/register" element={<Register />} />
           </Route>
           <Route path="/doctors" element={<FindDoctors/>}/>
-          <Route path="/"/>
         </Route>
 
         {/* ================= SECURE DESKTOP APPLICATION SHELL (DashboardLayout) ================= */}
@@ -59,11 +60,13 @@ function App() {
             <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
             <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
             <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
+            <Route path="/patient/profile" element={<Profile />} />
           </Route>
         
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+            <Route path="/doctor/active-patients" element={<ActivePatients />} />
             <Route path="/doctor/appointments" element={<Appointments />} />
             <Route path="/doctor/appointments/all" element={<AllAppointments />} />
             <Route path="/doctor/appointments/:id" element={<ViewAppointment />} />

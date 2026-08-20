@@ -3,7 +3,6 @@ import {
   FileText,
   Pill,
   Stethoscope,
-  MapPin,
 } from "lucide-react";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";

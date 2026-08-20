@@ -2,7 +2,6 @@ import AppointmentCard from "@/components/AppointmentCard";
 import { getArrivedAppointments } from "@/api/appointment";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { useAuthStore } from "@/store/authStore";
 
 interface Appointment {
   _id: string;
@@ -33,8 +32,6 @@ export default function Appointments() {
       const response = await getArrivedAppointments();
       setAppointments(response.data.data.appointments);
       setCount(response.data.data.count);
-      console.log("appointments", appointments);
-      console.log("count", count);
     }
     fetchAppointments();
   }, []);

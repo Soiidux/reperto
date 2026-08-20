@@ -44,17 +44,17 @@ export const deleteMe = async (req: Request, res: Response) => {
 export const getDoctors = async (req: Request, res: Response) => {
   try {
     const { specialization, name} = req.query;
-    const query: any = { role: "doctor", isActive: "true" };
+    const query: any = { role: "doctor", isActive: true };
     if (specialization) query['doctorProfile.specializations'] = specialization;
     if (name) query.name = { $regex: name, $options: 'i' };
-    let doctors = await User.find(query).select('name profileImageUrl doctorProfile');
+    let doctors = await User.find(query).select('_id name profileImageUrl doctorProfile');
     res.status(200).json({ success: true, message: 'Doctors fetched', data: doctors });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: 'Internal server error', data: null });
   }
 };
 
-export const searchPatients = async (req: Request, res: Response) => {
+export const getPatients = async (req: Request, res: Response) => {
   try {
     // 1. Pagination Setup
     const page = Number(req.query.page) || 1;

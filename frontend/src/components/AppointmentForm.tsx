@@ -36,6 +36,7 @@ import type { appointmentFormSchema } from "@/lib/zodSchemas";
 import { appointmentSchema } from "@/lib/zodSchemas";
 import { bookAppointment } from "@/api/appointment";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 
 export default function AppointmentForm() {
@@ -92,12 +93,12 @@ export default function AppointmentForm() {
       const response = await bookAppointment(formData);
       if (response.data.success) {
         toast.success("Appointment booked successfully!");
-        navigate(`/${user.role}/dashboard`);
+        navigate(`/${user!.role}/dashboard`);
       }
       
     }catch (err: unknown) {
       console.log("Raw submission rejection payload:", err); // 🚀 Add this!
-      const serverErrorMessage = (err as any)?.response?.data?.message || "Internal Server Error";
+      const serverErrorMessage = getErrorMessage(err, "Internal Server Error");
       toast.error(serverErrorMessage);
     }
   };

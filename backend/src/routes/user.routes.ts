@@ -1,12 +1,10 @@
 import { Router } from "express";
-import { getMe } from "../controllers/user.controllers";
+import { getMe, getDoctors, getPatients } from "../controllers/user.controllers";
 import { protect, authorize } from "../middlewares/auth.middlewares";
 
 const router = Router();
 
 router.get("/me", protect, getMe);
-router.get("/doctor-test", protect, authorize("doctor"), (req, res) => {
-  res.json({ message: "Welcome, Doctor!" });
-});
-
+router.get("/doctors", getDoctors);
+router.get("/patients", protect, authorize("doctor"), getPatients);
 export default router;

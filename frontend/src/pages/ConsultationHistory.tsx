@@ -67,10 +67,10 @@ export default function ConsultationHistory() {
   }>();
   let patientId : string = ""
   
-  if(user.role === "patient") {
-    patientId = user.id;
-  } else if(user.role === "doctor") {
-    patientId = paramPatientId;
+  if(user!.role === "patient") {
+    patientId = user!.id;
+  } else if(user!.role === "doctor") {
+    patientId = paramPatientId || "";
   }
 
   const [count, setCount] =

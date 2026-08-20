@@ -71,7 +71,7 @@ const menuConfigs = {
 
 export default function AppSidebar() {
   const { user } = useAuthStore();
-  const menu = menuConfigs[user?.role];
+  const menu = menuConfigs[user?.role as keyof typeof menuConfigs];
 
   if (!user?.role || !menu) {
     return null;
