@@ -3,12 +3,7 @@ import PDFDocument from 'pdfkit';
 import Appointment from '../db/models/appointment.model';
 import Consultation from '../db/models/consultation.model';
 import User from '../db/models/user.model';
-
-const InternalServerErrorResponse : ApiResponse<null> = {
-  success: false,
-  message: "Internal server error",
-  data: null,
-};
+import { ApiError } from '../errors';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -17,171 +12,160 @@ const unauthorizedResponse: ApiResponse<null> = {
 };
 
 export const createConsultation = async (req: Request, res: Response) => {
-  try {
-    const {
-      appointmentId,
-      chiefComplaintDetails,
-      pastMedicalHistory,
-      physicalGenerals,
-      mentalGenerals,
-      diagnosis,
-      prescriptions,
-      doctorNotes
-    } = req.body;
-    
-    const appointment = await Appointment.findById(appointmentId);
-    
-    if (!appointment) {
-      const appointmentNotFound: ApiResponse<null> = {
-        success: false,
-        message: 'Appointment not found',
-        data: null
-      };
-      return res.status(404).json(appointmentNotFound);
-    }
-    
-    if (appointment.doctorId.toString() !== req.user.id) {
-      return res.status(403).json(unauthorizedResponse);
-    }
-    
-    const existingConsultation = await Consultation.findOne({ appointmentId });
-    
-    if (existingConsultation) {
-      const consultationExists: ApiResponse<null> = {
-        success: false,
-        message: 'Consultation already exists',
-        data: null
-      };
-      return res.status(400).json(consultationExists);
-    }
-    
-    const consultation = new Consultation({
-      appointmentId,
-      patientId: appointment.patientId,
-      doctorId: req.user.id,
-      chiefComplaintDetails,
-      pastMedicalHistory,
-      physicalGenerals,
-      mentalGenerals,
-      diagnosis,
-      prescriptions,
-      doctorNotes
-    });
-    
-    await consultation.save();
-    appointment.status = 'completed';
-    await appointment.save();
-    
-    const consultationCreated: ApiResponse<typeof consultation> = {
-      success: true,
-      message: 'Consultation created successfully',
-      data: consultation
+  const {
+    appointmentId,
+    chiefComplaintDetails,
+    pastMedicalHistory,
+    physicalGenerals,
+    mentalGenerals,
+    diagnosis,
+    prescriptions,
+    doctorNotes
+  } = req.body;
+  
+  const appointment = await Appointment.findById(appointmentId);
+  
+  if (!appointment) {
+    const appointmentNotFound: ApiResponse<null> = {
+      success: false,
+      message: 'Appointment not found',
+      data: null
     };
-    return res.status(201).json(consultationCreated);
-  } catch (error) {
-    return res.status(500).json(InternalServerErrorResponse);
+    return res.status(404).json(appointmentNotFound);
   }
+  
+  if (appointment.doctorId.toString() !== req.user.id) {
+    return res.status(403).json(unauthorizedResponse);
+  }
+  
+  const existingConsultation = await Consultation.findOne({ appointmentId });
+  
+  if (existingConsultation) {
+    const consultationExists: ApiResponse<null> = {
+      success: false,
+      message: 'Consultation already exists',
+      data: null
+    };
+    return res.status(400).json(consultationExists);
+  }
+  
+  const consultation = new Consultation({
+    appointmentId,
+    patientId: appointment.patientId,
+    doctorId: req.user.id,
+    chiefComplaintDetails,
+    pastMedicalHistory,
+    physicalGenerals,
+    mentalGenerals,
+    diagnosis,
+    prescriptions,
+    doctorNotes
+  });
+  
+  await consultation.save().catch((error: any) => {
+    if (error?.code === 11000) {
+      throw new ApiError(409, "Consultation already exists");
+    }
+    throw error;
+  });
+  appointment.status = 'completed';
+  await appointment.save();
+
+  const consultationCreated: ApiResponse<typeof consultation> = {
+    success: true,
+    message: 'Consultation created successfully',
+    data: consultation
+  };
+  return res.status(201).json(consultationCreated);
 };
 
 export const getPatientHistory = async (req: Request, res: Response) => {
-  try {
-    let patientId;
-    
-    if (req.user.role === 'patient') {
-      patientId = req.user.id;
-    } else {
-      const { patientId: paramPatientId } = req.params;
-      patientId = paramPatientId;
-    }
-    
-    const history = await Consultation.find({ patientId})
-      .populate('doctorId', 'name profileImageUrl')
-      .populate('patientId', 'name profileImageUrl')
-      .populate(
-        "appointmentId",
-        "appointmentDate consultationType"
-      )
-      .sort({ createdAt: -1 });
-    if(history.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'No completed consultations found for this patient.',
-        data: null
-      });
-    }
-    
-    const response: ApiResponse<{ count: number; history: typeof history }> = {
-      success: true,
-      message: 'Patient history retrieved successfully',
-      data: { count: history.length, history: history }
-    };
-    
-    return res.status(200).json(response);
-    
-  } catch (error) {
-    return res.status(500).json(InternalServerErrorResponse);
+  let patientId;
+  
+  if (req.user.role === 'patient') {
+    patientId = req.user.id;
+  } else {
+    const { patientId: paramPatientId } = req.params;
+    patientId = paramPatientId;
   }
+  
+  const history = await Consultation.find({ patientId})
+    .populate('doctorId', 'name profileImageUrl')
+    .populate('patientId', 'name profileImageUrl')
+    .populate(
+      "appointmentId",
+      "appointmentDate consultationType"
+    )
+    .sort({ createdAt: -1 });
+  if(history.length === 0) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'No completed consultations found for this patient.',
+      data: null
+    });
+  }
+  
+  const response: ApiResponse<{ count: number; history: typeof history }> = {
+    success: true,
+    message: 'Patient history retrieved successfully',
+    data: { count: history.length, history: history }
+  };
+  
+  return res.status(200).json(response);
+
 };
 
 export const getLatestConsultation = async (req: Request, res: Response) => {
-  try {
-    const { patientId } = req.params;
-    if (req.user.role === 'patient' && req.user.id !== patientId) {
-      return res.status(403).json(unauthorizedResponse);
-    }
-    const latest = await Consultation.findOne({ patientId })
-      .populate('doctorId', 'name profileImageUrl')
-      .sort({ createdAt: -1 })
-      .limit(1);
-
-    if (!latest) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'No completed consultations found for this patient.',
-        data: null
-      });
-    }
-    
-    const response: ApiResponse<typeof latest> = {
-      success: true,
-      message: 'Latest consultation retrieved successfully',
-      data: latest
-    };
-    res.status(200).json(response);
-  } catch (error: any) {
-    res.status(500).json(InternalServerErrorResponse);
+  const { patientId } = req.params;
+  if (req.user.role === 'patient' && req.user.id !== patientId) {
+    return res.status(403).json(unauthorizedResponse);
   }
+  const latest = await Consultation.findOne({ patientId })
+    .populate('doctorId', 'name profileImageUrl')
+    .sort({ createdAt: -1 })
+    .limit(1);
+
+  if (!latest) {
+    return res.status(404).json({ 
+      success: false, 
+      message: 'No completed consultations found for this patient.',
+      data: null
+    });
+  }
+  
+  const response: ApiResponse<typeof latest> = {
+    success: true,
+    message: 'Latest consultation retrieved successfully',
+    data: latest
+  };
+  res.status(200).json(response);
 };
 
 export const getConsultation = async (req: Request, res: Response) => {
-  try {
-    const { patientId, appointmentId } = req.query;
-    
-    if(req.user.role === 'patient' && req.user.id !== patientId) {
-      return res.status(403).json(unauthorizedResponse);
-    }
-    
-    //@ts-ignore
-    const consultation = await Consultation.findOne({appointmentId, patientId })
-      .populate('doctorId', 'name profileImageUrl');
-    
-    if (!consultation) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Requested completed consultation summary record could not be found.",
-        data: null
-      });
-    }
-    
-    const response: ApiResponse<typeof consultation> = {
-      success: true,
-      message: 'Consultation retrieved successfully',
-      data: consultation
-    };
-    res.status(200).json(response);
-  } catch (error: any) {
-    res.status(500).json(InternalServerErrorResponse);
+  const { patientId, appointmentId } = req.query;
+  
+  if(req.user.role === 'patient' && req.user.id !== patientId) {
+    return res.status(403).json(unauthorizedResponse);
   }
+  
+  //@ts-ignore
+  const consultation = await Consultation.findOne({appointmentId, patientId })
+    .populate('doctorId', 'name profileImageUrl');
+  
+  if (!consultation) {
+    return res.status(404).json({ 
+      success: false, 
+      message: "Requested completed consultation summary record could not be found.",
+      data: null
+    });
+  }
+  
+  const response: ApiResponse<typeof consultation> = {
+    success: true,
+    message: 'Consultation retrieved successfully',
+    data: consultation
+  };
+  res.status(200).json(response);
 };
 
 export const getPrescription = async (req: Request, res: Response) => {
@@ -303,9 +287,8 @@ export const getPrescription = async (req: Request, res: Response) => {
     doc.end();
   } catch (error) {
     if (!res.headersSent) {
-      res.status(500).json(InternalServerErrorResponse);
-    } else {
-      res.end();
+      throw error;
     }
+    res.end();
   }
 };

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import Leave from "../db/models/leave.model";
+import { ApiError } from "../errors";
 
 export const addLeave = async (req: Request, res: Response) => {
   try {
@@ -73,46 +74,38 @@ export const addLeave = async (req: Request, res: Response) => {
     return res.status(201).json({ success: true, message: "Leave record added successfully" , data: leave });
   } catch (error: any) {
     if (error?.code === 11000) {
-      return res.status(409).json({ success: false, message: "A leave record already exists for this date." });
+      throw new ApiError(409, "A leave record already exists for this date.");
     }
-    return res.status(500).json({ success: false, message: "Failed to add leave record", error: error.message });
-  } 
+    throw error;
+  }
 };
 
 export const getLeaves = async (req: Request, res: Response) => {
-  try {
-    const doctorId = req.user.id;
-    const leaves = await Leave.find({ doctorId }).sort({ startingDate: -1 });
-    return res.status(200).json({
-      success: true,
-      message: "Leave records fetched successfully",
-      data: leaves,
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: "Failed to fetch leave records" });
-  }
+  const doctorId = req.user.id;
+  const leaves = await Leave.find({ doctorId }).sort({ startingDate: -1 });
+  return res.status(200).json({
+    success: true,
+    message: "Leave records fetched successfully",
+    data: leaves,
+  });
 };
 
 export const removeLeave = async (req: Request, res: Response) => {
-  try {
-    const { leaveId } = req.params;
-    const doctorId = req.user.id;
+  const { leaveId } = req.params;
+  const doctorId = req.user.id;
 
-    // Ensure the leave belongs to the doctor trying to delete it
-    const leave = await Leave.findOneAndDelete({ _id: leaveId, doctorId });
+  // Ensure the leave belongs to the doctor trying to delete it
+  const leave = await Leave.findOneAndDelete({ _id: leaveId, doctorId });
 
-    if (!leave) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Leave record not found or unauthorized" 
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Leave removed successfully"
+  if (!leave) {
+    return res.status(404).json({ 
+      success: false, 
+      message: "Leave record not found or unauthorized" 
     });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Error removing leave" });
   }
+
+  res.status(200).json({
+    success: true,
+    message: "Leave removed successfully"
+  });
 };
