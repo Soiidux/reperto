@@ -12,13 +12,14 @@ import adminRoutes from "./routes/admin.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFound } from "./middlewares/notFound";
 import { globalLimiter } from "./middlewares/rateLimiters";
+import config from "./config";
 const app = express();
 
 //Middlewares
 app.use(helmet());
 app.use(globalLimiter);
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: config.clientOrigin,
   credentials: true,
 }));
 app.use(express.json({ limit: "50kb" }));

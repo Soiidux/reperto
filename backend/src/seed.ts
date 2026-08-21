@@ -9,8 +9,10 @@ const seed = async () => {
 
     const salt = await bcrypt.genSalt(10);
 
-    const adminPassword = await bcrypt.hash("Admin@123", salt);
-    const doctorPassword = await bcrypt.hash("Doctor@123", salt);
+    const adminPlainPassword = process.env.SEED_ADMIN_PASSWORD || "Admin@123";
+    const doctorPlainPassword = process.env.SEED_DOCTOR_PASSWORD || "Doctor@123";
+    const adminPassword = await bcrypt.hash(adminPlainPassword, salt);
+    const doctorPassword = await bcrypt.hash(doctorPlainPassword, salt);
 
     const admin = await User.findOneAndUpdate(
       { email: "admin@reperto.com" },
@@ -52,8 +54,8 @@ const seed = async () => {
     );
 
     console.log("Seed complete:");
-    console.log(`  Admin  -> admin@reperto.com / Admin@123 (${admin._id})`);
-    console.log(`  Doctor -> doctor@reperto.com / Doctor@123 (${doctor._id})`);
+    console.log(`  Admin  -> admin@reperto.com / ${adminPlainPassword} (${admin._id})`);
+    console.log(`  Doctor -> doctor@reperto.com / ${doctorPlainPassword} (${doctor._id})`);
   } catch (error) {
     console.error("Seeding failed:", error);
     process.exit(1);
