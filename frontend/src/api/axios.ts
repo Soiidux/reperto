@@ -1,20 +1,22 @@
-import axios from "axios";
-import { useAuthStore } from "@/store/authStore"; // Adjust path to your auth store
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { useAuthStore } from "@/store/authStore";
 
-// 🚀 CRITICAL: Create a separate, clean Axios instance purely for token refreshing.
-// This instance completely lacks the response interceptor, preventing infinite 401 loops!
+const baseURL =
+  (import.meta.env?.VITE_API_URL as string | undefined) ??
+  "http://localhost:5000/api";
+
+// Separate clean instance for token refreshing: no response interceptor,
+// so a failing refresh can never recurse into itself.
 const refreshInstance = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL,
   withCredentials: true,
 });
 
-// Your primary application client instance
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL,
   withCredentials: true,
 });
 
-// 1. Request Interceptor: Ensures the absolute freshest token is always injected
 API.interceptors.request.use(
   (config) => {
     const accessToken = useAuthStore.getState().accessToken;
@@ -26,45 +28,53 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 2. Response Interceptor: Handles automatic token regeneration loops cleanly
-API.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+// Refresh tokens rotate server-side: two parallel /auth/refresh calls would
+// invalidate each other's tokens and log the user out. Single-flight every
+// concurrent 401 through one shared promise instead.
+let refreshPromise: Promise<string> | null = null;
 
-    // Check for 401 status and confirm this exact request hasn't been re-attempted yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      console.log("401 Unauthorized captured. Attempting session token renewal...");
-      originalRequest._retry = true;
-
-      try {
-        // 🚀 Use the separate refresh instance to hit your token renewal route
-        const response = await refreshInstance.post("/auth/refresh");
-        
-        // Adjust destructuring depending on if your backend sends it inside response.data or response.data.data
+const refreshAccessToken = (): Promise<string> => {
+  if (!refreshPromise) {
+    refreshPromise = refreshInstance
+      .post("/auth/refresh")
+      .then((response) => {
         const accessToken = response.data?.data?.accessToken;
-        
         if (!accessToken) {
           throw new Error("No access token returned from rotation endpoint.");
         }
-
-        console.log("Token rotation successful. Updating store cache.");
-        
-        // Update your Zustand global state memory
         useAuthStore.getState().setToken(accessToken);
+        return accessToken as string;
+      })
+      .finally(() => {
+        // Clear the slot so the next expiry starts a fresh rotation
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
 
-        // Inject the freshly minted token explicitly into the re-attempt header
+type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
+
+API.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetriableRequest | undefined;
+
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/")
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        const accessToken = await refreshAccessToken();
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        
-        // Re-execute the original network request cleanly
         return API(originalRequest);
       } catch (refreshError) {
-        console.error("Refresh token has expired or is invalid. Evicting session:", refreshError);
-        
-        // Wipe local memory stores and bounce the client back to the login gateway
-        useAuthStore.getState().logout(); 
+        useAuthStore.getState().logout();
         window.location.href = "/login";
-        
         return Promise.reject(refreshError);
       }
     }
@@ -74,5 +84,3 @@ API.interceptors.response.use(
 );
 
 export default API;
-
-
