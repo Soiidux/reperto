@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import PDFDocument from 'pdfkit';
 import Appointment from '../db/models/appointment.model';
 import Consultation from '../db/models/consultation.model';
@@ -10,6 +11,9 @@ const unauthorizedResponse: ApiResponse<null> = {
   message: 'You are not authorized to view this.',
   data: null,
 };
+
+const isValidObjectId = (value: unknown): value is string =>
+  typeof value === 'string' && mongoose.isValidObjectId(value);
 
 export const createConsultation = async (req: Request, res: Response) => {
   const {
@@ -23,6 +27,10 @@ export const createConsultation = async (req: Request, res: Response) => {
     doctorNotes
   } = req.body;
   
+  if (!isValidObjectId(appointmentId)) {
+    throw new ApiError(400, 'Invalid appointment id');
+  }
+
   const appointment = await Appointment.findById(appointmentId);
   
   if (!appointment) {
@@ -36,6 +44,15 @@ export const createConsultation = async (req: Request, res: Response) => {
   
   if (appointment.doctorId.toString() !== req.user.id) {
     return res.status(403).json(unauthorizedResponse);
+  }
+
+  // Only document consultations for patients who actually checked in;
+  // pending/cancelled/no-show appointments have no consultable visit.
+  if (appointment.status !== 'arrived') {
+    throw new ApiError(
+      400,
+      `Consultations can only be created for arrived appointments (current status: ${appointment.status})`,
+    );
   }
   
   const existingConsultation = await Consultation.findOne({ appointmentId });
@@ -86,6 +103,17 @@ export const getPatientHistory = async (req: Request, res: Response) => {
     patientId = req.user.id;
   } else {
     const { patientId: paramPatientId } = req.params;
+    if (!isValidObjectId(paramPatientId)) {
+      throw new ApiError(400, 'Invalid patient id');
+    }
+    const patientExists = await User.exists({ _id: paramPatientId });
+    if (!patientExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Patient not found',
+        data: null,
+      });
+    }
     patientId = paramPatientId;
   }
   
@@ -120,6 +148,9 @@ export const getLatestConsultation = async (req: Request, res: Response) => {
   if (req.user.role === 'patient' && req.user.id !== patientId) {
     return res.status(403).json(unauthorizedResponse);
   }
+  if (!isValidObjectId(patientId)) {
+    throw new ApiError(400, 'Invalid patient id');
+  }
   const latest = await Consultation.findOne({ patientId })
     .populate('doctorId', 'name profileImageUrl')
     .sort({ createdAt: -1 })
@@ -147,8 +178,13 @@ export const getConsultation = async (req: Request, res: Response) => {
   if(req.user.role === 'patient' && req.user.id !== patientId) {
     return res.status(403).json(unauthorizedResponse);
   }
+
+  // Both filters are required; without them findOne({}) would scan the
+  // collection and leak an arbitrary record.
+  if (!isValidObjectId(patientId) || !isValidObjectId(appointmentId)) {
+    throw new ApiError(400, 'patientId and appointmentId query parameters are required');
+  }
   
-  //@ts-ignore
   const consultation = await Consultation.findOne({appointmentId, patientId })
     .populate('doctorId', 'name profileImageUrl');
   
