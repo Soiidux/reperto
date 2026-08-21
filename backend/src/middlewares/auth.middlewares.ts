@@ -1,24 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
+import User from '../db/models/user.model';
 import { getBearerToken, validateAccessToken } from '../utils/token';
 
-export const protect = (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const token = getBearerToken(req);
-    if (!token) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-    const decoded = validateAccessToken(token);
-    if (!decoded) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-    req.user = {
-      id: decoded.userId,
-      role: decoded.role,
-    };
-    next();
-  } catch (error) {
-    return res.status(500).json({ message: 'Internal server error' });
+export const protect = async (req: Request, res: Response, next: NextFunction) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Invalid token', data: null });
   }
+  const decoded = validateAccessToken(token);
+  if (!decoded) {
+    return res.status(401).json({ success: false, message: 'Invalid token', data: null });
+  }
+  // Re-check the account on every request so deactivated/deleted users
+  // lose access immediately instead of at token expiry
+  const user = await User.findById(decoded.userId).select('role isActive');
+  if (!user || !user.isActive) {
+    return res.status(401).json({ success: false, message: 'Account is disabled or no longer exists', data: null });
+  }
+  req.user = {
+    id: user._id.toString(),
+    role: user.role,
+  };
+  next();
 }
 
 

@@ -5,6 +5,14 @@ import bcrypt from "bcrypt";
 import { generateAccessToken, generateRefreshToken, validateAccessToken, getBearerToken} from "../utils/token";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { hashToken } from "../utils/tokenHash";
+import config from "../config";
+
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: config.isProd,
+  sameSite: "lax" as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 
 export const registerUser = async (req: Request, res: Response) => {
@@ -109,13 +117,8 @@ await RefreshToken.create({
   isRevoked: false,
 })
 
-//Set refresh token as cookie
-res.cookie("refreshToken", refreshToken, {
-  httpOnly: true,
-  secure: false,
-  sameSite: "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-});
+    //Set refresh token as cookie
+    res.cookie("refreshToken", refreshToken, refreshCookieOptions);
 
 //Send access token as response
 const successResponse: ApiResponse<LoginData> = {
@@ -199,12 +202,7 @@ tokenHash: hashToken(newRefreshToken),
 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 isRevoked: false,
 });
-res.cookie("refreshToken", newRefreshToken, {
-httpOnly: true,
-secure: false,
-sameSite: "lax",
-maxAge: 7 * 24 * 60 * 60 * 1000,
-});
+    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
 
 const response: ApiResponse<{ accessToken: string }> = {
 success: true,
@@ -222,11 +220,11 @@ await RefreshToken.findOneAndUpdate(
 { isRevoked: true },
 );
 }
-res.clearCookie("refreshToken", {
-httpOnly: true,
-secure: false,
-sameSite: "lax",
-})
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: config.isProd,
+      sameSite: "lax",
+    })
 const response: ApiResponse<null> = {
 success: true,
 message: "Logged out successfully",
