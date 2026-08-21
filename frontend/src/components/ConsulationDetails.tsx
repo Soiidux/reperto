@@ -210,6 +210,7 @@ export default function ConsultationDetails() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
     const fetchData = async () => {
       try {
@@ -219,6 +220,7 @@ export default function ConsultationDetails() {
         const appointment =
           appointmentResponse.data.data;
 
+        if (cancelled) return;
         setAppointmentData(appointment);
 
         const consultationResponse =
@@ -227,6 +229,7 @@ export default function ConsultationDetails() {
             id
           );
 
+        if (cancelled) return;
         setConsultationData(
           consultationResponse.data.data
         );
@@ -236,6 +239,9 @@ export default function ConsultationDetails() {
     };
 
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!appointmentData || !consultationData) {

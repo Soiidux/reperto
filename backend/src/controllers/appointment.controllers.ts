@@ -334,8 +334,16 @@ export const getAppointment = async (req: Request, res: Response) => {
       .json({ success: false, message: "Appointment not found", data: null });
   }
 
-  const isPatient = req.user.role === "patient" && appointment.patientId.toString() !== req.user.id;
-  const isDoctor = req.user.role === "doctor" && appointment.doctorId.toString() !== req.user.id;
+  // patientId/doctorId are populated above; compare their ids, not the
+  // documents themselves (a populated doc stringifies to "[object Object]")
+  const patientId = String(
+    (appointment.patientId as { _id?: unknown })?._id ?? appointment.patientId,
+  );
+  const doctorId = String(
+    (appointment.doctorId as { _id?: unknown })?._id ?? appointment.doctorId,
+  );
+  const isPatient = req.user.role === "patient" && patientId !== req.user.id;
+  const isDoctor = req.user.role === "doctor" && doctorId !== req.user.id;
   if (isPatient || isDoctor) {
     return res.status(403).json(forbiddenResponse);
   }

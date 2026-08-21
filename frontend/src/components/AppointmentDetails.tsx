@@ -19,6 +19,7 @@ import { Calendar,VenusAndMars, Clock, User, Hourglass, NotepadText, CalendarClo
 import getAge from "@/utils/getAge";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
+import { getErrorMessage } from "@/lib/utils";
 
 
 interface Appointment {
@@ -52,20 +53,24 @@ interface Appointment {
 export default function AppointmentDetails() {
   const { user } = useAuthStore();
   const [appointmentData, setAppointmentData] = useState<Appointment | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { id } = useParams<{ id: string }>();
   useEffect(() => {
-    try {
-      const fetchAppointment = async () => {
-        if (!id) return;
+    if (!id) return;
+    let cancelled = false;
+    const fetchAppointment = async () => {
+      try {
         const response = await getAppointmentById(id);
-        setAppointmentData(response.data.data);
-        return;
-      };
-      fetchAppointment();
-    } catch (error) {
-      console.error(error);
-    }
-    }, [id]);
+        if (!cancelled) setAppointmentData(response.data.data);
+      } catch (error) {
+        if (!cancelled) setLoadError(getErrorMessage(error, "Failed to load appointment details"));
+      }
+    };
+    fetchAppointment();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
   const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status } = appointmentData || {};
   if (!appointmentData) {
     return (
@@ -76,7 +81,7 @@ export default function AppointmentDetails() {
                 Appointment Details
               </CardTitle>
               <CardDescription className="text-center text-neutral-500">
-                Loading...
+                {loadError ?? "Loading..."}
               </CardDescription>
             </CardHeader>
         </Card>
