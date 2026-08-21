@@ -32,18 +32,12 @@ import { Textarea } from "./ui/textarea";
 import { Input } from "./ui/input";
 import { useDoctorStore } from "@/store/doctorStore";
 import { getAvailableSlots, bookAppointment } from "@/api/appointment";
-import { getPatients } from "@/api/user";
 import type { appointmentFormSchema } from "@/lib/zodSchemas";
 import { appointmentSchema } from "@/lib/zodSchemas";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-
-interface PatientOption {
-  _id: string;
-  name: string;
-  phone: string;
-}
+import PatientCombobox from "./PatientCombobox";
 
 export default function AppointmentForm({
   defaultDoctorId = "",
@@ -60,6 +54,8 @@ export default function AppointmentForm({
     control,
     handleSubmit,
     setValue,
+    setError,
+    clearErrors,
     formState: { isSubmitting },
   } = useForm<appointmentFormSchema>({
     resolver: zodResolver(appointmentSchema),
@@ -83,42 +79,6 @@ export default function AppointmentForm({
   const { user } = useAuthStore();
   const isStaffBooking = user?.role === "staff" || user?.role === "admin";
 
-  // Patient search state (staff/admin booking on behalf of a patient)
-  const [patientQuery, setPatientQuery] = useState("");
-  const [patientOptions, setPatientOptions] = useState<PatientOption[]>([]);
-  const [selectedPatientName, setSelectedPatientName] = useState(defaultPatientName);
-  const [isPatientSearchLoading, setIsPatientSearchLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isStaffBooking) return;
-    if (defaultPatientId && defaultPatientName) {
-      setPatientOptions([{ _id: defaultPatientId, name: defaultPatientName, phone: "" }]);
-    }
-  }, [isStaffBooking, defaultPatientId, defaultPatientName]);
-
-  useEffect(() => {
-    if (!isStaffBooking) return;
-    let active = true;
-    setIsPatientSearchLoading(true);
-    const timer = setTimeout(() => {
-      getPatients({ search: patientQuery || undefined, limit: 10 })
-        .then((response) => {
-          if (!active) return;
-          setPatientOptions(response.data.data ?? []);
-        })
-        .catch((error) => {
-          console.error(error);
-          if (active) setPatientOptions([]);
-        })
-        .finally(() => {
-          if (active) setIsPatientSearchLoading(false);
-        });
-    }, 300);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [patientQuery, isStaffBooking]);
   useEffect(() => {
     if (consultationType) {
       const duration = consultationType === "Initial" ? "30" : "15";
@@ -148,6 +108,7 @@ export default function AppointmentForm({
   }, [doctorId, appointmentDate, durationInMinutes]);
   const onSubmit = async (formData: appointmentFormSchema) => {
     if (isStaffBooking && !formData.patientId) {
+      setError("patientId", { message: "Select a patient" }, { shouldFocus: true });
       toast.error("Select a patient for this appointment");
       return;
     }
@@ -189,49 +150,31 @@ export default function AppointmentForm({
                   <Controller
                     name="patientId"
                     control={control}
-                    render={({ field }) => (
-                      <Field className="flex flex-col gap-1.5">
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="flex flex-col gap-1.5"
+                      >
                         <FieldLabel
                           className="font-semibold text-neutral-700"
-                          htmlFor="patient-search"
+                          htmlFor="patient-picker"
                         >
                           Patient
                         </FieldLabel>
-                        <Input
-                          id="patient-search"
-                          type="text"
-                          placeholder="Search by name, phone or email"
-                          value={patientQuery}
-                          onChange={(e) => setPatientQuery(e.target.value)}
-                          autoComplete="off"
-                        />
-                        <Select
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            const match = patientOptions.find((p) => p._id === value);
-                            setSelectedPatientName(match?.name ?? "");
+                        <PatientCombobox
+                          value={field.value}
+                          onChange={(patientId) => {
+                            field.onChange(patientId || undefined);
+                            if (patientId) clearErrors("patientId");
                           }}
-                          value={field.value || ""}
-                          disabled={isPatientSearchLoading || patientOptions.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue
-                              placeholder={
-                                isPatientSearchLoading
-                                  ? "Searching patients..."
-                                  : selectedPatientName || "Select patient"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {patientOptions.map((patient) => (
-                              <SelectItem key={patient._id} value={patient._id}>
-                                {patient.name}
-                                {patient.phone ? ` — ${patient.phone}` : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          preselectedName={
+                            defaultPatientId && defaultPatientName ? defaultPatientName : undefined
+                          }
+                          invalid={fieldState.invalid}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
                       </Field>
                     )}
                   />
