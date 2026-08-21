@@ -55,7 +55,7 @@ const AppointmentSchema = new Schema({
 AppointmentSchema.index({ doctorId: 1, appointmentDate: 1, timeSlot: 1 }, {
     unique: true,
     partialFilterExpression: {
-      status: { $in: ["pending", "confirmed", "completed", "no-show"] },
+      status: { $in: ["pending", "arrived", "completed", "no-show"] },
     },
   });
 AppointmentSchema.index({ patientId: 1, status: 1 });

@@ -23,6 +23,15 @@ const forbiddenResponse: ApiResponse<null> = {
 
 type PopulateSpec = { path: string; select: string };
 
+// Legal status transitions; terminal states allow nothing
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ["arrived", "completed", "cancelled", "no-show"],
+  arrived: ["completed", "cancelled", "no-show"],
+  completed: [],
+  cancelled: [],
+  "no-show": [],
+};
+
 // Role-aware scope: patients see their own, doctors see theirs,
 // staff/admin can view everything with both sides populated.
 const getAppointmentScope = (req: Request): { query: Record<string, any>; populates: PopulateSpec[] } => {
@@ -354,9 +363,10 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     return res.status(403).json(forbiddenResponse);
   }
 
-  // 3. Prevent logic errors (e.g., cancelling a completed appointment)
-  if (appointment.status !== "pending" && appointment.status !== "arrived") {
-    return res.status(400).json({ success: false, message: "Cannot update status of a completed or cancelled appointment", data: null });
+  // 3. Enforce the status workflow (e.g., no cancelling a completed appointment)
+  const allowedTargets = ALLOWED_TRANSITIONS[appointment.status] ?? [];
+  if (!allowedTargets.includes(status)) {
+    return res.status(400).json({ success: false, message: `Cannot move a ${appointment.status} appointment to ${status}`, data: null });
   }
 
   // 4. Update the fields
