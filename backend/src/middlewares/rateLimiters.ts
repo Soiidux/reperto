@@ -9,6 +9,8 @@ const tooManyRequests = (message: string) => ({
 const standardOptions = {
   standardHeaders: true,
   legacyHeaders: false,
+  // CORS preflights are browser-driven and must never count against limits
+  skip: (req: { method: string }) => req.method === "OPTIONS",
 };
 
 export const globalLimiter = rateLimit({

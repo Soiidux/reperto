@@ -15,12 +15,25 @@ import { globalLimiter } from "./middlewares/rateLimiters";
 import config from "./config";
 const app = express();
 
+// Trust exactly one proxy hop so req.ip (and rate limiting) reflect the
+// real client instead of the load balancer when deployed behind one.
+app.set("trust proxy", 1);
+
 //Middlewares
-app.use(helmet());
+// API server: no HTML is served, so CSP is disabled; CORP is relaxed so
+// cross-origin assets we serve (e.g. prescription PDFs) remain usable.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
 app.use(globalLimiter);
 app.use(cors({
   origin: config.clientOrigin,
   credentials: true,
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true, limit: "50kb" }));
