@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
 import authRoutes from "./routes/auth.routes";
@@ -10,15 +11,18 @@ import leaveRoutes from "./routes/leave.routes";
 import adminRoutes from "./routes/admin.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFound } from "./middlewares/notFound";
+import { globalLimiter } from "./middlewares/rateLimiters";
 const app = express();
 
 //Middlewares
+app.use(helmet());
+app.use(globalLimiter);
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50kb" }));
+app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 app.use(cookieParser());
 
 

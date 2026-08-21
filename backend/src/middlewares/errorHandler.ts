@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { MongoServerError } from "mongodb";
+import multer from "multer";
 import { ApiError } from "../errors";
 
 export const errorHandler = (
@@ -28,9 +29,25 @@ export const errorHandler = (
   ) {
     status = 409;
     message = "Duplicate resource conflict";
+  } else if (err instanceof multer.MulterError) {
+    status = 400;
+    message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "File too large (max 2 MB)"
+        : "File upload error";
   } else if (err instanceof SyntaxError && "body" in (err as object)) {
     status = 400;
     message = "Malformed JSON body";
+  } else if (
+    typeof (err as { statusCode?: unknown })?.statusCode === "number" &&
+    (err as { statusCode: number }).statusCode >= 400 &&
+    (err as { statusCode: number }).statusCode < 500
+  ) {
+    // body-parser and similar middleware errors carry a statusCode
+    const statusCode = (err as { statusCode: number }).statusCode;
+    status = statusCode;
+    message =
+      statusCode === 413 ? "Request payload too large" : "Invalid request";
   }
 
   if (status >= 500) {
