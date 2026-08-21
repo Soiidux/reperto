@@ -4,6 +4,12 @@ import User from "../db/models/user.model";
 import Leave from "../db/models/leave.model";
 import { MASTER_SLOTS } from "../constants/slots";
 import { ApiError } from "../errors";
+import {
+  getClinicTodayAnchor,
+  isClinicToday,
+  getClinicNowMinutes,
+  parseDateAnchor,
+} from "../utils/clinicDate";
 
 const timeToMinutes = (timeStr: string) => {
   const [time, modifier] = timeStr.split(" ");
@@ -19,6 +25,103 @@ const forbiddenResponse: ApiResponse<null> = {
   success: false,
   message: "You are not authorized to view this.",
   data: null,
+};
+
+// Shared availability helpers --------------------------------------------
+
+const getDayContext = async (doctorId: string, selectedDate: Date) => {
+  const blocks = await Leave.find({
+    doctorId,
+    startingDate: { $lte: selectedDate },
+    $or: [
+      { endingDate: { $gte: selectedDate } },
+      { endingDate: { $exists: false } },
+      { endingDate: null },
+    ],
+  });
+  // Cancelled appointments free their slot back up
+  const bookings = await Appointment.find({
+    doctorId,
+    appointmentDate: selectedDate,
+    status: { $ne: "cancelled" },
+  });
+  return { blocks, bookings };
+};
+
+const isSlotBlockedByLeave = (
+  blocks: any[],
+  selectedDate: Date,
+  slotStart: number,
+  slotEnd: number,
+): boolean => {
+  return blocks.some((block) => {
+    const currentDate = selectedDate.getTime();
+    const startDate = block.startingDate.getTime();
+    const endDate = block.endingDate ? block.endingDate.getTime() : startDate;
+
+    // CASE 1: Single Day Partial Leave (Starts and Ends Today)
+    if (currentDate === startDate && currentDate === endDate) {
+      const bStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
+      const bEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
+      return slotStart < bEnd && slotEnd > bStart;
+    }
+
+    // CASE 2: Starting Day of multiday leave
+    if (currentDate === startDate) {
+      const blockStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
+      return slotStart < 1440 && slotEnd > blockStart;
+    }
+    // CASE 3: Ending Day of multiday leave
+    if (block.endingDate && currentDate === endDate) {
+      const blockEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
+      return slotStart < blockEnd && slotEnd > 0;
+    }
+    // CASE 4: Multiday leave in the middle
+    if (currentDate > startDate && currentDate < endDate) return true;
+
+    return false;
+  });
+};
+
+const isSlotOverlappingBookings = (
+  bookings: { timeSlot: string; durationInMinutes: number }[],
+  slotStart: number,
+  slotEnd: number,
+): boolean => {
+  return bookings.some((booking) => {
+    const start = timeToMinutes(booking.timeSlot);
+    const end = start + Number(booking.durationInMinutes);
+    return slotStart < end && slotEnd > start;
+  });
+};
+
+/**
+ * Server-side enforcement of doctor availability at booking time.
+ * Availability shown by getAvailableSlots and enforced here share
+ * the same logic, so a blocked slot can never be booked.
+ */
+const assertSlotAvailable = async (
+  doctorId: string,
+  selectedDate: Date,
+  timeSlot: string,
+  durationInMinutes: number,
+): Promise<void> => {
+  const { blocks, bookings } = await getDayContext(doctorId, selectedDate);
+
+  if (blocks.some((b) => b.type === "full-day")) {
+    throw new ApiError(400, "Doctor is on leave on the selected date");
+  }
+
+  const slotStart = timeToMinutes(timeSlot);
+  const slotEnd = slotStart + durationInMinutes;
+
+  if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
+    throw new ApiError(400, "Doctor is unavailable during the selected time");
+  }
+
+  if (isSlotOverlappingBookings(bookings, slotStart, slotEnd)) {
+    throw new ApiError(400, "Selected time overlaps with an existing appointment");
+  }
 };
 
 type PopulateSpec = { path: string; select: string };
@@ -103,18 +206,18 @@ export const bookAppointment = async (req: Request, res: Response) => {
     return res.status(404).json(doctorNotFoundResponse);
   }
 
-  const [year, month, day] = appointmentDate.split("-").map(Number);
-  const selectedDate = new Date(Date.UTC(year, month - 1, day));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (selectedDate < today) {
-    const pastDateResponse: ApiResponse<null> = {
-      success: false,
-      message: "Selected date cannot be in the past",
-      data: null,
-    };
-    return res.status(400).json(pastDateResponse);
-  }
+    const selectedDate = parseDateAnchor(appointmentDate);
+    if (!selectedDate) {
+      throw new ApiError(400, "Invalid appointment date format");
+    }
+    if (selectedDate < getClinicTodayAnchor()) {
+      const pastDateResponse: ApiResponse<null> = {
+        success: false,
+        message: "Selected date cannot be in the past",
+        data: null,
+      };
+      return res.status(400).json(pastDateResponse);
+    }
 
   const alreadyBookedToday = await Appointment.findOne({
     patientId: req.user.id,
@@ -136,14 +239,22 @@ export const bookAppointment = async (req: Request, res: Response) => {
     timeSlot,
     status: { $ne: "cancelled" },
   });
-  if (existingAppointment) {
-    const existingAppointmentResponse: ApiResponse<null> = {
-      success: false,
-      message: "Selected time slot is already booked",
-      data: null,
-    };
-    return res.status(400).json(existingAppointmentResponse);
-  }
+    if (existingAppointment) {
+      const existingAppointmentResponse: ApiResponse<null> = {
+        success: false,
+        message: "Selected time slot is already booked",
+        data: null,
+      };
+      return res.status(400).json(existingAppointmentResponse);
+    }
+
+    // Enforce doctor leave and overlap rules server-side
+    await assertSlotAvailable(
+      doctorId,
+      selectedDate,
+      timeSlot,
+      Number(durationInMinutes),
+    );
 
   const newAppointment = new Appointment({
     patientId: req.user.id,
@@ -282,19 +393,8 @@ export const getArrivedPatients = async (req: any, res: Response) => {
 };
 
 export const getTodaysAppointments = async (req: any, res: Response) => {
-  // 1. Get the current time specifically in India Timezone
-  const indiaTime = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
-  );
-
-  // 2. Create the anchor using India's current Day, Month, and Year
-  const todayAnchor = new Date(
-    Date.UTC(
-      indiaTime.getFullYear(),
-      indiaTime.getMonth(),
-      indiaTime.getDate(),
-    ),
-  );
+  // Anchor "today" to the clinic timezone, stored as UTC midnight
+  const todayAnchor = getClinicTodayAnchor();
 
   const query: any = {
     appointmentDate: todayAnchor,
@@ -373,14 +473,9 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   appointment.status = status;
 
   if (status === "cancelled") {
-    const now = new Date();
     const selectedDate = new Date(appointment.appointmentDate);
-    const isToday =
-      selectedDate.getUTCDate() === now.getUTCDate() &&
-      selectedDate.getUTCMonth() === now.getUTCMonth() &&
-      selectedDate.getUTCFullYear() === now.getUTCFullYear();
-    if (isPatient && isToday) {
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    if (isPatient && isClinicToday(selectedDate)) {
+      const nowMinutes = getClinicNowMinutes();
       const timeSlotMinutes = timeToMinutes(appointment.timeSlot);
 
       const differenceInMinutes = timeSlotMinutes - nowMinutes;
@@ -410,22 +505,23 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
 
 export const getAvailableSlots = async (req: Request, res: Response) => {
   const { doctorId, date, durationInMinutes = 15 } = req.query;
+
+  if (!doctorId || typeof doctorId !== "string") {
+    throw new ApiError(400, "doctorId query parameter is required");
+  }
+  if (!date || typeof date !== "string") {
+    throw new ApiError(400, "date query parameter is required");
+  }
+  const selectedDate = parseDateAnchor(date);
+  if (!selectedDate) {
+    throw new ApiError(400, "Invalid date format, expected YYYY-MM-DD");
+  }
   const duration = Number(durationInMinutes);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new ApiError(400, "Invalid duration");
+  }
 
-  const [year, month, day] = (date as string).split("-").map(Number);
-  const selectedDate = new Date(Date.UTC(year, month - 1, day));
-  const now = new Date(); // Current time
-
-  //All blocked slots
-  const blocks = await Leave.find({
-    doctorId: doctorId as string,
-    startingDate: { $lte: selectedDate },
-    $or: [
-      { endingDate: { $gte: selectedDate } },
-      { endingDate: { $exists: false } },
-      { endingDate: null },
-    ],
-  });
+  const { blocks, bookings } = await getDayContext(doctorId, selectedDate);
 
   if (blocks.some((b) => b.type === "full-day")) {
     const fullDayLeaveResponse: ApiResponse<null> = {
@@ -435,81 +531,21 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     };
     return res.json(fullDayLeaveResponse);
   }
-  // 1. Get all booked appointments for the day (including cancelled - cancelled slots should be freed up)
-  // @ts-ignore
-  const bookings = await Appointment.find({
-    doctorId: doctorId as string,
-    appointmentDate: selectedDate,
-    status: { $ne: "cancelled" },
-  });
 
-  // 2. Map bookings to their numeric start and end times
-  const busyPeriods = bookings.map((booking) => {
-    const start = timeToMinutes(booking.timeSlot);
-    return { start, end: start + Number(booking.durationInMinutes) };
-  });
-
-  // 3. Check each Master Slot to see if it's a valid starting point
+  // Check each Master Slot to see if it's a valid starting point
   const availableSlots = MASTER_SLOTS.filter((slot) => {
     const slotStart = timeToMinutes(slot);
     const slotEnd = slotStart + duration;
 
-    const isToday =
-      selectedDate.getUTCDate() === now.getUTCDate() &&
-      selectedDate.getUTCMonth() === now.getUTCMonth() &&
-      selectedDate.getUTCFullYear() === now.getUTCFullYear();
-
-    if (isToday) {
-      const totalMinutesNow = now.getHours() * 60 + now.getMinutes();
-      if (slotStart < totalMinutesNow + 15) return false;
+    if (isClinicToday(selectedDate)) {
+      if (slotStart < getClinicNowMinutes() + 15) return false;
     }
 
-    const isBlockedByLeave = blocks.some((block) => {
-      const currentDate = selectedDate.getTime();
-      const startDate = block.startingDate.getTime();
-      const endDate = block.endingDate
-        ? block.endingDate.getTime()
-        : startDate;
-
-      // CASE 1: Single Day Partial Leave (Starts and Ends Today)
-      if (currentDate === startDate && currentDate === endDate) {
-        const bStart = block.startingTime
-          ? timeToMinutes(block.startingTime)
-          : 0;
-        const bEnd = block.endingTime
-          ? timeToMinutes(block.endingTime)
-          : 1440;
-        return slotStart < bEnd && slotEnd > bStart;
-      }
-
-      // CASE 2: Starting Day of multiday leave
-      if (currentDate === startDate) {
-        const blockStart = block.startingTime
-          ? timeToMinutes(block.startingTime)
-          : 0;
-        return slotStart < 1440 && slotEnd > blockStart;
-      }
-      // CASE 3: Ending Day of multiday leave
-      if (block.endingDate && currentDate === endDate) {
-        const blockEnd = block.endingTime
-          ? timeToMinutes(block.endingTime)
-          : 1440;
-        return slotStart < blockEnd && slotEnd > 0;
-      }
-      // CASE 4: Multiday leave in the middle
-      if (currentDate > startDate && currentDate < endDate) return true;
-
+    if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
       return false;
-    });
+    }
 
-    if (isBlockedByLeave) return false;
-
-    // Check if this new "potential" block overlaps with ANY busy period
-    const isOverlapping = busyPeriods.some((busy) => {
-      return slotStart < busy.end && slotEnd > busy.start;
-    });
-
-    return !isOverlapping;
+    return !isSlotOverlappingBookings(bookings, slotStart, slotEnd);
   });
 
   const availableSlotsResponse: ApiResponse<typeof availableSlots> = {

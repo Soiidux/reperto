@@ -1,16 +1,17 @@
 import { Request, Response } from 'express';
 import Leave from "../db/models/leave.model";
 import { ApiError } from "../errors";
+import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
 
 export const addLeave = async (req: Request, res: Response) => {
   try {
     const { type, startingDate, startingTime, endingDate, endingTime, reason } = req.body;
     const doctorId = req.user.id;
-    let [year, month, day] = startingDate.split("-").map(Number);
-    const normalizedStart = new Date(Date.UTC(year, month - 1, day));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (normalizedStart < today) {
+    const normalizedStart = parseDateAnchor(startingDate);
+    if (!normalizedStart) {
+      throw new ApiError(400, "Invalid starting date format");
+    }
+    if (normalizedStart < getClinicTodayAnchor()) {
         return res
           .status(400)
           .json({ message: "Selected date cannot be in the past" });
@@ -19,8 +20,10 @@ export const addLeave = async (req: Request, res: Response) => {
     let normalizedEnd: Date = null;
     
     if(endingDate) {
-        [year, month, day] = endingDate.split("-").map(Number);
-        normalizedEnd = new Date(Date.UTC(year, month - 1, day));
+        normalizedEnd = parseDateAnchor(endingDate);
+        if (!normalizedEnd) {
+          throw new ApiError(400, "Invalid ending date format");
+        }
         if (normalizedEnd < normalizedStart) {
             return res
                 .status(400)

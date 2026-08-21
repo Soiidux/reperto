@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import User from "../db/models/user.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
+import { getClinicTodayAnchor } from "../utils/clinicDate";
 
 export const getAllUsers = async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1;
@@ -90,10 +91,8 @@ export const toggleUserActive = async (req: Request, res: Response) => {
 };
 
 export const getStats = async (req: Request, res: Response) => {
-  const today = new Date();
-  const todayAnchor = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
-  );
+  // "Today" anchored to the clinic timezone, stored as UTC midnight
+  const todayAnchor = getClinicTodayAnchor();
 
   const [totalPatients, totalDoctors, totalStaff, totalAppointments, todaysAppointments, pendingAppointments, completedConsultations] =
     await Promise.all([
