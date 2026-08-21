@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { History, Search } from "lucide-react";
+import { CalendarPlus, History, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPatients } from "@/api/user";
 import { getErrorMessage } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
 import getAge from "@/utils/getAge";
 
 interface Patient {
@@ -25,6 +26,8 @@ export default function PatientDirectory() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+  const canBook = user?.role === "staff" || user?.role === "admin";
 
   useEffect(() => {
     (async () => {
@@ -102,6 +105,15 @@ export default function PatientDirectory() {
                       {patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
                     </p>
                   </div>
+                  {canBook && (
+                    <Link
+                      to={`/${user?.role}/book-appointment?patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}`}
+                    >
+                      <Button variant="outline" size="sm">
+                        <CalendarPlus className="size-4" /> Book
+                      </Button>
+                    </Link>
+                  )}
                   <Link to={`/doctor/consultation/history/${patient._id}`}>
                     <Button variant="outline" size="sm">
                       <History className="size-4" /> View History

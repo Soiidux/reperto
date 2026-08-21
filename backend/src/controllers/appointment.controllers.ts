@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import Appointment from "../db/models/appointment.model";
 import User from "../db/models/user.model";
 import Leave from "../db/models/leave.model";
@@ -158,6 +159,7 @@ const getAppointmentScope = (req: Request): { query: Record<string, any>; popula
     populates: [
       { path: "patientId", select: "name profileImageUrl gender dateOfBirth" },
       { path: "doctorId", select: "name profileImageUrl" },
+      { path: "bookedBy", select: "name" },
     ],
   };
 };
@@ -178,6 +180,7 @@ export const bookAppointment = async (req: Request, res: Response) => {
     intakeDetails,
     consultationType,
     durationInMinutes,
+    patientId: requestedPatientId,
   } = req.body;
 
   if (
@@ -196,7 +199,43 @@ export const bookAppointment = async (req: Request, res: Response) => {
     return res.status(400).json(missingFieldsResponse);
   }
 
-  const doctor = await User.findOne({ _id: doctorId, role: "doctor" });
+  // Resolve who the appointment is for: patients book for themselves;
+  // staff/admin book on behalf of a patient and are recorded in bookedBy.
+  let targetPatientId: string;
+  let bookedBy: string | undefined;
+  const isStaffBooking = req.user.role === "staff" || req.user.role === "admin";
+
+  if (isStaffBooking) {
+    if (!requestedPatientId) {
+      throw new ApiError(400, "Select a patient for this appointment");
+    }
+    if (!mongoose.isValidObjectId(requestedPatientId)) {
+      throw new ApiError(400, "Invalid patient id");
+    }
+    const patient = await User.findOne({
+      _id: requestedPatientId,
+      role: "patient",
+      isActive: true,
+    });
+    if (!patient) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Patient not found or inactive", data: null });
+    }
+    targetPatientId = String(patient._id);
+    bookedBy = req.user.id;
+  } else {
+    if (requestedPatientId && requestedPatientId !== req.user.id) {
+      return res.status(403).json(forbiddenResponse);
+    }
+    targetPatientId = req.user.id;
+  }
+
+  const doctor = await User.findOne({
+    _id: doctorId,
+    role: "doctor",
+    isActive: true,
+  });
   if (!doctor) {
     const doctorNotFoundResponse: ApiResponse<null> = {
       success: false,
@@ -220,14 +259,16 @@ export const bookAppointment = async (req: Request, res: Response) => {
     }
 
   const alreadyBookedToday = await Appointment.findOne({
-    patientId: req.user.id,
+    patientId: targetPatientId,
     appointmentDate: selectedDate,
     status: { $ne: "cancelled" },
   });
   if (alreadyBookedToday) {
     const alreadyBookedTodayResponse: ApiResponse<null> = {
       success: false,
-      message: "You have already booked an appointment for today",
+      message: isStaffBooking
+        ? "This patient already has an appointment on the selected date"
+        : "You have already booked an appointment for today",
       data: null,
     };
     return res.status(400).json(alreadyBookedTodayResponse);
@@ -257,7 +298,7 @@ export const bookAppointment = async (req: Request, res: Response) => {
     );
 
   const newAppointment = new Appointment({
-    patientId: req.user.id,
+    patientId: targetPatientId,
     doctorId,
     appointmentDate: selectedDate,
     timeSlot,
@@ -265,6 +306,7 @@ export const bookAppointment = async (req: Request, res: Response) => {
     intakeDetails,
     consultationType: consultationType || "Initial",
     status: "pending",
+    ...(bookedBy ? { bookedBy } : {}),
   });
 
   await newAppointment.save().catch((error: any) => {
@@ -326,6 +368,7 @@ export const getAppointment = async (req: Request, res: Response) => {
   const appointment = await Appointment.findOne({ _id: id })
     .populate("patientId", "name profileImageUrl gender dateOfBirth")
     .populate("doctorId", "name profileImageUrl")
+    .populate("bookedBy", "name")
     .sort({ appointmentDate: -1, timeSlot: 1 });
 
   if (!appointment) {

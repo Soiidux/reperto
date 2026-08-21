@@ -80,6 +80,16 @@ const menuConfigs = {
       icon: LayoutDashboard,
     },
     {
+      title: "Book Appointment",
+      url: "/staff/book-appointment",
+      icon: CalendarPlus,
+    },
+    {
+      title: "Patient Directory",
+      url: "/staff/patients",
+      icon: Users,
+    },
+    {
       title: "Appointments",
       url: "/staff/appointments",
       icon: CalendarDays,

@@ -90,11 +90,14 @@ function App() {
           {/* 🔐 ADMIN WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/book-appointment" element={<BookAppointment />} />
           </Route>
 
           {/* 🔐 STAFF WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["staff"]} />}>
             <Route path="/staff/dashboard" element={<StaffDashboard />} />
+            <Route path="/staff/book-appointment" element={<BookAppointment />} />
+            <Route path="/staff/patients" element={<PatientDirectory />} />
             <Route path="/staff/appointments" element={<Appointments />} />
             <Route path="/staff/appointments/all" element={<AllAppointments />} />
             <Route path="/staff/appointments/:id" element={<ViewAppointment />} />

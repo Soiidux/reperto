@@ -30,6 +30,8 @@ export const appointmentSchema = z.object({
   doctorId: z
     .string({ message: "Select a doctor" })
     .min(1, { message: "Select a doctor" }),
+  // Staff/admin book on behalf of a patient; patients omit this
+  patientId: z.string().optional(),
   appointmentDate: z
     .string({ message: "Select an appointment date" })
     .min(1, { message: "Select an appointment date" }),

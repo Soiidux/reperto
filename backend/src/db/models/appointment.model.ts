@@ -37,6 +37,7 @@ interface IAppointment extends Document{
     pastMedicalHistory: string;
   };
   cancellationReason?: string;
+  bookedBy?: mongoose.Types.ObjectId;
 }
 
 const AppointmentSchema = new Schema({
@@ -49,6 +50,8 @@ const AppointmentSchema = new Schema({
   consultationType: { type: String, enum: ['Initial', 'Follow-up', 'Acute'], required: true },
   intakeDetails: { type: intakeDetailsSchema, required: true },
   cancellationReason: { type: String, default: '' },
+  // Set when staff/admin books on behalf of a patient; absent for self-booked
+  bookedBy: { type: mongoose.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
 // COMPOUND INDEX: Prevents double-booking at the database level logic-wise

@@ -36,6 +36,8 @@ export const loginSchema = z.object({
 
 export const bookingSchema = z.object({
   doctorId: z.string().min(1, "Select a doctor"),
+  // Required for staff/admin booking on behalf of a patient; patients omit it
+  patientId: z.string().optional(),
   appointmentDate: z.string().min(1, "Select an appointment date"),
   timeSlot: z.string().min(1, "Select a time slot"),
   durationInMinutes: z.coerce

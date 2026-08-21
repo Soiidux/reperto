@@ -31,20 +31,30 @@ import {
 import { Textarea } from "./ui/textarea";
 import { Input } from "./ui/input";
 import { useDoctorStore } from "@/store/doctorStore";
-import { getAvailableSlots } from "@/api/appointment";
+import { getAvailableSlots, bookAppointment } from "@/api/appointment";
+import { getPatients } from "@/api/user";
 import type { appointmentFormSchema } from "@/lib/zodSchemas";
 import { appointmentSchema } from "@/lib/zodSchemas";
-import { bookAppointment } from "@/api/appointment";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 
+interface PatientOption {
+  _id: string;
+  name: string;
+  phone: string;
+}
+
 export default function AppointmentForm({
   defaultDoctorId = "",
   defaultType = "Initial",
+  defaultPatientId = "",
+  defaultPatientName = "",
 }: {
   defaultDoctorId?: string;
   defaultType?: appointmentFormSchema["consultationType"];
+  defaultPatientId?: string;
+  defaultPatientName?: string;
 }) {
   const {
     control,
@@ -55,6 +65,7 @@ export default function AppointmentForm({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       doctorId: defaultDoctorId,
+      patientId: defaultPatientId || undefined,
       appointmentDate: "",
       durationInMinutes: defaultType === "Follow-up" ? "15" : "30",
       consultationType: defaultType,
@@ -70,6 +81,44 @@ export default function AppointmentForm({
   const [freeSlots, setFreeSlots] = useState<string[]>([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(true);
   const { user } = useAuthStore();
+  const isStaffBooking = user?.role === "staff" || user?.role === "admin";
+
+  // Patient search state (staff/admin booking on behalf of a patient)
+  const [patientQuery, setPatientQuery] = useState("");
+  const [patientOptions, setPatientOptions] = useState<PatientOption[]>([]);
+  const [selectedPatientName, setSelectedPatientName] = useState(defaultPatientName);
+  const [isPatientSearchLoading, setIsPatientSearchLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isStaffBooking) return;
+    if (defaultPatientId && defaultPatientName) {
+      setPatientOptions([{ _id: defaultPatientId, name: defaultPatientName, phone: "" }]);
+    }
+  }, [isStaffBooking, defaultPatientId, defaultPatientName]);
+
+  useEffect(() => {
+    if (!isStaffBooking) return;
+    let active = true;
+    setIsPatientSearchLoading(true);
+    const timer = setTimeout(() => {
+      getPatients({ search: patientQuery || undefined, limit: 10 })
+        .then((response) => {
+          if (!active) return;
+          setPatientOptions(response.data.data ?? []);
+        })
+        .catch((error) => {
+          console.error(error);
+          if (active) setPatientOptions([]);
+        })
+        .finally(() => {
+          if (active) setIsPatientSearchLoading(false);
+        });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [patientQuery, isStaffBooking]);
   useEffect(() => {
     if (consultationType) {
       const duration = consultationType === "Initial" ? "30" : "15";
@@ -98,15 +147,18 @@ export default function AppointmentForm({
     };
   }, [doctorId, appointmentDate, durationInMinutes]);
   const onSubmit = async (formData: appointmentFormSchema) => {
+    if (isStaffBooking && !formData.patientId) {
+      toast.error("Select a patient for this appointment");
+      return;
+    }
     try {
       const response = await bookAppointment(formData);
       if (response.data.success) {
         toast.success("Appointment booked successfully!");
         navigate(`/${user!.role}/dashboard`);
       }
-      
+
     }catch (err: unknown) {
-      console.log("Raw submission rejection payload:", err); // 🚀 Add this!
       const serverErrorMessage = getErrorMessage(err, "Internal Server Error");
       toast.error(serverErrorMessage);
     }
@@ -132,6 +184,59 @@ export default function AppointmentForm({
               <FieldLegend className="text-lg font-bold text-primary border-b border-neutral-100 pb-1 w-full">
                 Appointment Details
               </FieldLegend>
+              {isStaffBooking && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <Controller
+                    name="patientId"
+                    control={control}
+                    render={({ field }) => (
+                      <Field className="flex flex-col gap-1.5">
+                        <FieldLabel
+                          className="font-semibold text-neutral-700"
+                          htmlFor="patient-search"
+                        >
+                          Patient
+                        </FieldLabel>
+                        <Input
+                          id="patient-search"
+                          type="text"
+                          placeholder="Search by name, phone or email"
+                          value={patientQuery}
+                          onChange={(e) => setPatientQuery(e.target.value)}
+                          autoComplete="off"
+                        />
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            const match = patientOptions.find((p) => p._id === value);
+                            setSelectedPatientName(match?.name ?? "");
+                          }}
+                          value={field.value || ""}
+                          disabled={isPatientSearchLoading || patientOptions.length === 0}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue
+                              placeholder={
+                                isPatientSearchLoading
+                                  ? "Searching patients..."
+                                  : selectedPatientName || "Select patient"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {patientOptions.map((patient) => (
+                              <SelectItem key={patient._id} value={patient._id}>
+                                {patient.name}
+                                {patient.phone ? ` — ${patient.phone}` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    )}
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-4">
                 <Controller
                   name="doctorId"

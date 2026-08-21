@@ -7,8 +7,8 @@ import { bookingLimiter } from '../middlewares/rateLimiters';
 
 const router = express.Router();
 
-// Only patients should be able to book
-router.post('/', bookingLimiter, protect, authorize('patient'), validate(bookingSchema), bookAppointment);
+// Patients book for themselves; staff/admin book on behalf of walk-ins
+router.post('/', bookingLimiter, protect, authorize('patient', 'staff', 'admin'), validate(bookingSchema), bookAppointment);
 router.get('/', protect, getAppointments);
 router.get('/active', protect, getActiveAppointments);
 router.get('/arrived', protect, getArrivedPatients);
