@@ -20,8 +20,9 @@ export const errorHandler = (
     status = 400;
     message = "Invalid request data";
   } else if (err instanceof mongoose.Error.CastError) {
+    // Keep field internals out of client responses
     status = 400;
-    message = `Invalid value for "${err.path}"`;
+    message = "Invalid request parameter";
   } else if (
     err instanceof MongoServerError &&
     typeof err.code === "number" &&
