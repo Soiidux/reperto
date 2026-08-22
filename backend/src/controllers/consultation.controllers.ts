@@ -117,6 +117,8 @@ export const getPatientHistory = async (req: Request, res: Response) => {
     patientId = paramPatientId;
   }
   
+  // An empty history is a valid state (e.g. new patients), not an error:
+  // callers render their own empty-state UI from count/history.
   const history = await Consultation.find({ patientId})
     .populate('doctorId', 'name profileImageUrl')
     .populate('patientId', 'name profileImageUrl')
@@ -125,14 +127,7 @@ export const getPatientHistory = async (req: Request, res: Response) => {
       "appointmentDate consultationType"
     )
     .sort({ createdAt: -1 });
-  if(history.length === 0) {
-    return res.status(404).json({ 
-      success: false, 
-      message: 'No completed consultations found for this patient.',
-      data: null
-    });
-  }
-  
+
   const response: ApiResponse<{ count: number; history: typeof history }> = {
     success: true,
     message: 'Patient history retrieved successfully',

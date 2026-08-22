@@ -33,8 +33,8 @@ export const getAppointmentById = async (id: string) => {
   return response;
 };
 
-export const getArrivedAppointments = async () => {
-  const response = await API.get("/appointment/arrived");
+export const getArrivedAppointments = async (params?: { scope?: string }) => {
+  const response = await API.get("/appointment/arrived", { params });
   return response;
 };
 
@@ -44,4 +44,8 @@ export const bookAppointment = async (data: appointmentFormSchema) => {
 
 export const updateAppointmentStatus = async (id: string, data: {status: string, cancellationReason: string | undefined}) => {
   return await API.patch(`/appointment/${id}/status`, data);
+};
+
+export const rescheduleAppointment = async (id: string, data: { appointmentDate: string; timeSlot: string }) => {
+  return await API.patch(`/appointment/${id}/reschedule`, data);
 };

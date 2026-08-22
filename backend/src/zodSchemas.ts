@@ -34,24 +34,37 @@ export const loginSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-export const bookingSchema = z.object({
-  doctorId: z.string().min(1, "Select a doctor"),
-  // Required for staff/admin booking on behalf of a patient; patients omit it
-  patientId: z.string().optional(),
-  appointmentDate: z.string().min(1, "Select an appointment date"),
-  timeSlot: z.string().min(1, "Select a time slot"),
-  durationInMinutes: z.coerce
-    .number()
-    .int()
-    .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
-  consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
-  intakeDetails: z.object({
-    primaryComplaint: z.string().trim().min(1, "Enter a primary complaint"),
-    duration: z.string().trim().min(1, "Enter a duration"),
-    currentMedication: z.string().trim().min(1, "Enter current medication"),
-    pastMedicalHistory: z.string().trim().min(1, "Enter past medical history"),
-  }),
-});
+export const bookingSchema = z
+  .object({
+    doctorId: z.string().min(1, "Select a doctor"),
+    // Required for staff/admin booking on behalf of a patient; patients omit it
+    patientId: z.string().optional(),
+    appointmentDate: z.string().min(1, "Select an appointment date"),
+    timeSlot: z.string().min(1, "Select a time slot"),
+    durationInMinutes: z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
+    consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
+    intakeDetails: z.object({
+      primaryComplaint: z.string().trim().min(1, "Enter a primary complaint"),
+      duration: z.string().trim().min(1, "Enter a duration"),
+      currentMedication: z.string().trim().min(1, "Enter current medication"),
+      pastMedicalHistory: z.string().trim().min(1, "Enter past medical history"),
+    }),
+  })
+  // Session length is fixed per type: Initial consults run 30 minutes,
+  // Follow-ups and Acute visits run 15. The UI auto-sets this; this refine
+  // stops API callers from sending mismatched pairs.
+  .refine(
+    (data) =>
+      (data.consultationType === "Initial" && data.durationInMinutes === 30) ||
+      (data.consultationType !== "Initial" && data.durationInMinutes === 15),
+    {
+      message: "Initial consultations are 30 minutes; Follow-up and Acute are 15 minutes",
+      path: ["durationInMinutes"],
+    },
+  );
 
 const modalitiesSchema = z.object({
   Aggravation: z.string().min(1, "Enter aggravation"),
@@ -104,4 +117,9 @@ export const updateAppointmentStatusSchema = z.object({
   ),
   reason: z.string().optional(),
   cancellationReason: z.string().optional(),
+});
+
+export const rescheduleSchema = z.object({
+  appointmentDate: z.string().min(1, "Select an appointment date"),
+  timeSlot: z.string().min(1, "Select a time slot"),
 });

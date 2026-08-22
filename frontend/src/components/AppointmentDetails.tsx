@@ -15,10 +15,11 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { useParams ,Link} from "react-router-dom";
 import { getAppointmentById } from "@/api/appointment";
-import { Calendar,VenusAndMars, Clock, User, Hourglass, NotepadText, CalendarClockIcon, LucideTimer, Pill, History, CheckCircle } from "lucide-react";
+import { Calendar,VenusAndMars, Clock, User, Hourglass, NotepadText, CalendarClockIcon, LucideTimer, Pill, History, CheckCircle, CalendarPlus } from "lucide-react";
 import getAge from "@/utils/getAge";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
+import { RescheduleDialog } from "./RescheduleDialog";
 import { getErrorMessage } from "@/lib/utils";
 
 
@@ -339,11 +340,33 @@ export default function AppointmentDetails() {
 
             
           </CardContent>
-          <CardFooter className="flex justify-center items-center">
+          <CardFooter className="flex justify-center items-center gap-2">
           {status === "pending" && user!.role === "patient" && <CancellationButton appointmentId={_id!} />}
-          {status === "arrived" && user!.role === "doctor" && <Button variant="default" className="font-medium text-lg"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>}
+          {status === "pending" && (
+            <RescheduleDialog
+              appointmentId={_id!}
+              doctorId={typeof doctor === "object" ? doctor._id : (doctor as unknown as string)}
+              durationInMinutes={durationInMinutes!}
+              currentDate={appointmentDate!}
+              currentTimeSlot={timeSlot!}
+            />
+          )}
+          {status === "arrived" && user!.role === "doctor" && (
+            <Button variant="default" size="lg" asChild className="px-4 font-medium">
+              <Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link>
+            </Button>
+          )}
           {status === "completed" && (
-            <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+            <>
+              {(user?.role === "patient" || user?.role === "staff" || user?.role === "admin") && (
+                <Button variant="outline">
+                  <Link to={`/${user!.role}/book-appointment?type=Follow-up&doctorId=${typeof doctor === "object" ? doctor._id : ""}${user?.role !== "patient" && typeof patient === "object" ? `&patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}` : ""}`}>
+                    <CalendarPlus /> Book Follow-up
+                  </Link>
+                </Button>
+              )}
+              <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+            </>
           )}
           </CardFooter>
       </Card>

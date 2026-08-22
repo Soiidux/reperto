@@ -79,6 +79,19 @@ export default function AppointmentForm({
   const { user } = useAuthStore();
   const isStaffBooking = user?.role === "staff" || user?.role === "admin";
 
+  // On invalid submit, scroll up to the first field that needs attention
+  const onInvalid = () => {
+    requestAnimationFrame(() => {
+      const firstInvalid = document.querySelector<HTMLElement>('[data-invalid="true"]');
+      if (!firstInvalid) return;
+      firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+      firstInvalid
+        .querySelector<HTMLElement>("textarea, input, select, button")
+        ?.focus({ preventScroll: true });
+      toast.error("Please fill all required fields marked with *");
+    });
+  };
+
   useEffect(() => {
     if (consultationType) {
       const duration = consultationType === "Initial" ? "30" : "15";
@@ -130,13 +143,14 @@ export default function AppointmentForm({
   return (
     <div className="w-full max-w-5xl mx-auto p-4 md:p-6">
       <Card className="w-full shadow-md border-neutral-100">
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-6">
           <CardHeader className="space-y-1">
             <CardTitle className="text-center text-3xl font-bold tracking-tight text-neutral-900">
               Book an Appointment
             </CardTitle>
             <CardDescription className="text-center text-neutral-500">
               Kindly fill in the form below to book an appointment.
+              Fields marked with <span className="text-destructive font-bold">*</span> are required.
             </CardDescription>
           </CardHeader>
 
@@ -159,7 +173,7 @@ export default function AppointmentForm({
                           className="font-semibold text-neutral-700"
                           htmlFor="patient-picker"
                         >
-                          Patient
+                          Patient <span className="text-destructive">*</span>
                         </FieldLabel>
                         <PatientCombobox
                           value={field.value}
@@ -193,7 +207,7 @@ export default function AppointmentForm({
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Doctor
+                        Doctor <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Select
@@ -233,7 +247,7 @@ export default function AppointmentForm({
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Appointment Date
+                        Appointment Date <span className="text-destructive">*</span>
                       </FieldLabel>
                       <Popover open={open} onOpenChange={setOpen}>
                         <PopoverTrigger asChild>
@@ -291,7 +305,7 @@ export default function AppointmentForm({
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Consultation Type
+                        Consultation Type <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Select
@@ -367,7 +381,7 @@ export default function AppointmentForm({
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Time Slot
+                        Time Slot <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Select
@@ -416,7 +430,7 @@ export default function AppointmentForm({
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Primary Complaint
+                        Primary Complaint <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -437,7 +451,7 @@ export default function AppointmentForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid} className="flex flex-col gap-1.5">
-                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Duration</FieldLabel>
+                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Duration <span className="text-destructive">*</span></FieldLabel>
                       <Input
                         {...field}
                         id={field.name}
@@ -456,7 +470,7 @@ export default function AppointmentForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid} className="flex flex-col gap-1.5">
-                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Current Medication</FieldLabel>
+                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Current Medication <span className="text-destructive">*</span></FieldLabel>
                       <Input
                         {...field}
                         id={field.name}
@@ -475,7 +489,7 @@ export default function AppointmentForm({
                   control={control}
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid} className="flex flex-col gap-1.5">
-                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Past Medical History</FieldLabel>
+                      <FieldLabel className="font-semibold text-neutral-700" htmlFor={field.name}>Past Medical History <span className="text-destructive">*</span></FieldLabel>
                       <Input
                         {...field}
                         id={field.name}

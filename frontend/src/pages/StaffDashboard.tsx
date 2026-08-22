@@ -67,8 +67,8 @@ export default function StaffDashboard() {
     }
   };
 
-  const arrivedCount = appointments.filter((a) => a.status === "arrived").length;
-  const pendingCount = appointments.filter((a) => a.status === "pending" || a.status === "confirmed").length;
+  const arrived = appointments.filter((a) => a.status === "arrived");
+  const scheduled = appointments.filter((a) => a.status === "pending" || a.status === "confirmed");
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -87,26 +87,26 @@ export default function StaffDashboard() {
         ) : (
           <>
             <StatCard title="Today's Appointments" value={appointments.length} icon={CalendarDays} />
-            <StatCard title="Arrived" value={arrivedCount} icon={CheckCheck} />
-            <StatCard title="Waiting" value={pendingCount} icon={Clock} />
+            <StatCard title="Not Yet Arrived" value={scheduled.length} icon={Clock} />
+            <StatCard title="In Waiting Room" value={arrived.length} icon={CheckCheck} />
           </>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Today's Queue</CardTitle>
+          <CardTitle className="text-lg">Scheduled Today</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
             </div>
-          ) : appointments.length === 0 ? (
-            <p className="py-8 text-center text-neutral-400">No appointments scheduled for today.</p>
+          ) : scheduled.length === 0 ? (
+            <p className="py-8 text-center text-neutral-400">No pending appointments for today.</p>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {appointments.map((appt) => (
+              {scheduled.map((appt) => (
                 <li key={appt._id} className="flex items-center gap-4 py-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
                     {appt.patientId?.name?.charAt(0)?.toUpperCase() || "?"}
@@ -122,11 +122,39 @@ export default function StaffDashboard() {
                     <Button size="sm" onClick={() => markArrived(appt._id)} disabled={updatingId === appt._id}>
                       {updatingId === appt._id ? "..." : "Mark Arrived"}
                     </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" disabled>
-                      {appt.status === "arrived" ? "Arrived" : "Done"}
-                    </Button>
-                  )}
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Waiting Room</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+            </div>
+          ) : arrived.length === 0 ? (
+            <p className="py-8 text-center text-neutral-400">Nobody is waiting right now.</p>
+          ) : (
+            <ul className="divide-y divide-neutral-100">
+              {arrived.map((appt) => (
+                <li key={appt._id} className="flex items-center gap-4 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                    {appt.patientId?.name?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-neutral-900">{appt.patientId?.name || "Unknown"}</p>
+                    <p className="text-sm text-neutral-500">
+                      {appt.timeSlot} · {appt.consultationType} · {appt.doctorId?.name}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="capitalize">{appt.status}</Badge>
                 </li>
               ))}
             </ul>

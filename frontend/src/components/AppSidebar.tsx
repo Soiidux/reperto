@@ -21,6 +21,7 @@ import {
   CalendarOff,
   FileClock,
   ShieldCheck,
+  Armchair,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 const menuConfigs = {
@@ -51,6 +52,7 @@ const menuConfigs = {
       icon: LayoutDashboard,
     },
     { title: "Active Patients", url: "/doctor/active-patients", icon: ClipboardList },
+    { title: "Waiting Queue", url: "/doctor/queue", icon: Armchair },
     { title: "Patient Directory", url: "/doctor/patients", icon: Users },
     {
       title: "Appointments",
@@ -83,6 +85,11 @@ const menuConfigs = {
       title: "Book Appointment",
       url: "/staff/book-appointment",
       icon: CalendarPlus,
+    },
+    {
+      title: "Waiting Queue",
+      url: "/staff/queue",
+      icon: Armchair,
     },
     {
       title: "Patient Directory",

@@ -1,8 +1,8 @@
 import express from 'express';
-import { bookAppointment, getActiveAppointments, getAppointment, getAppointments, getTodaysAppointments, updateAppointmentStatus, getAvailableSlots, getArrivedPatients } from '../controllers/appointment.controllers';
+import { bookAppointment, getActiveAppointments, getAppointment, getAppointments, getTodaysAppointments, updateAppointmentStatus, rescheduleAppointment, getAvailableSlots, getArrivedPatients } from '../controllers/appointment.controllers';
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
-import { bookingSchema, updateAppointmentStatusSchema } from '../zodSchemas';
+import { bookingSchema, updateAppointmentStatusSchema, rescheduleSchema } from '../zodSchemas';
 import { bookingLimiter } from '../middlewares/rateLimiters';
 
 const router = express.Router();
@@ -16,4 +16,5 @@ router.get('/today', protect, getTodaysAppointments);
 router.get('/available-slots', protect, getAvailableSlots);
 router.get('/:id', protect, getAppointment);
 router.patch('/:id/status', bookingLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);
+router.patch('/:id/reschedule', bookingLimiter, protect, validate(rescheduleSchema), rescheduleAppointment);
 export default router;

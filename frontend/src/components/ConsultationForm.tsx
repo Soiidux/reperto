@@ -111,7 +111,7 @@ export default function ConsultationForm() {
     try {
       const response = await createConsultation({ ...formData, appointmentId: id! });
       if (response.data.success) {
-        toast.success("Appointment booked successfully!");
+        toast.success("Consultation saved. Appointment marked as completed.");
         navigate(`/doctor/appointments`);
       }
     } catch (err: unknown) {
@@ -120,6 +120,18 @@ export default function ConsultationForm() {
         getErrorMessage(err, "Internal Server Error");
       toast.error(serverErrorMessage);
     }
+  };
+  // On invalid submit, bring the first unfilled required field into view
+  const onInvalid = () => {
+    requestAnimationFrame(() => {
+      const firstInvalid = document.querySelector<HTMLElement>('[data-invalid="true"]');
+      if (!firstInvalid) return;
+      firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+      firstInvalid
+        .querySelector<HTMLElement>("textarea, input, select")
+        ?.focus({ preventScroll: true });
+      toast.error("Please fill all required fields marked with *");
+    });
   };
   if (!appointmentData) {
     return (
@@ -140,13 +152,14 @@ export default function ConsultationForm() {
   return (
     <div className="w-full max-w-5xl mx-auto p-4 md:p-6">
       <Card className="w-full shadow-md border-neutral-100">
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-6">
           <CardHeader className="space-y-1">
             <CardTitle className="text-center text-3xl font-bold tracking-tight text-neutral-900">
               Fill the Consultation Form
             </CardTitle>
             <CardDescription className="text-center text-neutral-500">
               <p>Please fill out the form below to complete consultation.</p>
+              <p>Fields marked with <span className="text-destructive font-bold">*</span> are required.</p>
               <p className="font-semibold">Consultation for Appointment Id: {id}</p>
             </CardDescription>
           </CardHeader>
@@ -386,7 +399,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Location
+                        Location <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -414,7 +427,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Sensation
+                        Sensation <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -442,7 +455,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Aggravation
+                        Aggravation <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -470,7 +483,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Amlioration
+                        Amlioration <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -498,7 +511,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Concomitants
+                        Concomitants <span className="text-destructive">*</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -529,6 +542,12 @@ export default function ConsultationForm() {
                       data-invalid={fieldState.invalid}
                       className="flex flex-col gap-1.5"
                     >
+                      <FieldLabel
+                        className="font-semibold text-neutral-700"
+                        htmlFor={field.name}
+                      >
+                        Past Medical History <span className="text-destructive">*</span>
+                      </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
                         id={field.name}
@@ -562,7 +581,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Thermals
+                        Thermals <span className="text-neutral-400 font-normal">(optional)</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -590,7 +609,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Thirst
+                        Thirst <span className="text-neutral-400 font-normal">(optional)</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -618,7 +637,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Appetite and Cravings
+                        Appetite and Cravings <span className="text-neutral-400 font-normal">(optional)</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -646,7 +665,7 @@ export default function ConsultationForm() {
                         className="font-semibold text-neutral-700"
                         htmlFor={field.name}
                       >
-                        Sleep and Dreams
+                        Sleep and Dreams <span className="text-neutral-400 font-normal">(optional)</span>
                       </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
@@ -677,6 +696,12 @@ export default function ConsultationForm() {
                       data-invalid={fieldState.invalid}
                       className="flex flex-col gap-1.5"
                     >
+                      <FieldLabel
+                        className="font-semibold text-neutral-700"
+                        htmlFor={field.name}
+                      >
+                        Mental Generals <span className="text-neutral-400 font-normal">(optional)</span>
+                      </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
                         id={field.name}
@@ -706,6 +731,12 @@ export default function ConsultationForm() {
                       data-invalid={fieldState.invalid}
                       className="flex flex-col gap-1.5"
                     >
+                      <FieldLabel
+                        className="font-semibold text-neutral-700"
+                        htmlFor={field.name}
+                      >
+                        Diagnosis <span className="text-destructive">*</span>
+                      </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
                         id={field.name}
@@ -737,7 +768,7 @@ export default function ConsultationForm() {
                     render={({ field }) => (
                       <Field>
                         <FieldLabel>
-                          Remedy Name
+                          Remedy Name <span className="text-destructive">*</span>
                         </FieldLabel>
                         <Input
                           {...field}
@@ -752,7 +783,7 @@ export default function ConsultationForm() {
                     render={({ field }) => (
                       <Field>
                         <FieldLabel>
-                          Potency
+                          Potency <span className="text-neutral-400 font-normal">(optional)</span>
                         </FieldLabel>
                         <Input
                           {...field}
@@ -768,13 +799,13 @@ export default function ConsultationForm() {
                     render={({ field }) => (
                       <Field>
                         <FieldLabel>
-                          Dosage
+                          Dosage <span className="text-destructive">*</span>
                         </FieldLabel>
                         <Input
                           {...field}
                           placeholder="4 pills, 3 times a day"
                         />
-            
+              
                       </Field>
                     )}
                   />
@@ -785,7 +816,7 @@ export default function ConsultationForm() {
             
                       <Field>
                         <FieldLabel>
-                          Duration (days)
+                          Duration (days) <span className="text-destructive">*</span>
                         </FieldLabel>
                         <Input
                           type="number"
@@ -834,6 +865,12 @@ export default function ConsultationForm() {
                       data-invalid={fieldState.invalid}
                       className="flex flex-col gap-1.5"
                     >
+                      <FieldLabel
+                        className="font-semibold text-neutral-700"
+                        htmlFor={field.name}
+                      >
+                        Doctor Notes <span className="text-destructive">*</span>
+                      </FieldLabel>
                       {/* Fixed: Pass value, defaultValue, and onValueChange to map Radix state correctly */}
                       <Textarea
                         id={field.name}

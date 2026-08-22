@@ -19,6 +19,7 @@ import Profile from './pages/Profile';
 import PatientDirectory from './pages/PatientDirectory';
 import PastAppointments from './pages/PastAppointments';
 import Schedule from './pages/Schedule';
+import QueueBoard from './pages/QueueBoard';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -74,6 +75,7 @@ function App() {
           {/* 🔐 DOCTOR WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+            <Route path="/doctor/queue" element={<QueueBoard />} />
             <Route path="/doctor/active-patients" element={<ActivePatients />} />
             <Route path="/doctor/patients" element={<PatientDirectory />} />
             <Route path="/doctor/appointments" element={<Appointments />} />
@@ -96,6 +98,7 @@ function App() {
           {/* 🔐 STAFF WORKSPACE ROUTE TREE */}
           <Route element={<ProtectedRoute allowedRoles={["staff"]} />}>
             <Route path="/staff/dashboard" element={<StaffDashboard />} />
+            <Route path="/staff/queue" element={<QueueBoard />} />
             <Route path="/staff/book-appointment" element={<BookAppointment />} />
             <Route path="/staff/patients" element={<PatientDirectory />} />
             <Route path="/staff/appointments" element={<Appointments />} />

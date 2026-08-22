@@ -1,4 +1,4 @@
-import { Calendar as CalendarIcon, Clock, User, Hourglass, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, User, Hourglass, AlertCircle, CalendarPlus } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card"; // Adjust paths to your primitives
 import { Badge } from "@/components/ui/badge";
 import getAge from "@/utils/getAge";
@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
+import { RescheduleDialog } from "./RescheduleDialog";
 const statusStyles: Record<string, { label: string; variantClass: string }> = {
   pending: { label: "Pending", variantClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50" },
   arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
@@ -37,6 +38,18 @@ interface AppointmentCardProps {
 export default function AppointmentCard({ _id, patientId, doctorId, appointmentDate, timeSlot, durationInMinutes, status, consultationType }: AppointmentCardProps) {
   const currentStatus = statusStyles[status] || statusStyles.pending;
   const { user } = useAuthStore();
+  const canBookFollowUp = user?.role === "patient" || user?.role === "staff" || user?.role === "admin";
+  // Populated docs carry _id/name; raw fields are plain strings
+  const doctorRef = typeof doctorId === "string" ? null : doctorId;
+  const patientRef = typeof patientId === "string" ? null : patientId;
+  const doctorIdValue = doctorRef?._id ?? (doctorId as string);
+  const followUpParams = new URLSearchParams({ type: "Follow-up" });
+  if (doctorRef?._id) followUpParams.set("doctorId", doctorRef._id);
+  if (patientRef?._id && user?.role !== "patient") {
+    followUpParams.set("patientId", patientRef._id);
+    followUpParams.set("patientName", patientRef.name);
+  }
+  const followUpHref = `/${user!.role}/book-appointment?${followUpParams.toString()}`;
   // Clean string formatter for human-readable Indian local timeline presentation
   const formattedDate = new Date(appointmentDate).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -170,15 +183,39 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
         <Button variant="default"><Link to={`/${user!.role}/appointments/${_id}`}>View Details</Link></Button>
         {/* Card Footer: Contextual Patient Cancellation Actions */}
         {status === "pending" && user?.role === "patient" && (
-          <CancellationButton appointmentId={_id} />
+          <div className="flex gap-2">
+            <RescheduleDialog
+              appointmentId={_id}
+              doctorId={doctorIdValue}
+              durationInMinutes={durationInMinutes}
+              currentDate={appointmentDate}
+              currentTimeSlot={timeSlot}
+            />
+            <CancellationButton appointmentId={_id} />
+          </div>
         )}
-        {status === "pending" && user?.role === "doctor" && (
-          <Button variant="outline"><Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link></Button>
+        {(status === "pending" && (user?.role === "staff" || user?.role === "admin")) && (
+          <RescheduleDialog
+            appointmentId={_id}
+            doctorId={doctorIdValue}
+            durationInMinutes={durationInMinutes}
+            currentDate={appointmentDate}
+            currentTimeSlot={timeSlot}
+          />
         )}
+        {/* Doctors start consultations from the Waiting Queue / dashboard once
+            the patient has arrived - never straight from a pending booking. */}
         {status === "completed" && (
-          <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+          <div className="flex gap-2">
+            {canBookFollowUp && (
+              <Button variant="outline">
+                <Link to={followUpHref}><CalendarPlus /> Book Follow-up</Link>
+              </Button>
+            )}
+            <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+          </div>
         )}
-        
+
       </CardFooter>
     </Card>
   );

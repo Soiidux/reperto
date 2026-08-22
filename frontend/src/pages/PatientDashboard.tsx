@@ -55,20 +55,34 @@ export default function PatientDashboard() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const [apptRes, histRes] = await Promise.all([
-          getActiveAppointments(),
-          user?.id ? getPatientHistory(user.id) : Promise.reject(new Error("no user")),
-        ]);
-        setUpcoming(apptRes.data.data.appointments ?? []);
-        if (histRes?.data?.success) {
-          setHistory(histRes.data.data.history ?? []);
-        }
-      } catch (err: unknown) {
-        toast.error(getErrorMessage(err, "Failed to load your dashboard"));
-      } finally {
-        setLoading(false);
+      // Fetch independently: an empty history must never blank the
+      // appointments section (and vice versa).
+      const [apptResult, histResult] = await Promise.allSettled([
+        getActiveAppointments(),
+        user?.id ? getPatientHistory(user.id) : Promise.reject(new Error("no user")),
+      ]);
+
+      if (apptResult.status === "fulfilled") {
+        setUpcoming(apptResult.value.data.data.appointments ?? []);
+      } else {
+        toast.error(getErrorMessage(apptResult.reason, "Failed to load your appointments"));
       }
+
+      // 404 simply means the patient has no consultations yet
+      if (
+        histResult.status === "fulfilled" &&
+        histResult.value.data?.success !== false
+      ) {
+        setHistory(histResult.value.data.data.history ?? []);
+      }
+      if (histResult.status === "rejected") {
+        const status = (histResult.reason as { response?: { status?: number } })?.response?.status;
+        if (status !== 404) {
+          toast.error(getErrorMessage(histResult.reason, "Failed to load your consultations"));
+        }
+      }
+
+      setLoading(false);
     })();
   }, [user?.id]);
 

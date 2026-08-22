@@ -44,7 +44,7 @@ export default function DoctorDashboard() {
   }, []);
 
   const arrivedCount = today.filter((a) => a.status === "arrived").length;
-  const pendingCount = today.filter((a) => a.status === "pending" || a.status === "confirmed").length;
+  const notArrivedCount = today.filter((a) => a.status === "pending" || a.status === "confirmed").length;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -64,8 +64,8 @@ export default function DoctorDashboard() {
         ) : (
           <>
             <StatCard title="Today's Appointments" value={today.length} icon={CalendarDays} />
-            <StatCard title="Arrived" value={arrivedCount} icon={CheckCheck} />
-            <StatCard title="Waiting" value={pendingCount} icon={Clock} />
+            <StatCard title="Not Yet Arrived" value={notArrivedCount} icon={Clock} />
+            <StatCard title="In Waiting Room" value={arrivedCount} icon={CheckCheck} />
             <StatCard title="Active (All)" value={activeCount} icon={ClipboardList} />
           </>
         )}
@@ -108,15 +108,15 @@ export default function DoctorDashboard() {
                     <td className="px-4 py-3">
                       <Badge variant="outline" className="capitalize">{appt.status}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       {appt.status === "arrived" ? (
-                        <Button size="sm">
+                        <Button size="sm" asChild className="px-3">
                           <Link to={`/doctor/start-consultation/${appt._id}`}>
                             <Stethoscope className="size-4" /> Start Consultation
                           </Link>
                         </Button>
                       ) : appt.status === "completed" ? (
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" asChild>
                           <Link to={`/doctor/appointments/${appt._id}`}>View</Link>
                         </Button>
                       ) : null}

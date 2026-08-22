@@ -30,7 +30,11 @@ const forbiddenResponse: ApiResponse<null> = {
 
 // Shared availability helpers --------------------------------------------
 
-const getDayContext = async (doctorId: string, selectedDate: Date) => {
+const getDayContext = async (
+  doctorId: string,
+  selectedDate: Date,
+  excludeAppointmentId?: string,
+) => {
   const blocks = await Leave.find({
     doctorId,
     startingDate: { $lte: selectedDate },
@@ -45,6 +49,7 @@ const getDayContext = async (doctorId: string, selectedDate: Date) => {
     doctorId,
     appointmentDate: selectedDate,
     status: { $ne: "cancelled" },
+    ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
   });
   return { blocks, bookings };
 };
@@ -106,8 +111,13 @@ const assertSlotAvailable = async (
   selectedDate: Date,
   timeSlot: string,
   durationInMinutes: number,
+  excludeAppointmentId?: string,
 ): Promise<void> => {
-  const { blocks, bookings } = await getDayContext(doctorId, selectedDate);
+  const { blocks, bookings } = await getDayContext(
+    doctorId,
+    selectedDate,
+    excludeAppointmentId,
+  );
 
   if (blocks.some((b) => b.type === "full-day")) {
     throw new ApiError(400, "Doctor is on leave on the selected date");
@@ -258,10 +268,27 @@ export const bookAppointment = async (req: Request, res: Response) => {
       return res.status(400).json(pastDateResponse);
     }
 
+  // A patient can hold only one live booking at a time, on any date.
+  // Completed/cancelled/no-show appointments don't block new bookings.
+  const activeBooking = await Appointment.findOne({
+    patientId: targetPatientId,
+    status: { $in: ["pending", "arrived"] },
+  });
+  if (activeBooking) {
+    return res.status(400).json({
+      success: false,
+      message: isStaffBooking
+        ? "This patient already has an upcoming appointment"
+        : "You already have an upcoming appointment; cancel or complete it before booking another",
+      data: null,
+    });
+  }
+
+  // Even past visits count against rebooking the same day
   const alreadyBookedToday = await Appointment.findOne({
     patientId: targetPatientId,
     appointmentDate: selectedDate,
-    status: { $ne: "cancelled" },
+    status: { $nin: ["cancelled", "pending", "arrived"] },
   });
   if (alreadyBookedToday) {
     const alreadyBookedTodayResponse: ApiResponse<null> = {
@@ -426,6 +453,11 @@ export const getArrivedPatients = async (req: any, res: Response) => {
 
   query.status = "arrived";
 
+  // Waiting-room boards only care about today's arrivals
+  if (req.query.scope === "today") {
+    query.appointmentDate = getClinicTodayAnchor();
+  }
+
   const appointments = await applyPopulates(Appointment.find(query), populates)
     .sort({ appointmentDate: -1, timeSlot: 1 });
 
@@ -552,6 +584,104 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     message: `Appointment status updated to ${status}`,
     data: appointment,
   });
+};
+
+export const rescheduleAppointment = async (req: any, res: Response) => {
+  const { id } = req.params;
+  const { appointmentDate, timeSlot } = req.body;
+
+  const appointment = await Appointment.findById(id);
+  if (!appointment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Appointment not found", data: null });
+  }
+
+  // Same permission model as status updates: owner-patient,
+  // assigned-doctor, or staff/admin.
+  const isPatient = req.user.role === "patient";
+  const isDoctor = req.user.role === "doctor";
+  const isOwner = appointment.patientId.toString() === req.user.id;
+  const isAssignedDoctor = appointment.doctorId.toString() === req.user.id;
+
+  if (isPatient && !isOwner) {
+    return res.status(403).json(forbiddenResponse);
+  }
+  if (isDoctor && !isAssignedDoctor) {
+    return res.status(403).json(forbiddenResponse);
+  }
+
+  if (appointment.status !== "pending") {
+    return res.status(400).json({
+      success: false,
+      message: `Cannot reschedule a ${appointment.status} appointment`,
+      data: null,
+    });
+  }
+
+  const selectedDate = parseDateAnchor(appointmentDate);
+  if (!selectedDate) {
+    throw new ApiError(400, "Invalid date format, expected YYYY-MM-DD");
+  }
+  if (selectedDate < getClinicTodayAnchor()) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected date cannot be in the past",
+      data: null,
+    });
+  }
+
+  const isUnchanged =
+    appointment.appointmentDate.getTime() === selectedDate.getTime() &&
+    appointment.timeSlot === timeSlot;
+  if (isUnchanged) {
+    const response: ApiResponse<typeof appointment> = {
+      success: true,
+      message: "Appointment rescheduled successfully",
+      data: appointment,
+    };
+    return res.status(200).json(response);
+  }
+
+  // The patient cannot hold two appointments on the same day
+  const conflictingPatientBooking = await Appointment.findOne({
+    _id: { $ne: appointment._id },
+    patientId: appointment.patientId,
+    appointmentDate: selectedDate,
+    status: { $ne: "cancelled" },
+  });
+  if (conflictingPatientBooking) {
+    return res.status(400).json({
+      success: false,
+      message: "The patient already has an appointment on the selected date",
+      data: null,
+    });
+  }
+
+  await assertSlotAvailable(
+    String(appointment.doctorId),
+    selectedDate,
+    timeSlot,
+    Number(appointment.durationInMinutes),
+    String(appointment._id),
+  );
+
+  appointment.appointmentDate = selectedDate;
+  appointment.timeSlot = timeSlot;
+
+  await appointment.save().catch((error: any) => {
+    if (error?.code === 11000) {
+      throw new ApiError(409, "Conflict: This slot was just taken by someone else!");
+    }
+    throw error;
+  });
+
+  const response: ApiResponse<typeof appointment> = {
+    success: true,
+    message: "Appointment rescheduled successfully",
+    data: appointment,
+  };
+  res.status(200).json(response);
 };
 
 export const getAvailableSlots = async (req: Request, res: Response) => {
