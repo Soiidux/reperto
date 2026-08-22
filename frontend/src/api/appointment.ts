@@ -18,9 +18,18 @@ export const getActiveAppointments = async () => {
   return response;
 };
 
-export const getAllAppointments = async (params?: { status?: string; page?: number; limit?: number }) => {
-  const response = await API.get("/appointment/", { params });
-  return response;
+export const getAllAppointments = async (
+  params?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    from?: string;
+    to?: string;
+  },
+  config?: { signal?: AbortSignal }
+) => {
+  return await API.get("/appointment/", { params, ...config });
 };
 
 export const getTodaysAppointments = async () => {

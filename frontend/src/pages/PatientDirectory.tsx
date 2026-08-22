@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { CalendarPlus, History, Search } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, History, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { getPatients } from "@/api/user";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import getAge from "@/utils/getAge";
+
+const PAGE_SIZE = 15;
 
 interface Patient {
   _id: string;
@@ -22,46 +24,62 @@ interface Patient {
   profileImageUrl?: string;
 }
 
+interface Pagination {
+  totalItems: number;
+  currentPage: number;
+  totalPages: number;
+}
+
 export default function PatientDirectory() {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const { user } = useAuthStore();
   const canBook = user?.role === "staff" || user?.role === "admin";
 
+  // Debounce keystrokes into a single search term; any new search restarts at page 1
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const response = await getPatients({ limit: 50 });
-        setPatients(response.data.data);
-      } catch (err: unknown) {
-        toast.error(getErrorMessage(err, "Failed to load patients"));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
-    const delay = setTimeout(() => {
-      (async () => {
-        setLoading(true);
-        try {
-          const response = await getPatients(search ? { search, limit: 50 } : { limit: 50 });
-          if (search && response.data.data.length === 0) {
-            toast.info("No patients match your search");
-          }
-          setPatients(response.data.data);
-        } catch (err: unknown) {
-          toast.error(getErrorMessage(err, "Failed to load patients"));
-        } finally {
-          setLoading(false);
+    const controller = new AbortController();
+    getPatients(
+      { search: search || undefined, page, limit: PAGE_SIZE },
+      { signal: controller.signal },
+    )
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        setPatients(response.data.data ?? []);
+        setPagination(
+          response.data.pagination
+            ? {
+                totalItems: response.data.pagination.totalItems,
+                currentPage: response.data.pagination.currentPage,
+                totalPages: response.data.pagination.totalPages,
+              }
+            : null,
+        );
+        if (search && (response.data.data?.length ?? 0) === 0) {
+          toast.info("No patients match your search");
         }
-      })();
-    }, 400);
-    return () => clearTimeout(delay);
-  }, [search]);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if ((err as { code?: string })?.code === "ERR_CANCELED") return;
+        toast.error(getErrorMessage(err, "Failed to load patients"));
+        setLoading(false);
+      });
+    // Out-of-order responses for superseded requests are dropped via abort
+    return () => controller.abort();
+  }, [search, page]);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -74,15 +92,17 @@ export default function PatientDirectory() {
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
         <Input
           placeholder="Search by name, email, or phone"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           className="pl-9"
         />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Patients ({patients.length})</CardTitle>
+          <CardTitle className="text-lg">
+            Patients ({pagination?.totalItems ?? patients.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -125,6 +145,30 @@ export default function PatientDirectory() {
           )}
         </CardContent>
       </Card>
+
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pagination.currentPage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft /> Prev
+          </Button>
+          <span className="text-sm text-neutral-500">
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pagination.currentPage >= pagination.totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next <ChevronRight />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

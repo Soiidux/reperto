@@ -22,6 +22,9 @@ const timeToMinutes = (timeStr: string) => {
   return hours * 60 + minutes;
 };
 
+// Escapes user input before embedding it in a $regex filter
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const forbiddenResponse: ApiResponse<null> = {
   success: false,
   message: "You are not authorized to view this.",
@@ -354,9 +357,40 @@ export const bookAppointment = async (req: Request, res: Response) => {
 export const getAppointments = async (req: Request, res: Response) => {
   const { query, populates } = getAppointmentScope(req);
 
-  const { status } = req.query;
+  const { status, search, from, to } = req.query;
   if (status && status !== "all") {
     query.status = status;
+  }
+
+  // Date range filter, anchored like the rest of the app to clinic-day UTC
+  if (from || to) {
+    query.appointmentDate = {};
+    if (typeof from === "string" && from) {
+      const fromDate = parseDateAnchor(from);
+      if (!fromDate) throw new ApiError(400, "Invalid from date format");
+      query.appointmentDate.$gte = fromDate;
+    }
+    if (typeof to === "string" && to) {
+      const toDate = parseDateAnchor(to);
+      if (!toDate) throw new ApiError(400, "Invalid to date format");
+      query.appointmentDate.$lte = toDate;
+    }
+  }
+
+  // Search matches patient or doctor attributes. Mongo can't regex across
+  // populated refs, so resolve matching user ids first.
+  if (typeof search === "string" && search.trim()) {
+    const rx = new RegExp(escapeRegex(search.trim()), "i");
+    const users = await User.find({
+      $or: [{ name: rx }, { phone: rx }, { email: rx }],
+    }).select("_id");
+    const userIds = users.map((u) => u._id);
+    // $or with empty arrays would match nothing; fall back to a name that
+    // can never exist so the UI shows an honest "no results"
+    query.$or =
+      userIds.length > 0
+        ? [{ patientId: { $in: userIds } }, { doctorId: { $in: userIds } }]
+        : [{ patientId: { $in: [null] } }];
   }
 
   const page = Number(req.query.page) || 1;

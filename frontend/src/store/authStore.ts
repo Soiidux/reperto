@@ -17,6 +17,7 @@ interface AuthState {
   login: (userData: User, token: string) => void;
   logout: () => void;
   setToken: (token: string) => void;
+  setUser: (userData: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -26,6 +27,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("accessToken", token);
     set({ user: userData, accessToken: token });
+  },
+  // Merges partial updates (e.g. profile image) into the stored user
+  setUser: (userData) => {
+    const current = JSON.parse(localStorage.getItem("user") || "null") as User | null;
+    if (!current) return;
+    const updated = { ...current, ...userData };
+    localStorage.setItem("user", JSON.stringify(updated));
+    set({ user: updated });
   },
   logout: async () => {
     try {

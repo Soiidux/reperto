@@ -17,10 +17,11 @@ import {
   FieldSeparator,
 } from "./ui/field";
 import { Input } from "./ui/input";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Camera } from "lucide-react";
 import { register } from "@/api/auth";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -45,11 +46,44 @@ const RegisterForm = () => {
 
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Object URLs are created/revoked here in the event handler rather than in
+  // an effect, so state updates stay out of the render pass.
+  const releasePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  };
+
+  const handleFilePicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    // Reset so picking the same file twice still fires onChange
+    event.target.value = "";
+    if (!file) {
+      releasePreview();
+      setProfileFile(null);
+      return;
+    }
+    // Mirrors the backend multer limits (2 MB, JPEG/PNG/WebP)
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error("Only JPEG, PNG, or WebP images are allowed");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2 MB");
+      return;
+    }
+    releasePreview();
+    setProfileFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
 
   const onSubmit = async (formData: registerFormSchema) => {
     try {
-      const response = await register(formData);
+      const response = await register(formData, profileFile);
       if (response.data.success) {
         toast.success("Registration successful! Please log in.");
         navigate("/login");      }
@@ -77,7 +111,65 @@ const RegisterForm = () => {
             <FieldSet className="space-y-4">
               <FieldLegend className="text-lg font-bold text-primary border-b border-neutral-100 pb-1 w-full">
                 Personal Information
-              </FieldLegend>      
+              </FieldLegend>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="Profile preview"
+                      className="h-20 w-20 rounded-full object-cover border border-neutral-200"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+                      ?
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Choose profile photo"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/80"
+                  >
+                    <Camera className="size-4" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleFilePicked}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Choose Photo
+                    </Button>
+                    {profileFile && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          releasePreview();
+                          setProfileFile(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-neutral-400">
+                    (optional) JPEG, PNG, or WebP up to 2 MB
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                 <Controller
                   name="name"

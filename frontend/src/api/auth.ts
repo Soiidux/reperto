@@ -5,8 +5,23 @@ export const login = async (data: loginFormSchema) => {
   return await API.post("/auth/login", data);;
 };
 
-export const register = async (data: registerFormSchema & { role?: string; doctorProfile?: unknown }) => {
-  return await API.post("/auth/register", data);
+export const register = async (
+  data: registerFormSchema & { role?: string; doctorProfile?: unknown },
+  profileImage?: File | null,
+) => {
+  // JSON keeps doctorProfile a real object for admin-created users; the
+  // multipart path is only used when a signup photo is attached
+  if (!profileImage) {
+    return await API.post("/auth/register", data);
+  }
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    formData.append(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+  });
+  // Field name must match the backend's multer upload.single("profileImage")
+  formData.append("profileImage", profileImage);
+  return await API.post("/auth/register", formData);
 };
 
 export const logout = async () => {

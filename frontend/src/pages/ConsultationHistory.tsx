@@ -2,7 +2,9 @@ import ConsultationCard from "@/components/ConsultationCard";
 
 import { getPatientHistory } from "@/api/consultation";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 import { useParams } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
@@ -82,6 +84,30 @@ export default function ConsultationHistory() {
   const [loading, setLoading] =
     useState(true);
 
+  const [searchInput, setSearchInput] =
+    useState("");
+
+  const search = useMemo(
+    () => searchInput.trim().toLowerCase(),
+    [searchInput],
+  );
+
+  // Client-side filter: history pages are small, so filtering in memory
+  // across doctor name, diagnosis, and consultation type is plenty.
+  const filtered = useMemo(() => {
+    if (!search) return consultations;
+    return consultations.filter((consultation) =>
+      [
+        typeof consultation.doctorId === "object" ? consultation.doctorId?.name : "",
+        consultation.diagnosis,
+        consultation.appointmentId?.consultationType,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search),
+    );
+  }, [consultations, search]);
+
   useEffect(() => {
 
     if (!patientId) return;
@@ -139,7 +165,7 @@ export default function ConsultationHistory() {
 
     <div className="flex flex-col gap-4 p-6">
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
 
         <span className="text-sm text-gray-500">
 
@@ -147,13 +173,31 @@ export default function ConsultationHistory() {
 
         </span>
 
+        <div className="relative w-full max-w-xs">
+
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+
+          <Input
+
+            placeholder="Search by doctor, diagnosis, or type"
+
+            value={searchInput}
+
+            onChange={(e) => setSearchInput(e.target.value)}
+
+            className="pl-9"
+
+          />
+
+        </div>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-        {count !== 0 ? (
+        {filtered.length !== 0 ? (
 
-          consultations.map(
+          filtered.map(
             (consultation) => (
 
               <ConsultationCard
@@ -171,7 +215,7 @@ export default function ConsultationHistory() {
 
           <p>
 
-            No consultation history found.
+            {search ? "No consultations match your search." : "No consultation history found."}
 
           </p>
 

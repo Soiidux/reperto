@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import multer from "multer";
 import { ApiError } from "../errors";
 
@@ -5,11 +7,16 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
 //Store files in temp
+const TEMP_DIR = path.join(process.cwd(), "temp");
+// Multer won't create the destination; a missing dir turns every upload
+// into an opaque 500, so ensure it exists before any request arrives.
+fs.mkdirSync(TEMP_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (req, res, cb) => {
-    cb(null, './temp');
+  destination: (_req, _file, cb) => {
+    cb(null, TEMP_DIR);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });

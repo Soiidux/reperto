@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import User from "../db/models/user.model";
+import { uploadToCloudinary } from "../utils/cloudinary";
 
 export const getMe = async (req: Request, res: Response) => {
   const id = req.user.id;
@@ -8,6 +9,41 @@ export const getMe = async (req: Request, res: Response) => {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
   res.status(200).json({ success: true, message:"User found", data: user });
+};
+
+export const updateProfileImage = async (req: Request, res: Response) => {
+  const id = req.user.id;
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "Select an image to upload (JPEG, PNG, or WebP, max 2 MB)",
+      data: null,
+    });
+  }
+
+  const result = await uploadToCloudinary(req.file.path, "profiles");
+  if (!result?.secure_url) {
+    return res.status(500).json({
+      success: false,
+      message: "Image upload failed, please try again",
+      data: null,
+    });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    id,
+    { profileImageUrl: result.secure_url },
+    { new: true },
+  ).select('-password');
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Profile image updated",
+    data: { profileImageUrl: user.profileImageUrl },
+  });
 };
 
 export const editMe = async (req: Request, res: Response) => {

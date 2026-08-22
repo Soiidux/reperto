@@ -1,6 +1,8 @@
+import { useRef, useState } from "react";
 import { Controller, useForm, type Control, type FieldValues, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Camera, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup, FieldLabel, Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -8,12 +10,37 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { updateEmail, updatePhone, updatePassword } from "@/api/auth";
+import { updateProfileImage } from "@/api/user";
 import { getErrorMessage } from "@/lib/utils";
 import { emailSchema, phoneSchema, passwordSchema } from "@/lib/zodSchemas";
 import type { emailFormSchema, phoneFormSchema, passwordFormSchema } from "@/lib/zodSchemas";
 
 export default function Profile() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFilePicked = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so picking the same file twice still fires onChange
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2 MB");
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const response = await updateProfileImage(file);
+      const imageUrl: string | undefined = response.data?.data?.profileImageUrl;
+      setUser({ profileImageUrl: imageUrl });
+      toast.success("Profile photo updated");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to upload photo"));
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-3xl">
@@ -28,12 +55,38 @@ export default function Profile() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-              {user?.name?.charAt(0)?.toUpperCase() || "?"}
+            <div className="relative">
+              {user?.profileImageUrl ? (
+                <img
+                  src={user.profileImageUrl}
+                  alt={`${user.name}'s profile`}
+                  className="h-14 w-14 rounded-full object-cover border border-neutral-200"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
+                  {user?.name?.charAt(0)?.toUpperCase() || "?"}
+                </div>
+              )}
+              <button
+                type="button"
+                aria-label="Change profile photo"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/80 disabled:opacity-50"
+              >
+                {isUploading ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFilePicked}
+              />
             </div>
-            <div>
-              <p className="text-base font-semibold text-neutral-900">{user?.name}</p>
-              <p className="text-sm text-neutral-500">{user?.email || "—"}</p>
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold text-neutral-900">{user?.name}</p>
+              <p className="truncate text-sm text-neutral-500">{user?.email || "—"}</p>
             </div>
             <Badge className="ml-auto capitalize">{user?.role}</Badge>
           </div>
