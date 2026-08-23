@@ -145,7 +145,7 @@ export const createFamilyMemberSchema = z.object({
     .refine((v) => new Date(v).getTime() <= Date.now(), {
       message: "Date of birth cannot be in the future",
     }),
-  bloodGroup: bloodGroupEnum.optional(),
+  bloodGroup: bloodGroupEnum.optional().or(z.literal("")),
   phone: z
     .string()
     .trim()
@@ -167,7 +167,7 @@ export const updateFamilyMemberSchema = z.object({
       message: "Date of birth cannot be in the future",
     })
     .optional(),
-  bloodGroup: bloodGroupEnum.optional(),
+  bloodGroup: bloodGroupEnum.optional().or(z.literal("")),
   phone: z
     .string()
     .trim()

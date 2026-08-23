@@ -90,7 +90,9 @@ const UserSchema: Schema = new Schema({
   bloodGroup: {
     type: String,
     enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
-    required: [true, 'Blood group is required'],
+    required: function (this: IUser) {
+      return this.accountType !== 'dependent';
+    },
   },
   profileImageUrl: { type: String, default: '' },
   accountType: {

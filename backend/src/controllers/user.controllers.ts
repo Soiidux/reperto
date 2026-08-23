@@ -280,7 +280,7 @@ export const updateFamilyMember = async (req: Request, res: Response) => {
   if (name !== undefined) member.name = name;
   if (gender !== undefined) member.gender = gender;
   if (dateOfBirth !== undefined) member.dateOfBirth = new Date(dateOfBirth);
-  if (bloodGroup !== undefined) member.bloodGroup = bloodGroup;
+  if (bloodGroup !== undefined) member.bloodGroup = bloodGroup || undefined;
   if (phone !== undefined) member.phone = phone || undefined;
   if (relationship !== undefined) member.relationship = relationship;
 
