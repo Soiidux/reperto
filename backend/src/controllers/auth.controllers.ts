@@ -95,6 +95,17 @@ if (!user || !user.isActive) {
   return res.status(401).json(invalidCredentialsResponse);
 }
 
+// Dependents are clinical records managed by guardians, never accounts;
+// they must not authenticate even if one somehow gains an email+password.
+if ((user as any).accountType === "dependent") {
+  const invalidCredentialsResponse: ApiResponse<null> = {
+    success: false,
+    message: "Invalid credentials",
+    data: null,
+  }
+  return res.status(401).json(invalidCredentialsResponse);
+}
+
 //2. Compare passwords
 const isMatch = await bcrypt.compare(password, user.password);
 if (!isMatch) {

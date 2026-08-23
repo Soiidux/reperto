@@ -10,6 +10,11 @@ const doctorProfileSchema = z
   })
   .optional();
 
+export const bloodGroupEnum = z.enum(
+  ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+  "Please select a valid blood group",
+);
+
 export const registerSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().email("Invalid email address"),
@@ -21,10 +26,7 @@ export const registerSchema = z.object({
     .regex(/^\d+$/, "Phone number must contain only numbers"),
   gender: z.enum(["male", "female", "other"], "Please select a valid gender"),
   dateOfBirth: z.string().min(1, "Date of birth is required"),
-  bloodGroup: z.enum(
-    ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
-    "Please select a valid blood group",
-  ),
+  bloodGroup: bloodGroupEnum,
   role: z.enum(["patient", "doctor", "staff", "admin"]).optional(),
   doctorProfile: doctorProfileSchema,
 });
@@ -122,4 +124,63 @@ export const updateAppointmentStatusSchema = z.object({
 export const rescheduleSchema = z.object({
   appointmentDate: z.string().min(1, "Select an appointment date"),
   timeSlot: z.string().min(1, "Select a time slot"),
+});
+
+// ---- Family accounts (dependents) ----
+
+const relationshipEnum = z.enum(
+  ["spouse", "child", "parent", "sibling", "other"],
+  "Select the relationship",
+);
+
+// Dependents skip email/password/phone; everything arrives as a string
+// because create goes through multipart when an avatar is attached.
+export const createFamilyMemberSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  gender: z.enum(["male", "female", "other"], "Please select a valid gender"),
+  dateOfBirth: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date of birth")
+    .refine((v) => new Date(v).getTime() <= Date.now(), {
+      message: "Date of birth cannot be in the future",
+    }),
+  bloodGroup: bloodGroupEnum.optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, "Phone number must be exactly 10 digits")
+    .optional()
+    .or(z.literal("")),
+  relationship: relationshipEnum,
+});
+
+export const updateFamilyMemberSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").optional(),
+  gender: z
+    .enum(["male", "female", "other"], "Please select a valid gender")
+    .optional(),
+  dateOfBirth: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date of birth")
+    .refine((v) => new Date(v).getTime() <= Date.now(), {
+      message: "Date of birth cannot be in the future",
+    })
+    .optional(),
+  bloodGroup: bloodGroupEnum.optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\d{10}$/, "Phone number must be exactly 10 digits")
+    .optional()
+    .or(z.literal("")),
+  relationship: relationshipEnum.optional(),
+});
+
+export const joinByShareCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^FAM-[A-Z2-9]{6}$/, "Enter a valid family code (format FAM-XXXXXX)"),
 });

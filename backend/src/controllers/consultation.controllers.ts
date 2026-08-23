@@ -5,6 +5,7 @@ import Appointment from '../db/models/appointment.model';
 import Consultation from '../db/models/consultation.model';
 import User from '../db/models/user.model';
 import { ApiError } from '../errors';
+import { canActForPatient } from '../utils/patientScope';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -98,9 +99,17 @@ export const createConsultation = async (req: Request, res: Response) => {
 
 export const getPatientHistory = async (req: Request, res: Response) => {
   let patientId;
-  
+
   if (req.user.role === 'patient') {
-    patientId = req.user.id;
+    // Patients may view their own or their dependents' history
+    const paramPatientId = String(req.params.patientId);
+    if (!isValidObjectId(paramPatientId)) {
+      throw new ApiError(400, 'Invalid patient id');
+    }
+    if (!(await canActForPatient(req.user.id, paramPatientId))) {
+      return res.status(403).json(unauthorizedResponse);
+    }
+    patientId = paramPatientId;
   } else {
     const { patientId: paramPatientId } = req.params;
     if (!isValidObjectId(paramPatientId)) {
@@ -139,8 +148,8 @@ export const getPatientHistory = async (req: Request, res: Response) => {
 };
 
 export const getLatestConsultation = async (req: Request, res: Response) => {
-  const { patientId } = req.params;
-  if (req.user.role === 'patient' && req.user.id !== patientId) {
+  const patientId = String(req.params.patientId);
+  if (req.user.role === 'patient' && !(await canActForPatient(req.user.id, patientId))) {
     return res.status(403).json(unauthorizedResponse);
   }
   if (!isValidObjectId(patientId)) {
@@ -170,7 +179,10 @@ export const getLatestConsultation = async (req: Request, res: Response) => {
 export const getConsultation = async (req: Request, res: Response) => {
   const { patientId, appointmentId } = req.query;
   
-  if(req.user.role === 'patient' && req.user.id !== patientId) {
+  if (
+    req.user.role === 'patient' &&
+    !(await canActForPatient(req.user.id, String(patientId)))
+  ) {
     return res.status(403).json(unauthorizedResponse);
   }
 
@@ -215,8 +227,9 @@ export const getPrescription = async (req: Request, res: Response) => {
     }
 
     const role = req.user.role;
+    const patientRecordId = consultation.patientId._id.toString();
     const isAuthorized =
-      (role === 'patient' && consultation.patientId._id.toString() === req.user.id) ||
+      (role === 'patient' && (await canActForPatient(req.user.id, patientRecordId))) ||
       (role === 'doctor' && consultation.doctorId._id.toString() === req.user.id) ||
       role === 'staff' ||
       role === 'admin';

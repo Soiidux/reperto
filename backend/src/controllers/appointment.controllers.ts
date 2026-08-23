@@ -11,6 +11,7 @@ import {
   getClinicNowMinutes,
   parseDateAnchor,
 } from "../utils/clinicDate";
+import { canActForPatient, resolvePatientScope } from "../utils/patientScope";
 
 const timeToMinutes = (timeStr: string) => {
   const [time, modifier] = timeStr.split(" ");
@@ -149,14 +150,20 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   "no-show": [],
 };
 
-// Role-aware scope: patients see their own, doctors see theirs,
-// staff/admin can view everything with both sides populated.
-const getAppointmentScope = (req: Request): { query: Record<string, any>; populates: PopulateSpec[] } => {
+// Role-aware scope: patients see their own + their dependents', doctors see
+// theirs, staff/admin can view everything with both sides populated.
+const getAppointmentScope = async (
+  req: Request,
+): Promise<{ query: Record<string, any>; populates: PopulateSpec[] }> => {
   const role = req.user.role;
   if (role === "patient") {
     return {
-      query: { patientId: req.user.id },
-      populates: [{ path: "doctorId", select: "name profileImageUrl" }],
+      query: { patientId: { $in: await resolvePatientScope(req.user.id) } },
+      populates: [
+        { path: "doctorId", select: "name profileImageUrl" },
+        // Patients now book for family too; the UI labels whose it is
+        { path: "patientId", select: "name profileImageUrl" },
+      ],
     };
   }
   if (role === "doctor") {
@@ -238,10 +245,16 @@ export const bookAppointment = async (req: Request, res: Response) => {
     targetPatientId = String(patient._id);
     bookedBy = req.user.id;
   } else {
+    // Patients book for themselves or for a family member they guard
     if (requestedPatientId && requestedPatientId !== req.user.id) {
-      return res.status(403).json(forbiddenResponse);
+      if (!(await canActForPatient(req.user.id, requestedPatientId))) {
+        return res.status(403).json(forbiddenResponse);
+      }
+      targetPatientId = requestedPatientId;
+      bookedBy = req.user.id;
+    } else {
+      targetPatientId = req.user.id;
     }
-    targetPatientId = req.user.id;
   }
 
   const doctor = await User.findOne({
@@ -355,7 +368,7 @@ export const bookAppointment = async (req: Request, res: Response) => {
 };
 
 export const getAppointments = async (req: Request, res: Response) => {
-  const { query, populates } = getAppointmentScope(req);
+  const { query, populates } = await getAppointmentScope(req);
 
   const { status, search, from, to } = req.query;
   if (status && status !== "all") {
@@ -446,7 +459,9 @@ export const getAppointment = async (req: Request, res: Response) => {
   const doctorId = String(
     (appointment.doctorId as { _id?: unknown })?._id ?? appointment.doctorId,
   );
-  const isPatient = req.user.role === "patient" && patientId !== req.user.id;
+  const isPatient =
+    req.user.role === "patient" &&
+    !(await canActForPatient(req.user.id, patientId));
   const isDoctor = req.user.role === "doctor" && doctorId !== req.user.id;
   if (isPatient || isDoctor) {
     return res.status(403).json(forbiddenResponse);
@@ -461,7 +476,7 @@ export const getAppointment = async (req: Request, res: Response) => {
 };
 
 export const getActiveAppointments = async (req: Request, res: Response) => {
-  const { query, populates } = getAppointmentScope(req);
+  const { query, populates } = await getAppointmentScope(req);
 
   query.status = { $nin: ["completed", "cancelled", "no-show"] };
 
@@ -483,7 +498,7 @@ export const getActiveAppointments = async (req: Request, res: Response) => {
 };
 
 export const getArrivedPatients = async (req: any, res: Response) => {
-  const { query, populates } = getAppointmentScope(req);
+  const { query, populates } = await getAppointmentScope(req);
 
   query.status = "arrived";
 
@@ -519,16 +534,18 @@ export const getTodaysAppointments = async (req: any, res: Response) => {
   };
 
   const role = req.user.role;
-  if (role === "doctor") {
-    query.doctorId = req.user.id;
-  } else if (role === "patient") {
-    query.patientId = req.user.id;
-  }
-
   const populates: PopulateSpec[] =
     role === "patient"
       ? [{ path: "doctorId", select: "name profileImageUrl gender dateOfBirth" }]
       : [{ path: "patientId", select: "name email phone profileImageUrl gender dateOfBirth" }];
+
+  if (role === "doctor") {
+    query.doctorId = req.user.id;
+  } else if (role === "patient") {
+    query.patientId = { $in: await resolvePatientScope(req.user.id) };
+    // Patients book for family too; the UI labels whose it is
+    populates.push({ path: "patientId", select: "name profileImageUrl" });
+  }
 
   const appointments = await applyPopulates(Appointment.find(query), populates)
     .sort({ timeSlot: 1 }); // Sorted by time for the daily schedule
@@ -559,7 +576,10 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   // 2. Role-Based Permission Logic
   const isDoctor = req.user.role === "doctor";
   const isPatient = req.user.role === "patient";
-  const isOwner = appointment.patientId.toString() === req.user.id;
+  const isOwner = await canActForPatient(
+    req.user.id,
+    appointment.patientId.toString(),
+  );
   const isAssignedDoctor = appointment.doctorId.toString() === req.user.id;
 
   /**
@@ -635,7 +655,10 @@ export const rescheduleAppointment = async (req: any, res: Response) => {
   // assigned-doctor, or staff/admin.
   const isPatient = req.user.role === "patient";
   const isDoctor = req.user.role === "doctor";
-  const isOwner = appointment.patientId.toString() === req.user.id;
+  const isOwner = await canActForPatient(
+    req.user.id,
+    appointment.patientId.toString(),
+  );
   const isAssignedDoctor = appointment.doctorId.toString() === req.user.id;
 
   if (isPatient && !isOwner) {
