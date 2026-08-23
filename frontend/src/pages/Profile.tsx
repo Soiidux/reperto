@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { updateEmail, updatePhone, updatePassword } from "@/api/auth";
 import { updateProfileImage } from "@/api/user";
+import FamilySection from "@/components/FamilySection";
 import { getErrorMessage } from "@/lib/utils";
 import { emailSchema, phoneSchema, passwordSchema } from "@/lib/zodSchemas";
 import type { emailFormSchema, phoneFormSchema, passwordFormSchema } from "@/lib/zodSchemas";
@@ -103,6 +104,7 @@ export default function Profile() {
       <UpdateEmailCard />
       <UpdatePhoneCard />
       <UpdatePasswordCard />
+      <FamilySection />
     </div>
   );
 }

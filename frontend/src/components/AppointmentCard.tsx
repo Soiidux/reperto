@@ -94,13 +94,21 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
               </span>
             </div>
           </div>
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border tracking-wide shadow-2xs ${currentStatus.variantClass}`}
           >
             {currentStatus.label}
           </Badge>
         </div>
+        {/* Patients booking for family see whose appointment it is */}
+        {user?.role === "patient" && patientRef && patientRef._id !== user.id && (
+          <div className="flex items-center gap-1.5 -mt-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20 rounded-full px-2 py-0.5">
+              For: {patientRef.name}
+            </span>
+          </div>
+        )}
         <div className="h-[1px] bg-neutral-100 dark:bg-neutral-800/60 w-full" />
 
         {/* Row 2: Grid Summary Details */}

@@ -38,6 +38,8 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
 import PatientCombobox from "./PatientCombobox";
+import type { FamilyMember } from "@/api/user";
+import { getFamilyMembers } from "@/api/user";
 
 export default function AppointmentForm({
   defaultDoctorId = "",
@@ -78,6 +80,29 @@ export default function AppointmentForm({
   const [isSlotsLoading, setIsSlotsLoading] = useState(true);
   const { user } = useAuthStore();
   const isStaffBooking = user?.role === "staff" || user?.role === "admin";
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+
+  // Patients can book for family members they guard; staff pick from the directory
+  useEffect(() => {
+    let active = true;
+    if (!isStaffBooking) {
+      getFamilyMembers()
+        .then((response) => {
+          if (active) {
+            setFamilyMembers(
+              (response.data?.data ?? []).filter((m: FamilyMember) => m.isActive),
+            );
+          }
+        })
+        .catch(() => {
+          // Booking still works for self when the family list fails
+          if (active) setFamilyMembers([]);
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isStaffBooking]);
 
   // On invalid submit, scroll up to the first field that needs attention
   const onInvalid = () => {
@@ -193,6 +218,45 @@ export default function AppointmentForm({
                     )}
                   />
                 </div>
+              )}
+              {!isStaffBooking && familyMembers.length > 0 && (
+                <Controller
+                  name="patientId"
+                  control={control}
+                  render={({ field }) => (
+                    <Field className="flex flex-col gap-1.5">
+                      <FieldLabel className="font-semibold text-neutral-700">
+                        Who is this appointment for?
+                      </FieldLabel>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant={!field.value ? "default" : "outline"}
+                          size="sm"
+                          className="rounded-full"
+                          onClick={() => field.onChange(undefined)}
+                        >
+                          Myself
+                        </Button>
+                        {familyMembers.map((member) => (
+                          <Button
+                            key={member._id}
+                            type="button"
+                            variant={field.value === member._id ? "default" : "outline"}
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => field.onChange(member._id)}
+                          >
+                            {member.name}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-neutral-400">
+                        Intake details below must describe the selected patient.
+                      </p>
+                    </Field>
+                  )}
+                />
               )}
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-4">
                 <Controller
