@@ -15,6 +15,16 @@ const envSchema = z.object({
   CLOUDINARY_NAME: z.string().min(1, "CLOUDINARY_NAME is required"),
   CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
   CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.preprocess(
+    (v) => (v === "" || v === undefined ? 587 : v),
+    z.coerce.number().int().positive(),
+  ),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_FROM: z.string().default("Reperto <reperto@example.com>"),
+  CLINIC_PHONE: z.string().default("+91 98765 43210"),
+  CLINIC_EMAIL: z.string().default("care@reperto.example"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -40,6 +50,19 @@ type JwtConfig = {
   jwtExpiry: string;
 };
 
+type SmtpConfig = {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+};
+
+type ClinicConfig = {
+  phone: string;
+  email: string;
+};
+
 type Config = {
   port: number;
   nodeEnv: string;
@@ -48,6 +71,8 @@ type Config = {
   clientOrigin: string;
   jwt: JwtConfig;
   cloudinary: CloudinaryConfig;
+  smtp: SmtpConfig;
+  clinic: ClinicConfig;
 };
 
 const config: Config = {
@@ -65,6 +90,27 @@ const config: Config = {
     apiKey: env.CLOUDINARY_API_KEY,
     apiSecret: env.CLOUDINARY_API_SECRET,
   },
+  smtp: {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+    from: env.SMTP_FROM,
+  },
+  clinic: {
+    phone: env.CLINIC_PHONE,
+    email: env.CLINIC_EMAIL,
+  },
 };
+
+// In production an SMTP host must be configured so password-reset and
+// verification emails actually reach users; the console transport is a
+// development/testing convenience only.
+if (config.isProd && !config.smtp.host) {
+  console.error(
+    "SMTP_HOST is required in production so email features can deliver mail.",
+  );
+  process.exit(1);
+}
 
 export default config;

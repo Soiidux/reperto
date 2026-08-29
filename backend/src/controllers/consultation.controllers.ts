@@ -6,6 +6,7 @@ import Consultation from '../db/models/consultation.model';
 import User from '../db/models/user.model';
 import { ApiError } from '../errors';
 import { canActForPatient } from '../utils/patientScope';
+import config from '../config';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -214,7 +215,7 @@ export const getConsultation = async (req: Request, res: Response) => {
 export const getPrescription = async (req: Request, res: Response) => {
   try {
     const consultation = await Consultation.findById(req.params.id)
-      .populate('patientId', 'name profileImageUrl gender dateOfBirth')
+      .populate('patientId', 'name profileImageUrl gender dateOfBirth bloodGroup')
       .populate('doctorId', 'name doctorProfile')
       .populate('appointmentId', 'appointmentDate');
 
@@ -244,21 +245,32 @@ export const getPrescription = async (req: Request, res: Response) => {
 
     const doc = new PDFDocument({ margin: 48, size: 'A4' });
 
+    const isDownload = req.query.download === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `inline; filename="prescription-${(patient.name || 'patient').replace(/\s+/g, '-').toLowerCase()}.pdf"`,
+      `${isDownload ? 'attachment' : 'inline'}; filename="prescription-${(patient.name || 'patient').replace(/\s+/g, '-').toLowerCase()}.pdf"`,
     );
 
     doc.pipe(res);
 
-    doc
-      .fontSize(18)
-      .font('Helvetica-Bold')
-      .text('PRESCRIPTION', { align: 'center' })
-      .moveDown(0.5);
+    // Letterhead band
+    const PAGE_W = doc.page.width;
 
-    doc.fontSize(10).font('Helvetica').fillColor('#444444').text('Reperto Homeopathic Clinic', { align: 'center' });
+    doc.save();
+    doc.rect(0, 0, PAGE_W, 130).fill('#166534');
+    doc.rect(0, 130, PAGE_W, 3).fill('#166534');
+    doc.fillColor('#ffffff');
+    doc.fontSize(20).font('Helvetica-Bold').text('REPERTO  HOMOEOPATHIC  CLINIC', 48, 34, { align: 'center' });
+    doc.fontSize(10).font('Helvetica').text('Holistic care, individualised treatment', 48, 64, { align: 'center', characterSpacing: 0.6 });
+    doc.font('Helvetica-Bold').fillColor('#d1fae5').fontSize(9).text('A Classic Homoeopathy Practice', 48, 86, { align: 'center' });
+    doc.font('Helvetica').fillColor('#ffffff').fontSize(9).text(`Phone: ${config.clinic.phone}  |  Email: ${config.clinic.email}`, 48, 104, { align: 'center' });
+    doc.restore();
+    doc.y = 150;
+
+    doc.font('Helvetica-Bold').fillColor('#111111').fontSize(14).text('PRESCRIPTION', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.font('Helvetica').fillColor('#666666').fontSize(9).text('This is a computer-generated prescription issued by the consulting clinician.', { align: 'center' });
     doc.moveDown(1);
 
     const createdAt: any = (consultation as any).createdAt;
@@ -274,60 +286,147 @@ export const getPrescription = async (req: Request, res: Response) => {
           year: 'numeric',
         });
 
+    // Patient + doctor info in two columns
+    const infoY = doc.y;
+    const age = patient.dateOfBirth
+      ? Math.max(0, Math.floor((Date.now() - new Date(patient.dateOfBirth).getTime()) / (365.25 * 24 * 3600 * 1000)))
+      : null;
+    const qualifications = doctor.doctorProfile?.qualifications?.length
+      ? doctor.doctorProfile.qualifications.join(', ')
+      : '';
+    const specializations = doctor.doctorProfile?.specializations?.length
+      ? `Specialisation: ${doctor.doctorProfile.specializations.join(', ')}`
+      : 'General Homoeopathy Practice';
+
     doc.font('Helvetica').fillColor('#111111').fontSize(11);
-    doc.text(`Patient Name: ${patient.name || '-'}`, { continued: false });
-    doc.text(`Date: ${date}`);
+    doc.font('Helvetica-Bold').text('Patient', 48, infoY);
+    doc.font('Helvetica').fontSize(10.5).fillColor('#333333');
+    doc.text(`Name: ${patient.name || '-'}`, 48, doc.y + 2);
+    doc.text(`Age / Gender: ${age ?? '-'} yrs / ${patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : '-'}`);
+    doc.text(`Blood Group: ${patient.bloodGroup || '-'}`);
+
+    const doctorDisplayName = (doctor.name || '').replace(/^Dr\.?\s+/i, '');
+    doc.font('Helvetica-Bold').fillColor('#111111').fontSize(11).text('Consulting Doctor', 318, infoY);
+    doc.font('Helvetica').fontSize(10.5).fillColor('#333333');
+    doc.text(`Dr. ${doctorDisplayName}`, 318, doc.y + 2);
+    if (qualifications) doc.text(qualifications, 318, doc.y, { width: 230 });
+    doc.text(specializations, 318, doc.y, { width: 230 });
+    doc.text(`Date: ${date}`, 318, doc.y, { width: 230 });
+
+    // Metadata footer line for the top half
+    doc.x = 48;
+    doc.moveDown(0.4);
+
+    doc.font('Helvetica-Bold').fillColor('#111111').fontSize(12).text('Diagnosis');
     doc.moveDown(0.25);
-    doc.text(`Doctor: ${doctor.name || ''}${doctor.doctorProfile?.qualifications?.length ? `, ${doctor.doctorProfile.qualifications.join(', ')}` : ''}`);
-    doc.moveDown(1);
+    doc.font('Helvetica').fillColor('#333333').fontSize(11).text(consultation.diagnosis || '-');
+    doc.moveDown(0.6);
 
-    doc.font('Helvetica-Bold').fontSize(12).text('Diagnosis');
-    doc.moveDown(0.25);
-    doc.font('Helvetica').fontSize(11).text(consultation.diagnosis || '-');
-    doc.moveDown(1);
+    doc.font('Helvetica-Bold').fillColor('#111111').fontSize(12).text('Prescribed Remedies');
+    doc.moveDown(0.4);
 
-    doc.font('Helvetica-Bold').fontSize(12).text('Prescribed Remedies');
-    doc.moveDown(0.35);
-
-    const columnX = doc.x;
-    const columnWidths = [150, 90, 170, 90];
-    const tableLeft = columnX;
+    const columnWidths = [180, 90, 130, 90];
+    const tableLeft = doc.x;
     const headerY = doc.y;
+    const rowH = 26;
 
-    const drawRow = (cols: string[], y: number, bold = false) => {
-      let x = tableLeft;
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10.5);
-      cols.forEach((cell, i) => {
-        doc.text(cell, x, y, { width: columnWidths[i], lineBreak: false });
-        x += columnWidths[i];
+    const drawFooter = () => {
+      doc.save();
+      doc.rect(0, doc.page.height - 34, PAGE_W, 34).fill('#f4f4f5');
+      const footerText = 'Reperto Homeopathic Clinic · This is a machine-generated prescription.';
+      doc.font('Helvetica').fillColor('#888888').fontSize(9);
+      doc.text(footerText, (PAGE_W - doc.widthOfString(footerText)) / 2, doc.page.height - 24, {
+        lineBreak: false,
       });
-      doc.moveDown(0.6);
+      doc.restore();
     };
 
-    drawRow(['Remedy', 'Potency', 'Dosage', 'Duration'], headerY, true);
+    const drawRow = (cols: string[], y: number, bold = false, fill?: string) => {
+      if (fill) {
+        doc.save();
+        doc.rect(tableLeft, y, columnWidths.reduce((a, b) => a + b, 0), rowH).fill(fill);
+        doc.restore();
+      }
+      let x = tableLeft;
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10.5).fillColor('#111111');
+      cols.forEach((cell, i) => {
+        doc.text(cell, x, y + 7, { width: columnWidths[i] - 6, lineBreak: false });
+        x += columnWidths[i];
+      });
+    };
+    // Table borders drawn beneath the text columns
+    const tableWidth = columnWidths.reduce((a, b) => a + b, 0);
+    const tableBottom = headerY + rowH * Math.max(1, consultation.prescriptions?.length || 1);
+    doc.save();
+    doc.strokeColor('#cccccc').lineWidth(0.75);
+    doc.moveTo(tableLeft, headerY);
+    doc.lineTo(tableLeft + tableWidth, headerY);
+    doc.stroke();
+    doc.moveTo(tableLeft, tableBottom);
+    doc.lineTo(tableLeft + tableWidth, tableBottom);
+    doc.stroke();
+    let x0 = tableLeft;
+    for (let i = 0; i < columnWidths.length; i += 1) {
+      doc.moveTo(x0, headerY);
+      doc.lineTo(x0, tableBottom);
+      doc.stroke();
+      x0 += columnWidths[i];
+    }
+    doc.restore();
+
+    drawRow(['Remedy', 'Potency', 'Dosage', 'Duration'], headerY, true, '#eef7ee');
 
     if (!consultation.prescriptions || consultation.prescriptions.length === 0) {
-      doc.font('Helvetica').fontSize(10.5).text('No remedies prescribed.', tableLeft, doc.y);
+      doc.font('Helvetica').fontSize(10.5).text('No remedies prescribed.', tableLeft + 6, headerY + rowH + 7);
     } else {
-      consultation.prescriptions.forEach((p) => {
+      consultation.prescriptions.forEach((p, index) => {
         drawRow(
           [p.remedyName, p.potency || '-', p.dosage, `${p.durationInDays} day(s)`],
-          doc.y,
+          headerY + rowH * (index + 1),
+          false,
+          index % 2 === 1 ? '#f6f6f6' : undefined,
         );
       });
     }
 
-    doc.moveDown(1.5);
-
-    doc.font('Helvetica-Bold').fontSize(12).text('Instructions');
+    // Follow-up expectation based on course length
+    const maxDays = consultation.prescriptions?.length
+      ? Math.max(...consultation.prescriptions.map((p) => p.durationInDays))
+      : 0;
+    doc.x = 48;
+    doc.moveDown(0.6);
+    doc.font('Helvetica-Bold').fillColor('#111111').fontSize(12).text('Instructions');
     doc.moveDown(0.25);
-    doc.font('Helvetica').fontSize(10.5).text(
-      'Follow the dosage and duration as prescribed. Please review any aggravations or improvements at your next consultation.',
+    doc.font('Helvetica').fillColor('#333333').fontSize(10.5).text(
+      maxDays > 0
+        ? 'Follow the dosage and duration as prescribed. If there is no improvement after finishing the course, a follow-up review is recommended within ' + maxDays + ' day(s). Please review any aggravations or improvements at your next consultation.'
+        : 'Follow the dosage as prescribed. Please review any aggravations or improvements at your next consultation.',
+      { width: PAGE_W - 96 },
     );
 
-    doc.moveDown(2);
-    doc.fontSize(10).fillColor('#666666').text('This is a machine-generated prescription from Reperto.', { align: 'center' });
+    // Doctor signature block; spill onto a fresh page if needed.
+    doc.x = 48;
+    doc.moveDown(1.4);
+    if (doc.y > 720) doc.addPage();
+    doc.x = doc.page.width - 48 - 200;
+    doc.font('Helvetica').fillColor('#444444').fontSize(11).text(
+      `Dr. ${doctorDisplayName}`,
+      { align: 'right', width: 200 },
+    );
+    if (qualifications) {
+      doc.fontSize(9).fillColor('#666666').text(qualifications, { align: 'right', width: 200 });
+    }
+    doc.moveDown(0.4);
+    doc.strokeColor('#333333').lineWidth(0.8);
+    doc.moveTo(doc.page.width - 48 - 200, doc.y);
+    doc.lineTo(doc.page.width - 48, doc.y);
+    doc.stroke();
+    doc.moveDown(0.2);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#444444').text('Signature', { align: 'right', width: 200 });
+    doc.moveDown(0.1);
+    doc.font('Helvetica').fontSize(8.5).fillColor('#555555').text('Licensed Homeopathic Practitioner', { align: 'right', width: 200 });
 
+    drawFooter();
     doc.end();
   } catch (error) {
     if (!res.headersSent) {
