@@ -212,3 +212,15 @@ export const reportUploadSchema = z.object({
   description: z.string().trim().max(2000).optional().or(z.literal("")),
   consultationId: z.string().optional(),
 });
+
+// ---- Doctor reviews ----
+
+export const reviewSchema = z.object({
+  doctorId: z.string().min(1, "Select a doctor"),
+  rating: z.coerce
+    .number()
+    .int()
+    .min(1, "Rating must be at least 1 star")
+    .max(5, "Rating cannot exceed 5 stars"),
+  comment: z.string().trim().max(1000, "Comment is too long").optional().or(z.literal("")),
+});

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
 import User, { IUser } from "../db/models/user.model";
+import Review from "../db/models/review.model";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { ApiError } from "../errors";
 import {
@@ -81,8 +82,46 @@ export const getDoctors = async (req: Request, res: Response) => {
   const query: any = { role: "doctor", isActive: true };
   if (specialization) query['doctorProfile.specializations'] = specialization;
   if (name) query.name = { $regex: name, $options: 'i' };
-  let doctors = await User.find(query).select('_id name profileImageUrl doctorProfile');
-  res.status(200).json({ success: true, message: 'Doctors fetched', data: doctors });
+  let doctors = await User.find(query).select('_id name profileImageUrl doctorProfile').lean();
+
+  // Attach rating stats from the Review collection so the directory can
+  // show an average without a second lookup per doctor.
+  const doctorIds = doctors.map((d) => d._id);
+  const grouped = await Review.aggregate([
+    { $match: { doctorId: { $in: doctorIds } } },
+    { $group: { _id: { doctorId: '$doctorId', rating: '$rating' }, count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: '$_id.doctorId',
+        totalReviews: { $sum: '$count' },
+        totalRating: { $sum: { $multiply: ['$_id.rating', '$count'] } },
+        counts: { $push: { rating: '$_id.rating', count: '$count' } },
+      },
+    },
+  ]);
+  const statsById = new Map<string, { totalReviews: number; avgRating: number; ratingDistribution: Record<number, number> }>();
+  for (const row of grouped) {
+    const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const c of row.counts) {
+      distribution[c.rating] = c.count;
+    }
+    statsById.set(row._id.toString(), {
+      totalReviews: row.totalReviews,
+      avgRating: Math.round((row.totalRating / row.totalReviews) * 10) / 10,
+      ratingDistribution: distribution,
+    });
+  }
+
+  const data = doctors.map((d) => {
+    const stats = statsById.get(d._id.toString()) || {
+      totalReviews: 0,
+      avgRating: 0,
+      ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    };
+    return { ...d, ...stats };
+  });
+
+  res.status(200).json({ success: true, message: 'Doctors fetched', data });
 };
 
 export const getPatients = async (req: Request, res: Response) => {

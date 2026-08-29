@@ -12,6 +12,9 @@ interface Doctor {
     languagesSpoken: string[];
     consultationFee: number;
   };
+  avgRating: number;
+  totalReviews: number;
+  ratingDistribution: Record<string, number>;
 };
 
 interface DoctorStore {

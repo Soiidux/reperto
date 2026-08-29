@@ -10,6 +10,7 @@ import consultationRoutes from "./routes/consultation.routes";
 import leaveRoutes from "./routes/leave.routes";
 import adminRoutes from "./routes/admin.routes";
 import reportRoutes from "./routes/report.routes";
+import reviewRoutes from "./routes/review.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFound } from "./middlewares/notFound";
 import { globalLimiter } from "./middlewares/rateLimiters";
@@ -49,6 +50,7 @@ app.use("/api/consultation", consultationRoutes);
 app.use("/api/leave", leaveRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/report", reportRoutes);
+app.use("/api/review", reviewRoutes);
 
 //Health check
 app.get("/health", (_req, res) => {
