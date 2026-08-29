@@ -4,13 +4,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldGroup, FieldLabel, Field, FieldError } from "./ui/field";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
-import { login } from "@/api/auth";
+import { login, resendVerification } from "@/api/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
 import { loginSchema } from "@/lib/zodSchemas";
 import type { loginFormSchema } from "@/lib/zodSchemas";
+import { useState } from "react";
 
 const LoginForm = () => {
   const {control , handleSubmit, formState: { isSubmitting }} = useForm<loginFormSchema>({
@@ -22,18 +23,39 @@ const LoginForm = () => {
   });
   const navigate = useNavigate();
   const loginGlobal = useAuthStore((state) => state.login);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
   const onSubmit = async (formData: loginFormSchema) => {
     try {
       const response = await login({ email: formData.email, password: formData.password });
       if (response.data.success && response.data.data) {
         const { user, accessToken } = response.data.data;
         loginGlobal(user, accessToken);
+        // Non-blocking: verified users proceed; unverified get a resend banner
+        // while still being allowed in.
+        if (user.emailVerified === false) {
+          setUnverifiedEmail(formData.email);
+          toast.info("Please verify your email to receive appointment notifications.");
+          return;
+        }
         navigate(`/${user.role}/dashboard`);
         toast.success("Login successful");
       }
     } catch (err: unknown) {
       const serverErrorMessage = getErrorMessage(err, "Invalid credentials. Please try again.");
       toast.error(serverErrorMessage);
+    }
+  };
+  const handleResend = async () => {
+    if (!unverifiedEmail || resending) return;
+    setResending(true);
+    try {
+      const response = await resendVerification(unverifiedEmail);
+      toast.success(response.data.message || "Verification link sent. Check your inbox.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not send the verification link."));
+    } finally {
+      setResending(false);
     }
   };
   return (
@@ -91,13 +113,45 @@ const LoginForm = () => {
               Sign In
             </Button>
           </CardFooter>
-        </form>
-        <Link to="/register" className="text-sm text-primary text-center">Don't have an account? Register</Link>
+</form>
+        {unverifiedEmail && (
+          <div className="px-6 pb-4">
+            <div className="border border-amber-300 bg-amber-50 rounded-md p-3 text-sm text-amber-800">
+              <p className="font-semibold mb-1">Your email isn't verified yet.</p>
+              <p className="text-amber-700 mb-2">Resend the verification link to {unverifiedEmail}.</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResend}
+                  disabled={resending}
+                >
+                  {resending ? "Sending…" : "Resend link"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setUnverifiedEmail(null);
+                    const role = JSON.parse(localStorage.getItem("user") || "{}").role;
+                    navigate(`/${role || "patient"}/dashboard`);
+                  }}
+                >
+                  Continue anyway
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="text-sm text-primary text-center pb-4">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </div>
+        <Link to="/register" className="text-sm text-primary text-center block pb-4">Don't have an account? Register</Link>
       </Card>
     </div>
   )
   
 }
-
 
 export default LoginForm;

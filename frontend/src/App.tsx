@@ -6,6 +6,9 @@ import { useAuthStore } from './store/authStore'; // Imported to check session s
 import './App.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import FindDoctors from './pages/FindDoctors';
 import BookAppointment from './pages/BookAppointment';
 import Appointments from './pages/Appointments';
@@ -55,6 +58,9 @@ function App() {
           <Route element={<PublicGate />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
           </Route>
           <Route path="/doctors" element={<FindDoctors/>}/>
         </Route>

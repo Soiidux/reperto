@@ -14,6 +14,7 @@ declare global{
       name: string;
       role: string;
       profileImageUrl: string;
+      emailVerified: boolean;
     };
   }
 }

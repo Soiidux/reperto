@@ -30,6 +30,7 @@ export interface IUser extends Document {
   bloodGroup: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
   profileImageUrl?: string;      // URL from Cloudinary
   isActive: boolean;
+  emailVerified: boolean;
   accountType: AccountType;
   relationship?: Relationship;
   guardians?: mongoose.Types.ObjectId[];
@@ -114,6 +115,10 @@ const UserSchema: Schema = new Schema({
   isActive: {
     type: Boolean,
     default: true,
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false,
   },
   doctorProfile: {
     type: DoctorProfileSchema,

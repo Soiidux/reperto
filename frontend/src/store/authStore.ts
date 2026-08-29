@@ -8,6 +8,7 @@ interface User {
   role: string;
   phone?: string;
   email?: string;
+  emailVerified?: boolean;
   profileImageUrl?: string;
 }
 

@@ -6,12 +6,30 @@ import { generateAccessToken, generateRefreshToken, validateAccessToken, getBear
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { hashToken } from "../utils/tokenHash";
 import config from "../config";
+import { sendEmail, verificationEmailHtml, resetPasswordEmailHtml } from "../utils/email";
+import { issueEmailToken, consumeEmailToken, buildActionLink } from "../utils/emailToken";
 
 const refreshCookieOptions = {
   httpOnly: true,
   secure: config.isProd,
   sameSite: "lax" as const,
   maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+// Issues a fresh verification token and emails the link to the user.
+// Sends are isolated from callers so a mail failure never blocks an
+// action (the dev console transport cannot fail; SMTP may).
+const sendVerificationEmail = async (userId: string, email: string) => {
+  try {
+    const token = await issueEmailToken(userId, "verify-email");
+    await sendEmail({
+      to: email,
+      subject: "Verify your Reperto email",
+      html: verificationEmailHtml(buildActionLink("verify-email", token)),
+    });
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+  }
 };
 
 
@@ -71,7 +89,12 @@ export const registerUser = async (req: Request, res: Response) => {
   
   //6.Save User
   await newUser.save();
-  
+
+  //7.Email verification link (dependent accounts have no inbox; guests only)
+  if (roleToAssign !== "dependent") {
+    await sendVerificationEmail(newUser._id.toString(), email);
+  }
+
   const response: ApiResponse<null> = {
     success: true,
     message: "User registered successfully",
@@ -142,6 +165,7 @@ const successResponse: ApiResponse<LoginData> = {
       name: user.name,
       role: user.role,
       profileImageUrl: user.profileImageUrl || "",
+      emailVerified: user.emailVerified ?? false,
     },
   },
 };
@@ -261,9 +285,89 @@ if (existingUser) {
 return res.status(400).json({ message: "Email is already in use" });
 }
 user.email = email;
+user.emailVerified = false;
 await user.save();
+// Changing the account email invalidates sessions and pending verify links.
+await RefreshToken.updateMany({ userId }, { isRevoked: true });
+await sendVerificationEmail(userId, email);
 return res.status(200).json({ message: "Email updated successfully" });
 }
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  const userId = await consumeEmailToken(String(req.body.token), "verify-email");
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: "This verification link is invalid, expired, or already used.",
+      data: null,
+    });
+  }
+  await User.updateOne({ _id: userId }, { emailVerified: true });
+  return res.status(200).json({
+    success: true,
+    message: "Email verified successfully.",
+    data: null,
+  });
+};
+
+export const resendVerification = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  // Be intentionally vague so the endpoint can't be used to probe accounts.
+  if (user && user.isActive && !user.emailVerified) {
+    await sendVerificationEmail(user._id.toString(), email);
+  }
+  return res.status(200).json({
+    success: true,
+    message: "If the account exists and is unverified, a new link has been sent.",
+    data: null,
+  });
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  // Same vague response for found/missing accounts (no enumeration).
+  if (user && user.isActive && user.accountType !== "dependent") {
+    try {
+      const token = await issueEmailToken(user._id.toString(), "reset-password");
+      await sendEmail({
+        to: email,
+        subject: "Reset your Reperto password",
+        html: resetPasswordEmailHtml(buildActionLink("reset-password", token)),
+      });
+    } catch (error) {
+      console.error("Failed to send password reset email:", error);
+    }
+  }
+  return res.status(200).json({
+    success: true,
+    message: "If an account exists for that email, a password reset link has been sent.",
+    data: null,
+  });
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+  const userId = await consumeEmailToken(String(token), "reset-password");
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: "This reset link is invalid, expired, or already used.",
+      data: null,
+    });
+  }
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  await User.updateOne({ _id: userId }, { password: hashedPassword });
+  // Invalidate every session so stale tokens cannot be reused.
+  await RefreshToken.updateMany({ userId }, { isRevoked: true });
+  return res.status(200).json({
+    success: true,
+    message: "Password reset successfully. Please log in with your new password.",
+    data: null,
+  });
+};
 
 export const updatePhone = async (req: Request, res: Response) => {
 const { phone, password } = req.body;

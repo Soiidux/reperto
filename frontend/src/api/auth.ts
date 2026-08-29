@@ -39,3 +39,19 @@ export const updatePhone = async (data: { phone: string; password: string }) => 
 export const updatePassword = async (data: { oldPassword: string; newPassword: string }) => {
   return await API.patch('/auth/password', data);
 };
+
+export const verifyEmail = async (token: string) => {
+  return await API.post('/auth/verify-email', { token });
+};
+
+export const resendVerification = async (email: string) => {
+  return await API.post('/auth/resend-verification', { email });
+};
+
+export const forgotPassword = async (email: string) => {
+  return await API.post('/auth/forgot-password', { email });
+};
+
+export const resetPassword = async (token: string, newPassword: string) => {
+  return await API.post('/auth/reset-password', { token, newPassword });
+};
