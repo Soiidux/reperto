@@ -184,3 +184,14 @@ export const joinByShareCodeSchema = z.object({
     .toUpperCase()
     .regex(/^FAM-[A-Z2-9]{6}$/, "Enter a valid family code (format FAM-XXXXXX)"),
 });
+
+// ---- Reports vault ----
+
+export const reportUploadSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(150),
+  category: z.enum(["lab", "imaging", "test", "other"], "Select a category"),
+  // Optional for patients uploading their own report; required for staff/admin.
+  patientId: z.string().optional(),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  consultationId: z.string().optional(),
+});

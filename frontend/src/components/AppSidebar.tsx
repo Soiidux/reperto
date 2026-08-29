@@ -22,6 +22,7 @@ import {
   FileClock,
   ShieldCheck,
   Armchair,
+  FolderOpen,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 const menuConfigs = {
@@ -38,6 +39,7 @@ const menuConfigs = {
       icon: CalendarDays,
     },
     { title: "Consultation History", url: `/patient/consultation/history/`, icon: History },
+    { title: "My Reports", url: "/patient/reports", icon: FolderOpen },
     { title: "Find Doctors", url: "/patient/doctors", icon: SlidersHorizontal },
     {
       title: "My Profile Settings",
@@ -101,6 +103,7 @@ const menuConfigs = {
       url: "/staff/appointments",
       icon: CalendarDays,
     },
+    { title: "Patient Reports", url: "/staff/reports", icon: FolderOpen },
   ],
 };
 

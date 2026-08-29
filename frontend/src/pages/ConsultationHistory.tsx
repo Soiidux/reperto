@@ -3,8 +3,10 @@ import ConsultationCard from "@/components/ConsultationCard";
 import { getPatientHistory } from "@/api/consultation";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, FolderOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 import { useParams } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
@@ -173,21 +175,39 @@ export default function ConsultationHistory() {
 
         </span>
 
-        <div className="relative w-full max-w-xs">
+        <div className="flex items-center gap-2">
 
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+          <div className="relative w-full max-w-xs">
 
-          <Input
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
 
-            placeholder="Search by doctor, diagnosis, or type"
+            <Input
 
-            value={searchInput}
+              placeholder="Search by doctor, diagnosis, or type"
 
-            onChange={(e) => setSearchInput(e.target.value)}
+              value={searchInput}
 
-            className="pl-9"
+              onChange={(e) => setSearchInput(e.target.value)}
 
-          />
+              className="pl-9"
+
+            />
+
+          </div>
+
+          <Button size="sm" variant="outline" asChild>
+
+            <Link
+              to={
+                user?.role === "doctor"
+                  ? `/doctor/reports/${patientId}`
+                  : "/patient/reports"
+              }
+            >
+              <FolderOpen className="size-4 mr-1" /> Reports
+            </Link>
+
+          </Button>
 
         </div>
 

@@ -39,6 +39,7 @@ import {
   Brain,
   Stethoscope,
   FileText,
+  FolderOpen,
 } from "lucide-react";
 
 import { getAppointmentById } from "@/api/appointment";
@@ -300,6 +301,13 @@ export default function ConsultationDetails() {
             <Button variant="outline" size="sm" onClick={downloadPrescription}>
               <FileText className="mr-2 size-4" /> Download Prescription
             </Button>
+            {user?.role === "doctor" && (
+              <Button variant="outline" size="sm">
+                <Link to={`/doctor/reports/${patient._id}`}>
+                  <FolderOpen className="mr-2 size-4" /> View Reports
+                </Link>
+              </Button>
+            )}
             {user?.role === "patient" && (
               <Button size="sm">
                 <Link to={`/patient/book-appointment?doctorId=${doctor._id}&type=Follow-up`}>

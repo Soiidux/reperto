@@ -20,6 +20,9 @@ import PatientDirectory from './pages/PatientDirectory';
 import PastAppointments from './pages/PastAppointments';
 import Schedule from './pages/Schedule';
 import QueueBoard from './pages/QueueBoard';
+import PatientReports from './pages/PatientReports';
+import DoctorReports from './pages/DoctorReports';
+import StaffReports from './pages/StaffReports';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -69,6 +72,7 @@ function App() {
             <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
             <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
             <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
+            <Route path="/patient/reports" element={<PatientReports />} />
             <Route path="/patient/profile" element={<Profile />} />
           </Route>
         
@@ -86,6 +90,7 @@ function App() {
             <Route path="/doctor/start-consultation/:id" element={<TakeConsultation />} />
             <Route path="/doctor/consultation/:id" element={<ViewConsultation />} />
             <Route path="/doctor/consultation/history/:patientId" element={<ConsultationHistory />} />
+            <Route path="/doctor/reports/:patientId" element={<DoctorReports />} />
             <Route path="/doctor/profile" element={<Profile />} />
           </Route>
 
@@ -104,6 +109,7 @@ function App() {
             <Route path="/staff/appointments" element={<Appointments />} />
             <Route path="/staff/appointments/all" element={<AllAppointments />} />
             <Route path="/staff/appointments/:id" element={<ViewAppointment />} />
+            <Route path="/staff/reports" element={<StaffReports />} />
           </Route>
         </Route>
 
