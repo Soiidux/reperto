@@ -6,6 +6,7 @@ import User from "../db/models/user.model";
 import { ApiError } from "../errors";
 import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
 import { sendEmail, rescheduleNoticeEmailHtml } from "../utils/email";
+import { notifyPatient } from "../utils/notifications";
 import {
   timeToMinutes,
   getDayContext,
@@ -106,6 +107,9 @@ const resolveLeaveConflicts = async (
   const from = new Date(leave.startingDate);
   const to = leave.endingDate ? new Date(leave.endingDate) : new Date(leave.startingDate);
 
+  const doctor = await User.findById(doctorId).select("name").lean();
+  const doctorLabel = doctor?.name || "Your doctor";
+
   const candidates = await Appointment.find({
     doctorId,
     status: { $in: ["pending", "arrived"] },
@@ -130,6 +134,15 @@ const resolveLeaveConflicts = async (
     await appointment.save();
 
     await notifyPatientAboutConflict(doctorId, appointment, suggestions);
+    await notifyPatient(appointment.patientId, {
+      type: "leave-conflict",
+      title: "Your appointment needs rescheduling",
+      body: `${doctorLabel} is on leave during your appointment on ${formatDateLabel(
+        appointment.appointmentDate,
+      )} at ${appointment.timeSlot}. Pick a new time for your visit.`,
+      link: `/patient/appointments/${appointment._id}`,
+      appointmentId: appointment._id,
+    });
 
     conflicts.push({
       appointmentId: appointment._id,

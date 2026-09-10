@@ -3,6 +3,7 @@ import { Outlet, Navigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "../components/AppSidebar";
+import NotificationBell from "../components/NotificationBell";
 import { Activity } from "lucide-react";
 const DashboardLayout = () => {
   const { user, accessToken } = useAuthStore();
@@ -35,9 +36,12 @@ const DashboardLayout = () => {
               </div>
             </div>
             
-            {/* Right side of top bar is now clear, perfect for global notifications or date badges later */}
-            <div className="text-xs font-medium text-neutral-400">
-              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            {/* Right side: global notifications bell + today's date */}
+            <div className="flex items-center gap-4">
+              <NotificationBell />
+              <div className="text-xs font-medium text-neutral-400">
+                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </div>
             </div>
           </header>
 

@@ -20,6 +20,7 @@ import getAge from "@/utils/getAge";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
 import { RescheduleDialog } from "./RescheduleDialog";
+import { AcceptSuggestionButton } from "./AcceptSuggestionButton";
 import { getErrorMessage } from "@/lib/utils";
 
 
@@ -42,6 +43,8 @@ interface Appointment {
   durationInMinutes: number;
   status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
   consultationType: 'Initial' | 'Follow-up' | 'Acute';
+  needsReschedule?: boolean;
+  rescheduleSuggestions?: { date: string; timeSlot: string }[];
   intakeDetails: {
     primaryComplaint: string;
     duration: string;
@@ -72,7 +75,7 @@ export default function AppointmentDetails() {
       cancelled = true;
     };
   }, [id]);
-  const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status } = appointmentData || {};
+  const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status, needsReschedule, rescheduleSuggestions } = appointmentData || {};
   if (!appointmentData) {
     return (
       <div className="w-full max-w-5xl mx-auto p-4 md:p-6">
@@ -103,6 +106,27 @@ export default function AppointmentDetails() {
 
           <CardContent className="space-y-6">
             <FieldSeparator className="my-2 border-neutral-100" />
+
+            {/* Reschedule-required banner: doctor leave conflicted with this booking */}
+            {needsReschedule && status === "pending" && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:bg-amber-950/30 dark:border-amber-800">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-2">
+                  The doctor is on leave during this appointment — pick a new time:
+                </p>
+                {rescheduleSuggestions && rescheduleSuggestions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {rescheduleSuggestions.map((suggestion, index) => (
+                      <AcceptSuggestionButton key={index} appointmentId={_id!} suggestion={suggestion} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-800 dark:text-amber-400">
+                    No suggestions available — use the Reschedule button to choose another slot.
+                  </p>
+                )}
+              </div>
+            )}
+
             <FieldSet className="space-y-4">
               <FieldLegend className="text-lg font-bold text-primary border-b border-neutral-100 pb-1 w-full">
                 Patient Information

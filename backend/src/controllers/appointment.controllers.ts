@@ -10,6 +10,7 @@ import {
   parseDateAnchor,
 } from "../utils/clinicDate";
 import { canActForPatient, resolvePatientScope } from "../utils/patientScope";
+import { createInAppNotification, notifyPatient } from "../utils/notifications";
 import {
   timeToMinutes,
   getDayContext,
@@ -20,6 +21,14 @@ import {
 
 // Escapes user input before embedding it in a $regex filter
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const formatDateLabel = (date: Date) =>
+  new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 const forbiddenResponse: ApiResponse<null> = {
   success: false,
@@ -561,6 +570,57 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
 
   await appointment.save();
 
+  // Fan out in-app notifications for the state change
+  try {
+    if (isPatient) {
+      // Patients can only cancel, so the notice goes to the assigned doctor
+      const doctor = await User.findById(appointment.doctorId).select("name").lean();
+      await createInAppNotification(appointment.doctorId, {
+        type: "appointment-status",
+        title: "Patient cancelled an appointment",
+        body: `A patient cancelled their appointment with ${
+          doctor?.name || "you"
+        } on ${formatDateLabel(appointment.appointmentDate)} at ${appointment.timeSlot}.`,
+        link: `/doctor/appointments/${appointment._id}`,
+        appointmentId: appointment._id,
+      });
+    } else {
+      const doctor = await User.findById(appointment.doctorId).select("name").lean();
+      const doctorLabel = doctor?.name || "Your doctor";
+      const statusMessages: Record<string, { title: string; body: string }> = {
+        arrived: {
+          title: "You've checked in",
+          body: `You have been marked as arrived for your appointment with ${doctorLabel} on ${formatDateLabel(
+            appointment.appointmentDate,
+          )} at ${appointment.timeSlot}.`,
+        },
+        completed: {
+          title: "Appointment completed",
+          body: `Your appointment with ${doctorLabel} on ${formatDateLabel(
+            appointment.appointmentDate,
+          )} at ${appointment.timeSlot} has been completed.`,
+        },
+        cancelled: {
+          title: "Appointment cancelled",
+          body: `Your appointment with ${doctorLabel} on ${formatDateLabel(
+            appointment.appointmentDate,
+          )} at ${appointment.timeSlot} was cancelled.`,
+        },
+      };
+      const message = statusMessages[status];
+      if (message) {
+        await notifyPatient(appointment.patientId, {
+          type: "appointment-status",
+          ...message,
+          link: `/patient/appointments/${appointment._id}`,
+          appointmentId: appointment._id,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Failed to send appointment status notification:", error);
+  }
+
   res.status(200).json({
     success: true,
     message: `Appointment status updated to ${status}`,
@@ -663,6 +723,31 @@ export const rescheduleAppointment = async (req: any, res: Response) => {
     }
     throw error;
   });
+
+  // Confirmations fan out after the move persists
+  try {
+    const patient = await User.findById(appointment.patientId).select("name").lean();
+    await notifyPatient(appointment.patientId, {
+      type: "appointment-rescheduled",
+      title: "Appointment rescheduled",
+      body: `Your appointment is now on ${formatDateLabel(
+        appointment.appointmentDate,
+      )} at ${appointment.timeSlot}.`,
+      link: `/patient/appointments/${appointment._id}`,
+      appointmentId: appointment._id,
+    });
+    await createInAppNotification(appointment.doctorId, {
+      type: "appointment-rescheduled",
+      title: "Appointment rescheduled",
+      body: `${patient?.name || "A patient"} rescheduled their appointment to ${formatDateLabel(
+        appointment.appointmentDate,
+      )} at ${appointment.timeSlot}.`,
+      link: `/doctor/appointments/${appointment._id}`,
+      appointmentId: appointment._id,
+    });
+  } catch (error) {
+    console.error("Failed to send reschedule notifications:", error);
+  }
 
   const response: ApiResponse<typeof appointment> = {
     success: true,
