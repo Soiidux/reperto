@@ -78,3 +78,30 @@ export const resetPasswordEmailHtml = (link: string) =>
       This link expires in 60 minutes. If you did not request this, you can safely ignore this email.
     </p>
   `);
+
+export const rescheduleNoticeEmailHtml = (options: {
+  doctorName: string;
+  originalDate: string;
+  originalTime: string;
+  suggestions: { date: string; timeSlot: string }[];
+}) => {
+  const listItems = options.suggestions
+    .map(
+      (s) =>
+        `<li style="margin:4px 0;"><strong>${s.date}</strong> at <strong>${s.timeSlot}</strong></li>`,
+    )
+    .join("");
+
+  return layout(`
+    <p style="margin:0 0 16px;">
+      Dr. ${options.doctorName} is on leave during your scheduled appointment on
+      <strong>${options.originalDate}</strong> at <strong>${options.originalTime}</strong>.
+    </p>
+    <p style="margin:0 0 8px;">Please pick one of these suggested times to confirm a new slot:</p>
+    <ul style="margin:0 0 16px;padding-left:20px;">${listItems}</ul>
+    <p style="margin:0 0 16px;">
+      Log in to Reperto and open the appointment to accept a suggestion or choose any other
+      available slot. Nothing is moved automatically.
+    </p>
+  `);
+};

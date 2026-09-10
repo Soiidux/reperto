@@ -66,7 +66,12 @@ export default function Schedule() {
         reason: data.reason || "Personal Leave",
       });
       if (response.data.success) {
-        toast.success("Leave added successfully");
+        const conflictsHandled = response.data.data?.conflictsHandled ?? 0;
+        if (conflictsHandled > 0) {
+          toast.success(`Leave added · ${conflictsHandled} appointment(s) flagged for rescheduling`);
+        } else {
+          toast.success("Leave added successfully");
+        }
         reset();
         await loadLeaves();
       }

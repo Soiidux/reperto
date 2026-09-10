@@ -25,6 +25,8 @@ interface Appointment {
   durationInMinutes: number;
   status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
   consultationType: 'Initial' | 'Follow-up' | 'Acute';
+  needsReschedule?: boolean;
+  rescheduleSuggestions?: { date: string; timeSlot: string }[];
 }
 
 export default function Appointments() {

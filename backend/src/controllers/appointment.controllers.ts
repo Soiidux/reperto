@@ -2,8 +2,6 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Appointment from "../db/models/appointment.model";
 import User from "../db/models/user.model";
-import Leave from "../db/models/leave.model";
-import { MASTER_SLOTS } from "../constants/slots";
 import { ApiError } from "../errors";
 import {
   getClinicTodayAnchor,
@@ -12,16 +10,13 @@ import {
   parseDateAnchor,
 } from "../utils/clinicDate";
 import { canActForPatient, resolvePatientScope } from "../utils/patientScope";
-
-const timeToMinutes = (timeStr: string) => {
-  const [time, modifier] = timeStr.split(" ");
-  let [hours, minutes] = time.split(":").map(Number);
-
-  if (modifier === "PM" && hours !== 12) hours += 12;
-  if (modifier === "AM" && hours === 12) hours = 0;
-
-  return hours * 60 + minutes;
-};
+import {
+  timeToMinutes,
+  getDayContext,
+  isSlotBlockedByLeave,
+  isSlotOverlappingBookings,
+  getAvailableSlotsFor,
+} from "../utils/availability";
 
 // Escapes user input before embedding it in a $regex filter
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -30,79 +25,6 @@ const forbiddenResponse: ApiResponse<null> = {
   success: false,
   message: "You are not authorized to view this.",
   data: null,
-};
-
-// Shared availability helpers --------------------------------------------
-
-const getDayContext = async (
-  doctorId: string,
-  selectedDate: Date,
-  excludeAppointmentId?: string,
-) => {
-  const blocks = await Leave.find({
-    doctorId,
-    startingDate: { $lte: selectedDate },
-    $or: [
-      { endingDate: { $gte: selectedDate } },
-      { endingDate: { $exists: false } },
-      { endingDate: null },
-    ],
-  });
-  // Cancelled appointments free their slot back up
-  const bookings = await Appointment.find({
-    doctorId,
-    appointmentDate: selectedDate,
-    status: { $ne: "cancelled" },
-    ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
-  });
-  return { blocks, bookings };
-};
-
-const isSlotBlockedByLeave = (
-  blocks: any[],
-  selectedDate: Date,
-  slotStart: number,
-  slotEnd: number,
-): boolean => {
-  return blocks.some((block) => {
-    const currentDate = selectedDate.getTime();
-    const startDate = block.startingDate.getTime();
-    const endDate = block.endingDate ? block.endingDate.getTime() : startDate;
-
-    // CASE 1: Single Day Partial Leave (Starts and Ends Today)
-    if (currentDate === startDate && currentDate === endDate) {
-      const bStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
-      const bEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
-      return slotStart < bEnd && slotEnd > bStart;
-    }
-
-    // CASE 2: Starting Day of multiday leave
-    if (currentDate === startDate) {
-      const blockStart = block.startingTime ? timeToMinutes(block.startingTime) : 0;
-      return slotStart < 1440 && slotEnd > blockStart;
-    }
-    // CASE 3: Ending Day of multiday leave
-    if (block.endingDate && currentDate === endDate) {
-      const blockEnd = block.endingTime ? timeToMinutes(block.endingTime) : 1440;
-      return slotStart < blockEnd && slotEnd > 0;
-    }
-    // CASE 4: Multiday leave in the middle
-    if (currentDate > startDate && currentDate < endDate) return true;
-
-    return false;
-  });
-};
-
-const isSlotOverlappingBookings = (
-  bookings: { timeSlot: string; durationInMinutes: number }[],
-  slotStart: number,
-  slotEnd: number,
-): boolean => {
-  return bookings.some((booking) => {
-    const start = timeToMinutes(booking.timeSlot);
-    const end = start + Number(booking.durationInMinutes);
-    return slotStart < end && slotEnd > start;
-  });
 };
 
 /**
@@ -609,6 +531,12 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   // 4. Update the fields
   appointment.status = status;
 
+  // A cancelled/completed booking no longer needs rescheduling
+  if (status === "cancelled" || status === "completed") {
+    appointment.needsReschedule = false;
+    appointment.rescheduleSuggestions = [];
+  }
+
   if (status === "cancelled") {
     const selectedDate = new Date(appointment.appointmentDate);
     if (isPatient && isClinicToday(selectedDate)) {
@@ -725,6 +653,9 @@ export const rescheduleAppointment = async (req: any, res: Response) => {
 
   appointment.appointmentDate = selectedDate;
   appointment.timeSlot = timeSlot;
+  // Rescheduling resolves any leave-conflict flag on this booking
+  appointment.needsReschedule = false;
+  appointment.rescheduleSuggestions = [];
 
   await appointment.save().catch((error: any) => {
     if (error?.code === 11000) {
@@ -759,32 +690,16 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     throw new ApiError(400, "Invalid duration");
   }
 
-  const { blocks, bookings } = await getDayContext(doctorId, selectedDate);
+  const availableSlots = await getAvailableSlotsFor(doctorId, selectedDate, duration);
 
-  if (blocks.some((b) => b.type === "full-day")) {
-    const fullDayLeaveResponse: ApiResponse<null> = {
+  if (availableSlots.length === 0) {
+    const allBlockedResponse: ApiResponse<null> = {
       success: true,
       message: "Doctor is on leave",
       data: null,
     };
-    return res.json(fullDayLeaveResponse);
+    return res.json(allBlockedResponse);
   }
-
-  // Check each Master Slot to see if it's a valid starting point
-  const availableSlots = MASTER_SLOTS.filter((slot) => {
-    const slotStart = timeToMinutes(slot);
-    const slotEnd = slotStart + duration;
-
-    if (isClinicToday(selectedDate)) {
-      if (slotStart < getClinicNowMinutes() + 15) return false;
-    }
-
-    if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
-      return false;
-    }
-
-    return !isSlotOverlappingBookings(bookings, slotStart, slotEnd);
-  });
 
   const availableSlotsResponse: ApiResponse<typeof availableSlots> = {
     success: true,

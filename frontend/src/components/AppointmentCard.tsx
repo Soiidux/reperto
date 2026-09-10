@@ -7,6 +7,7 @@ import { Button } from "./ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
 import { RescheduleDialog } from "./RescheduleDialog";
+import { AcceptSuggestionButton } from "./AcceptSuggestionButton";
 const statusStyles: Record<string, { label: string; variantClass: string }> = {
   pending: { label: "Pending", variantClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50" },
   arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
@@ -34,8 +35,10 @@ interface AppointmentCardProps {
   durationInMinutes: number;
   status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
   consultationType: 'Initial' | 'Follow-up' | 'Acute';
+  needsReschedule?: boolean;
+  rescheduleSuggestions?: { date: string; timeSlot: string }[];
 }
-export default function AppointmentCard({ _id, patientId, doctorId, appointmentDate, timeSlot, durationInMinutes, status, consultationType }: AppointmentCardProps) {
+export default function AppointmentCard({ _id, patientId, doctorId, appointmentDate, timeSlot, durationInMinutes, status, consultationType, needsReschedule, rescheduleSuggestions }: AppointmentCardProps) {
   const currentStatus = statusStyles[status] || statusStyles.pending;
   const { user } = useAuthStore();
   const canBookFollowUp = user?.role === "patient" || user?.role === "staff" || user?.role === "admin";
@@ -64,7 +67,27 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
 
       {/* Card Body: Dynamic Field Presentation Metrics */}
       <CardContent className="p-4 space-y-3.5">
-        
+
+        {/* Reschedule-required banner: doctor leave conflicted with this booking */}
+        {needsReschedule && status === "pending" && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 dark:bg-amber-950/30 dark:border-amber-800">
+            <p className="text-xs font-semibold text-amber-900 dark:text-amber-300 mb-2">
+              The doctor is on leave during this appointment — pick a new time:
+            </p>
+            {rescheduleSuggestions && rescheduleSuggestions.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {rescheduleSuggestions.map((suggestion, index) => (
+                  <AcceptSuggestionButton key={index} appointmentId={_id} suggestion={suggestion} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-amber-800 dark:text-amber-400">
+                No suggestions available — use the Reschedule button to choose another slot.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Row 1: Attending Medical Practitioner */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-6">

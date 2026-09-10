@@ -1,7 +1,147 @@
 import { Request, Response } from 'express';
+import mongoose from "mongoose";
 import Leave from "../db/models/leave.model";
+import Appointment from "../db/models/appointment.model";
+import User from "../db/models/user.model";
 import { ApiError } from "../errors";
 import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
+import { sendEmail, rescheduleNoticeEmailHtml } from "../utils/email";
+import {
+  timeToMinutes,
+  getDayContext,
+  isSlotBlockedByLeave,
+  getAvailableSlotsFor,
+} from "../utils/availability";
+
+const RESCHEDULE_WINDOW_DAYS = 14;
+const SUGGESTIONS_PER_APPOINTMENT = 3;
+
+const formatDateLabel = (date: Date) =>
+  new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+/**
+ * Up to 3 alternative slots in the days after the appointment, reusing the
+ * same availability math as booking so a suggestion is always valid at
+ * generation time. The original slot is preferred when it is still free.
+ */
+const generateSuggestions = async (
+  doctorId: string,
+  appointment: any,
+): Promise<{ date: Date; timeSlot: string }[]> => {
+  const suggestions: { date: Date; timeSlot: string }[] = [];
+  const originalDate = appointment.appointmentDate.getTime();
+  const duration = Number(appointment.durationInMinutes);
+
+  for (
+    let offset = 1;
+    offset <= RESCHEDULE_WINDOW_DAYS && suggestions.length < SUGGESTIONS_PER_APPOINTMENT;
+    offset++
+  ) {
+    const candidateDate = new Date(originalDate + offset * 86400000);
+    const slots = await getAvailableSlotsFor(doctorId, candidateDate, duration);
+    if (slots.length === 0) continue;
+
+    if (slots.includes(appointment.timeSlot)) {
+      suggestions.push({ date: candidateDate, timeSlot: appointment.timeSlot });
+    }
+    for (const slot of slots) {
+      if (suggestions.length >= SUGGESTIONS_PER_APPOINTMENT) break;
+      if (slot === appointment.timeSlot) continue;
+      suggestions.push({ date: candidateDate, timeSlot: slot });
+    }
+  }
+
+  return suggestions;
+};
+
+/** Emails the patient (or their guardian for dependent accounts) about the conflict. */
+const notifyPatientAboutConflict = async (
+  doctorId: string,
+  appointment: any,
+  suggestions: { date: Date; timeSlot: string }[],
+) => {
+  try {
+    const doctor = await User.findById(doctorId).select("name").lean();
+    let recipient: any = await User.findById(appointment.patientId);
+    if (!recipient) return;
+    if (!recipient.email || recipient.accountType === "dependent") {
+      const guardianId = recipient.guardians?.[0];
+      if (!guardianId) return;
+      recipient = await User.findById(guardianId);
+    }
+    if (!recipient?.email) return;
+
+    await sendEmail({
+      to: recipient.email,
+      subject: "Your appointment needs rescheduling",
+      html: rescheduleNoticeEmailHtml({
+        doctorName: doctor?.name || "your doctor",
+        originalDate: formatDateLabel(appointment.appointmentDate),
+        originalTime: appointment.timeSlot,
+        suggestions: suggestions.map((s) => ({
+          date: formatDateLabel(s.date),
+          timeSlot: s.timeSlot,
+        })),
+      }),
+    });
+  } catch (error) {
+    console.error("Failed to send reschedule notice:", error);
+  }
+};
+
+/**
+ * Flags every active appointment that overlaps the new leave, stores up to
+ * three alternative slots on it, and notifies the patient. Returns a summary
+ * of the conflicts so the response can surface them to the doctor.
+ */
+const resolveLeaveConflicts = async (
+  doctorId: string,
+  leave: any,
+) => {
+  const from = new Date(leave.startingDate);
+  const to = leave.endingDate ? new Date(leave.endingDate) : new Date(leave.startingDate);
+
+  const candidates = await Appointment.find({
+    doctorId,
+    status: { $in: ["pending", "arrived"] },
+    needsReschedule: { $ne: true },
+    appointmentDate: { $gte: from, $lte: to },
+  });
+
+  const conflicts: any[] = [];
+
+  for (const appointment of candidates) {
+    const slotStart = timeToMinutes(appointment.timeSlot);
+    const slotEnd = slotStart + Number(appointment.durationInMinutes);
+
+    // Same overlap math the booking path uses, so "conflict" == "blocked"
+    if (!isSlotBlockedByLeave([leave], appointment.appointmentDate, slotStart, slotEnd)) {
+      continue;
+    }
+
+    const suggestions = await generateSuggestions(doctorId, appointment);
+    appointment.needsReschedule = true;
+    appointment.rescheduleSuggestions = suggestions;
+    await appointment.save();
+
+    await notifyPatientAboutConflict(doctorId, appointment, suggestions);
+
+    conflicts.push({
+      appointmentId: appointment._id,
+      patientId: appointment.patientId,
+      originalDate: appointment.appointmentDate,
+      timeSlot: appointment.timeSlot,
+      suggestions,
+    });
+  }
+
+  return conflicts;
+};
 
 export const addLeave = async (req: Request, res: Response) => {
   try {
@@ -73,6 +213,17 @@ export const addLeave = async (req: Request, res: Response) => {
     });
     
     await leave.save();
+
+    // Resolver: flag overlapping bookings and suggest alternatives to patients
+    const conflicts = await resolveLeaveConflicts(doctorId, leave);
+
+    if (conflicts.length > 0) {
+      return res.status(201).json({
+        success: true,
+        message: `Leave added. ${conflicts.length} appointment(s) flagged for rescheduling.`,
+        data: { leave, conflictsHandled: conflicts.length, conflicts },
+      });
+    }
     
     return res.status(201).json({ success: true, message: "Leave record added successfully" , data: leave });
   } catch (error: any) {
@@ -93,6 +244,35 @@ export const getLeaves = async (req: Request, res: Response) => {
   });
 };
 
+/**
+ * When a leave is removed, re-check the appointments it used to cover:
+ * any that are no longer blocked by a remaining leave get their flag and
+ * suggestions cleared, so patients aren't nudged to move an available slot.
+ */
+const clearResolvedConflicts = async (doctorId: string, leave: any) => {
+  const from = new Date(leave.startingDate);
+  const to = leave.endingDate ? new Date(leave.endingDate) : new Date(leave.startingDate);
+
+  const affected = await Appointment.find({
+    doctorId,
+    status: { $in: ["pending", "arrived"] },
+    needsReschedule: true,
+    appointmentDate: { $gte: from, $lte: to },
+  });
+
+  for (const appointment of affected) {
+    const { blocks } = await getDayContext(doctorId, appointment.appointmentDate);
+    const slotStart = timeToMinutes(appointment.timeSlot);
+    const slotEnd = slotStart + Number(appointment.durationInMinutes);
+
+    if (!isSlotBlockedByLeave(blocks, appointment.appointmentDate, slotStart, slotEnd)) {
+      appointment.needsReschedule = false;
+      appointment.rescheduleSuggestions = [];
+      await appointment.save();
+    }
+  }
+};
+
 export const removeLeave = async (req: Request, res: Response) => {
   const { leaveId } = req.params;
   const doctorId = req.user.id;
@@ -106,6 +286,8 @@ export const removeLeave = async (req: Request, res: Response) => {
       message: "Leave record not found or unauthorized" 
     });
   }
+
+  await clearResolvedConflicts(doctorId, leave);
 
   res.status(200).json({
     success: true,

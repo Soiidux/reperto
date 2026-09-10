@@ -38,6 +38,14 @@ interface IAppointment extends Document{
   };
   cancellationReason?: string;
   bookedBy?: mongoose.Types.ObjectId;
+  // Set by the leave-conflict resolver when a doctor's leave overlaps this
+  // booking; patients pick a rescheduleSuggestions entry (or any free slot)
+  // via the existing reschedule flow, which clears these fields.
+  needsReschedule: boolean;
+  rescheduleSuggestions: {
+    date: Date;
+    timeSlot: string;
+  }[];
 }
 
 const AppointmentSchema = new Schema({
@@ -52,6 +60,14 @@ const AppointmentSchema = new Schema({
   cancellationReason: { type: String, default: '' },
   // Set when staff/admin books on behalf of a patient; absent for self-booked
   bookedBy: { type: mongoose.Types.ObjectId, ref: 'User' },
+  needsReschedule: { type: Boolean, default: false },
+  rescheduleSuggestions: [
+    {
+      _id: false,
+      date: { type: Date, required: true },
+      timeSlot: { type: String, required: true },
+    },
+  ],
 }, { timestamps: true });
 
 // COMPOUND INDEX: Prevents double-booking at the database level logic-wise
