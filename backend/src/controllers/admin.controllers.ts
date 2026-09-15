@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import User from "../db/models/user.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
+import Invoice from "../db/models/invoice.model";
 import { getClinicTodayAnchor } from "../utils/clinicDate";
 
 export const getAllUsers = async (req: Request, res: Response) => {
@@ -94,7 +95,7 @@ export const getStats = async (req: Request, res: Response) => {
   // "Today" anchored to the clinic timezone, stored as UTC midnight
   const todayAnchor = getClinicTodayAnchor();
 
-  const [totalPatients, totalDoctors, totalStaff, totalAppointments, todaysAppointments, pendingAppointments, completedConsultations] =
+  const [totalPatients, totalDoctors, totalStaff, totalAppointments, todaysAppointments, pendingAppointments, completedConsultations, totalInvoices, totalPaidInvoices, totalCancelledInvoices, collectedRevenue] =
     await Promise.all([
       User.countDocuments({ role: "patient", isActive: true }),
       User.countDocuments({ role: "doctor", isActive: true }),
@@ -106,6 +107,13 @@ export const getStats = async (req: Request, res: Response) => {
       }),
       Appointment.countDocuments({ status: "pending" }),
       Consultation.countDocuments(),
+      Invoice.countDocuments(),
+      Invoice.countDocuments({ status: "paid" }),
+      Invoice.countDocuments({ status: "cancelled" }),
+      Invoice.aggregate([
+        { $match: { status: "paid" } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]).then((rows) => rows[0]?.total ?? 0),
     ]);
 
   res.status(200).json({
@@ -119,6 +127,10 @@ export const getStats = async (req: Request, res: Response) => {
       todaysAppointments,
       pendingAppointments,
       completedConsultations,
+      totalInvoices,
+      totalPaidInvoices,
+      totalCancelledInvoices,
+      collectedRevenue,
     },
   });
 };

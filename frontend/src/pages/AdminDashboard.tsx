@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3 } from "lucide-react";
+import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3, FileText, BadgeCheck, Ban, IndianRupee } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -139,9 +139,13 @@ export default function AdminDashboard() {
             <StatCard title="Today's Appointments" value={stats.todaysAppointments} icon={CalendarCheck} />
             <StatCard title="Pending Appointments" value={stats.pendingAppointments} icon={Clock3 } />
             <StatCard title="Completed Consultations" value={stats.completedConsultations} icon={ClipboardCheck} />
+            <StatCard title="Issued Invoices" value={stats.totalInvoices} icon={FileText} />
+            <StatCard title="Paid Invoices" value={stats.totalPaidInvoices} icon={BadgeCheck} />
+            <StatCard title="Cancelled Invoices" value={stats.totalCancelledInvoices} icon={Ban} />
+            <StatCard title="Collected Revenue" value={`₹${stats.collectedRevenue.toLocaleString("en-IN")}`} icon={IndianRupee} />
           </>
         ) : (
-          Array.from({ length: 7 }).map((_, i) => (
+          Array.from({ length: 11 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))
         )}

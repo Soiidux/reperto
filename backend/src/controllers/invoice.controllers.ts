@@ -2,11 +2,14 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import PDFDocument from 'pdfkit';
 import Invoice from '../db/models/invoice.model';
+import { INVOICE_STATUSES } from '../db/models/invoice.model';
 import Consultation from '../db/models/consultation.model';
 import { canActForPatient, resolvePatientScope } from '../utils/patientScope';
 import { generateInvoiceNumber } from '../utils/invoiceNumber';
 import { drawLetterhead, drawFooter } from '../utils/pdfLetterhead';
 import { ApiError } from '../errors';
+import { notifyPatient } from '../utils/notifications';
+import { sendEmail, invoiceReceiptEmailHtml, resolveRecipientEmail } from '../utils/email';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -75,6 +78,14 @@ export const buildInvoiceForConsultation = async (consultationId: string) => {
     consultationDate: appointment?.appointmentDate || (consultation as any).createdAt,
   });
 
+  await notifyPatient(invoice.patientId, {
+    type: 'invoice-issued',
+    title: 'New invoice available',
+    body: `Invoice ${invoice.invoiceNumber} of ₹${invoice.amount.toLocaleString('en-IN')} for your consultation with ${invoice.doctorName} is now available.`,
+    link: '/patient/invoices',
+    appointmentId: invoice.appointmentId,
+  });
+
   return invoice;
 };
 
@@ -129,7 +140,7 @@ export const generateInvoice = async (req: Request, res: Response) => {
 
 // ---- GET /api/invoice ----
 export const getInvoices = async (req: Request, res: Response) => {
-  const { patientId } = req.query;
+  const { patientId, status, doctorId } = req.query;
   const filter: any = {};
 
   if (req.user.role === 'patient') {
@@ -144,6 +155,22 @@ export const getInvoices = async (req: Request, res: Response) => {
       throw new ApiError(400, 'Invalid patient id');
     }
     filter.patientId = String(patientId);
+  }
+
+  // Status filter for staff/admin (and doctors, who only ever see their own).
+  if (status && status !== 'all') {
+    if (!INVOICE_STATUSES.includes(status as any)) {
+      throw new ApiError(400, 'Invalid status filter');
+    }
+    filter.status = status;
+  }
+
+  // Doctor filter for staff/admin.
+  if (doctorId && doctorId !== 'all') {
+    if (!isValidObjectId(doctorId)) {
+      throw new ApiError(400, 'Invalid doctor id');
+    }
+    filter.doctorId = String(doctorId);
   }
 
   const invoices = await Invoice.find(filter)
@@ -335,8 +362,41 @@ export const updateInvoiceStatus = async (req: Request, res: Response) => {
     return res.status(403).json(unauthorizedResponse);
   }
 
+  const previousStatus = invoice.status;
   invoice.status = req.body.status;
   await invoice.save();
+
+  // On transition to paid: email a receipt to the patient (or guardian) and
+  // notify them in-app. Re-saving an already-paid invoice sends nothing.
+  if (previousStatus !== 'paid' && invoice.status === 'paid') {
+    const recipientEmail = await resolveRecipientEmail(invoice.patientId);
+    if (recipientEmail) {
+      sendEmail({
+        to: recipientEmail,
+        subject: `Payment received for invoice ${invoice.invoiceNumber}`,
+        html: invoiceReceiptEmailHtml({
+          patientName: invoice.patientName,
+          invoiceNumber: invoice.invoiceNumber,
+          amount: `₹ ${invoice.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          date: new Date().toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }),
+        }),
+      }).catch((error: any) => {
+        console.error('Failed to send invoice receipt email:', error);
+      });
+    }
+
+    await notifyPatient(invoice.patientId, {
+      type: 'invoice-status',
+      title: 'Invoice marked as paid',
+      body: `Thank you! Invoice ${invoice.invoiceNumber} has been marked as paid.`,
+      link: '/patient/invoices',
+      appointmentId: invoice.appointmentId,
+    });
+  }
 
   return res.status(200).json({
     success: true,

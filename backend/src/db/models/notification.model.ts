@@ -4,6 +4,8 @@ export const NOTIFICATION_TYPES = [
   "leave-conflict",
   "appointment-status",
   "appointment-rescheduled",
+  "invoice-issued",
+  "invoice-status",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

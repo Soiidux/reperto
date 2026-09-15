@@ -28,6 +28,10 @@ export interface AdminStats {
   todaysAppointments: number;
   pendingAppointments: number;
   completedConsultations: number;
+  totalInvoices: number;
+  totalPaidInvoices: number;
+  totalCancelledInvoices: number;
+  collectedRevenue: number;
 }
 
 export const getAdminStats = async () => {

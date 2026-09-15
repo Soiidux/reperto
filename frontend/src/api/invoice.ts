@@ -1,7 +1,11 @@
 import API from "./axios";
 
-export const getInvoices = async () => {
-  const response = await API.get("/invoice");
+export const getInvoices = async (params?: {
+  status?: string;
+  patientId?: string;
+  doctorId?: string;
+}) => {
+  const response = await API.get("/invoice", { params });
   return response;
 };
 

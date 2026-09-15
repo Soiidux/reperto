@@ -12,6 +12,12 @@ import {
 import { canActForPatient, resolvePatientScope } from "../utils/patientScope";
 import { createInAppNotification, notifyPatient } from "../utils/notifications";
 import {
+  resolveRecipientEmail,
+  sendEmail,
+  appointmentBookingConfirmationEmailHtml,
+  appointmentCancelledEmailHtml,
+} from "../utils/email";
+import {
   timeToMinutes,
   getDayContext,
   isSlotBlockedByLeave,
@@ -29,6 +35,48 @@ const formatDateLabel = (date: Date) =>
     year: "numeric",
     timeZone: "UTC",
   });
+
+const getPatientName = async (patientId: string | mongoose.Types.ObjectId) => {
+  const patient = await User.findById(patientId).select("name").lean();
+  return patient?.name || "there";
+};
+
+// Transactional emails for the booking lifecycle; failures are logged by the
+// caller (fire-and-forget) so they never break the request flow.
+const sendAppointmentConfirmationEmail = async (appointment: any, doctorName: string) => {
+  const recipientEmail = await resolveRecipientEmail(appointment.patientId);
+  if (!recipientEmail) return;
+  await sendEmail({
+    to: recipientEmail,
+    subject: "Your appointment is confirmed",
+    html: appointmentBookingConfirmationEmailHtml({
+      patientName: await getPatientName(appointment.patientId),
+      doctorName,
+      date: formatDateLabel(appointment.appointmentDate),
+      timeSlot: appointment.timeSlot,
+      consultationType: appointment.consultationType,
+    }),
+  });
+};
+
+const sendAppointmentCancelledEmail = async (
+  appointment: any,
+  doctorName: string,
+  patientName: string,
+) => {
+  const recipientEmail = await resolveRecipientEmail(appointment.patientId);
+  if (!recipientEmail) return;
+  await sendEmail({
+    to: recipientEmail,
+    subject: "Your appointment has been cancelled",
+    html: appointmentCancelledEmailHtml({
+      patientName,
+      doctorName,
+      date: formatDateLabel(appointment.appointmentDate),
+      timeSlot: appointment.timeSlot,
+    }),
+  });
+};
 
 const forbiddenResponse: ApiResponse<null> = {
   success: false,
@@ -290,6 +338,11 @@ export const bookAppointment = async (req: Request, res: Response) => {
     }
     throw error;
   });
+
+  sendAppointmentConfirmationEmail(newAppointment, doctor?.name).catch((error: any) => {
+    console.error("Failed to send booking confirmation email:", error);
+  });
+
   const response: ApiResponse<typeof newAppointment> = {
     success: true,
     message: "Appointment booked successfully",
@@ -569,6 +622,17 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   }
 
   await appointment.save();
+
+  // Transactional email: notify the patient (or guardian) when the booking is cancelled.
+  if (status === "cancelled") {
+    const doctor = await User.findById(appointment.doctorId).select("name").lean();
+    const patientName = await getPatientName(appointment.patientId);
+    sendAppointmentCancelledEmail(appointment, doctor?.name || "Your doctor", patientName).catch(
+      (error: any) => {
+        console.error("Failed to send cancellation email:", error);
+      },
+    );
+  }
 
   // Fan out in-app notifications for the state change
   try {

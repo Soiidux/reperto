@@ -70,6 +70,7 @@ const menuConfigs = {
       url: "/doctor/schedule",
       icon: CalendarOff,
     },
+    { title: "Invoices", url: "/doctor/invoices", icon: ReceiptText },
     { title: "Profile", url: "/doctor/profile", icon: UserSquare2 },
   ],
   admin: [
@@ -78,6 +79,7 @@ const menuConfigs = {
       url: "/admin/dashboard",
       icon: ShieldCheck,
     },
+    { title: "Invoices", url: "/admin/invoices", icon: ReceiptText },
   ],
   staff: [
     {
@@ -106,6 +108,7 @@ const menuConfigs = {
       icon: CalendarDays,
     },
     { title: "Patient Reports", url: "/staff/reports", icon: FolderOpen },
+    { title: "Invoices", url: "/staff/invoices", icon: ReceiptText },
   ],
 };
 

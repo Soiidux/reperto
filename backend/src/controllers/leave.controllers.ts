@@ -5,7 +5,7 @@ import Appointment from "../db/models/appointment.model";
 import User from "../db/models/user.model";
 import { ApiError } from "../errors";
 import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
-import { sendEmail, rescheduleNoticeEmailHtml } from "../utils/email";
+import { sendEmail, rescheduleNoticeEmailHtml, resolveRecipientEmail } from "../utils/email";
 import { notifyPatient } from "../utils/notifications";
 import {
   timeToMinutes,
@@ -68,17 +68,11 @@ const notifyPatientAboutConflict = async (
 ) => {
   try {
     const doctor = await User.findById(doctorId).select("name").lean();
-    let recipient: any = await User.findById(appointment.patientId);
-    if (!recipient) return;
-    if (!recipient.email || recipient.accountType === "dependent") {
-      const guardianId = recipient.guardians?.[0];
-      if (!guardianId) return;
-      recipient = await User.findById(guardianId);
-    }
-    if (!recipient?.email) return;
+    const recipientEmail = await resolveRecipientEmail(appointment.patientId);
+    if (!recipientEmail) return;
 
     await sendEmail({
-      to: recipient.email,
+      to: recipientEmail,
       subject: "Your appointment needs rescheduling",
       html: rescheduleNoticeEmailHtml({
         doctorName: doctor?.name || "your doctor",

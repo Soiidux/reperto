@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
+import mongoose from "mongoose";
 import config from "../config";
+import User from "../db/models/user.model";
 
 type MailOptions = {
   to: string;
@@ -24,6 +26,27 @@ const transporter = configured
   : null;
 
 export const emailTransportConfigured = configured;
+
+/**
+ * The address that should get emailed notices about a patient: their own
+ * email for self accounts, the first guardian's for dependent records.
+ * Mirrors the in-app recipient resolution in notifications.ts.
+ */
+export const resolveRecipientEmail = async (
+  patientId: string | mongoose.Types.ObjectId,
+): Promise<string | null> => {
+  const patient = await User.findById(patientId)
+    .select("email accountType guardians")
+    .lean();
+  if (!patient) return null;
+  let recipient: any = patient;
+  if (!recipient.email || recipient.accountType === "dependent") {
+    const guardianId = patient.guardians?.[0];
+    if (!guardianId) return null;
+    recipient = await User.findById(guardianId).select("email").lean();
+  }
+  return recipient?.email || null;
+};
 
 export const sendEmail = async ({ to, subject, html }: MailOptions) => {
   if (!transporter) {
@@ -54,6 +77,11 @@ const layout = (body: string) => `
       This is an automated message from Reperto. If you did not request this, you can safely ignore it.
     </div>
   </div>`;
+
+// Doctor names may already carry a "Dr." prefix; normalize so templates
+// never render the awkward "Dr. Dr. Smith".
+const doctorFullName = (name: string) =>
+  `Dr. ${name.replace(/^Dr\.?\s+/i, "")}`;
 
 export const verificationEmailHtml = (link: string) =>
   layout(`
@@ -105,3 +133,77 @@ export const rescheduleNoticeEmailHtml = (options: {
     </p>
   `);
 };
+
+export const appointmentBookingConfirmationEmailHtml = (options: {
+  patientName: string;
+  doctorName: string;
+  date: string;
+  timeSlot: string;
+  consultationType: string;
+}) =>
+  layout(`
+    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
+    <p style="margin:0 0 16px;">
+      Your appointment at <strong>Reperto Homeopathic Clinic</strong> has been confirmed:
+    </p>
+    <table style="margin:0 0 16px;border-collapse:collapse;width:100%;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#555;">Doctor</td><td style="padding:6px 0;"><strong>${doctorFullName(options.doctorName)}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Date</td><td style="padding:6px 0;"><strong>${options.date}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Time</td><td style="padding:6px 0;"><strong>${options.timeSlot}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Consultation</td><td style="padding:6px 0;"><strong>${options.consultationType}</strong></td></tr>
+    </table>
+    <p style="margin:0;">Please arrive a few minutes early. You can view or manage this appointment from the Reperto portal.</p>
+  `);
+
+export const appointmentCancelledEmailHtml = (options: {
+  patientName: string;
+  doctorName: string;
+  date: string;
+  timeSlot: string;
+}) =>
+  layout(`
+    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
+    <p style="margin:0 0 16px;">
+      Your appointment with <strong>${doctorFullName(options.doctorName)}</strong> on
+      <strong>${options.date}</strong> at <strong>${options.timeSlot}</strong> has been cancelled.
+    </p>
+    <p style="margin:0;">
+      Please book a new slot whenever you are ready — we look forward to seeing you at
+      <strong>Reperto Homeopathic Clinic</strong>.
+    </p>
+  `);
+
+export const invoiceReceiptEmailHtml = (options: {
+  patientName: string;
+  invoiceNumber: string;
+  amount: string;
+  date: string;
+}) =>
+  layout(`
+    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
+    <p style="margin:0 0 16px;">
+      Thank you for your payment. We have marked the following invoice as <strong>paid</strong>:
+    </p>
+    <table style="margin:0 0 16px;border-collapse:collapse;width:100%;font-size:14px;">
+      <tr><td style="padding:6px 0;color:#555;">Invoice Number</td><td style="padding:6px 0;"><strong>${options.invoiceNumber}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Amount</td><td style="padding:6px 0;"><strong>${options.amount}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#555;">Paid On</td><td style="padding:6px 0;"><strong>${options.date}</strong></td></tr>
+    </table>
+    <p style="margin:0;">You can download a copy of this invoice anytime from the Reperto portal.</p>
+  `);
+
+export const appointmentReminderEmailHtml = (options: {
+  patientName: string;
+  doctorName: string;
+  date: string;
+  timeSlot: string;
+}) =>
+  layout(`
+    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
+    <p style="margin:0 0 16px;">This is a friendly reminder about your appointment tomorrow:</p>
+    <p style="margin:0 0 8px;">
+      <strong>${doctorFullName(options.doctorName)}</strong> on <strong>${options.date}</strong> at
+      <strong>${options.timeSlot}</strong> at Reperto Homeopathic Clinic.
+    </p>
+    <p style="margin:0;">If you need to reschedule, please do so through the portal.</p>
+  `);
