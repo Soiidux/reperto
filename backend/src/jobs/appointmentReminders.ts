@@ -21,7 +21,7 @@ const sendRemindersForDate = async (targetDate: Date) => {
   const from = targetDate;
   const to = new Date(targetDate.getTime() + DAY_MS);
 
-  // Next-day medication reminders: still-live bookings that have not been
+  // Next-day appointment reminders: still-live bookings that have not been
   // reminded yet. `reminderEmailAt` guards against re-sending.
   const due = await Appointment.find({
     appointmentDate: { $gte: from, $lt: to },
