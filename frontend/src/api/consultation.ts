@@ -29,3 +29,9 @@ export const getPrescription = async (consultationId: string) => {
     responseType: "blob",
   });
 };
+
+export const getConsultationSummary = async (consultationId: string) => {
+  return await API.get(`/consultation/${consultationId}/summary`, {
+    responseType: "blob",
+  });
+};

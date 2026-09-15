@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 
 import { getAppointmentById } from "@/api/appointment";
-import { getConsultation, getPrescription } from "@/api/consultation";
+import { getConsultation, getPrescription, getConsultationSummary } from "@/api/consultation";
 import { generateInvoice, getInvoicePdf } from "@/api/invoice";
 import { getReviewList, saveReview, deleteReview, type Review } from "@/api/review";
 import { useAuthStore } from "@/store/authStore";
@@ -250,6 +250,56 @@ const downloadPrescription = async () => {
       }, 600);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to open prescription"));
+    }
+  };
+
+  const downloadSummary = async () => {
+    if (!consultationData) return;
+    try {
+      const response = await getConsultationSummary(consultationData._id);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("Consultation summary downloaded");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to download consultation summary"));
+    }
+  };
+
+  const printSummary = async () => {
+    if (!consultationData) return;
+    try {
+      const response = await getConsultationSummary(consultationData._id);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast.error("Pop-up blocked. Please allow pop-ups to print the consultation summary.");
+        return;
+      }
+      win.document.write(
+        `<html><head><title>Consultation Summary</title>` +
+          `<style>body{margin:0}#pdf{width:100%;height:100%;border:0}</style>` +
+          `</head><body><iframe id="pdf" src="${url}"></iframe></body></html>`,
+      );
+      win.document.close();
+      win.focus();
+      // Give the embedded PDF a moment to render before exposing print.
+      setTimeout(() => {
+        try {
+          win.focus();
+          win.print();
+        } catch {
+          // Print may be blocked while the PDF renders; the tab stays open.
+        }
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      }, 600);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to open consultation summary"));
     }
   };
 
@@ -479,6 +529,12 @@ const downloadPrescription = async () => {
             </Button>
             <Button variant="outline" size="sm" onClick={printPrescription}>
               <FileText className="mr-2 size-4" /> Print Prescription
+            </Button>
+            <Button variant="outline" size="sm" onClick={downloadSummary}>
+              <NotepadText className="mr-2 size-4" /> Download Summary
+            </Button>
+            <Button variant="outline" size="sm" onClick={printSummary}>
+              <FileText className="mr-2 size-4" /> Print Summary
             </Button>
             {!invoiceLoading && invoiceInfo && (
               <>

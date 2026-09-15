@@ -5,6 +5,7 @@ import {
   getLatestConsultation,
   getConsultation,
   getPrescription,
+  getConsultationSummary,
 } from '../controllers/consultation.controllers';
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
@@ -24,5 +25,8 @@ router.get('/latest/:patientId', protect, getLatestConsultation);
 
 // E-prescription PDF (patient downloads their own)
 router.get('/:id/prescription', protect, getPrescription);
+
+// Full consultation summary PDF (case record)
+router.get('/:id/summary', protect, getConsultationSummary);
 
 export default router;
