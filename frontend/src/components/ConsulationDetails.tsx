@@ -40,10 +40,13 @@ import {
   Stethoscope,
   FileText,
   FolderOpen,
+  ReceiptText,
+  Loader2,
 } from "lucide-react";
 
 import { getAppointmentById } from "@/api/appointment";
 import { getConsultation, getPrescription } from "@/api/consultation";
+import { generateInvoice, getInvoicePdf } from "@/api/invoice";
 import { getReviewList, saveReview, deleteReview, type Review } from "@/api/review";
 import { useAuthStore } from "@/store/authStore";
 import { getErrorMessage } from "@/lib/utils";
@@ -250,6 +253,74 @@ const downloadPrescription = async () => {
     }
   };
 
+  const [invoiceInfo, setInvoiceInfo] = useState<{ _id: string } | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+
+  // Fetch (or backfill) the invoice for this consultation once the
+  // consultation record is known.
+  useEffect(() => {
+    if (!consultationData?._id) return;
+    let cancelled = false;
+    const load = async () => {
+      setInvoiceLoading(true);
+      try {
+        const resp = await generateInvoice(consultationData._id);
+        if (cancelled) return;
+        setInvoiceInfo(resp.data.data);
+      } catch {
+        // Older records may not have an invoice; leave the buttons hidden.
+      } finally {
+        if (!cancelled) setInvoiceLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [consultationData?._id]);
+
+  const openInvoice = async (download: boolean) => {
+    if (!invoiceInfo) return;
+    try {
+      const response = await getInvoicePdf(invoiceInfo._id, download);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      if (download) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `invoice-${invoiceInfo._id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        toast.success("Invoice downloaded");
+      } else {
+        const win = window.open("", "_blank");
+        if (!win) {
+          toast.error("Pop-up blocked. Please allow pop-ups to print the invoice.");
+          return;
+        }
+        win.document.write(
+          `<html><head><title>Invoice</title>` +
+            `<style>body{margin:0}#pdf{width:100%;height:100%;border:0}</style>` +
+            `</head><body><iframe id="pdf" src="${url}"></iframe></body></html>`,
+        );
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+          try {
+            win.focus();
+            win.print();
+          } catch {
+            // Print may be blocked while the PDF renders; the tab stays open.
+          }
+          setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+        }, 600);
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to open invoice"));
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -409,6 +480,21 @@ const downloadPrescription = async () => {
             <Button variant="outline" size="sm" onClick={printPrescription}>
               <FileText className="mr-2 size-4" /> Print Prescription
             </Button>
+            {!invoiceLoading && invoiceInfo && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => openInvoice(true)}>
+                  <ReceiptText className="mr-2 size-4" /> Download Invoice
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => openInvoice(false)}>
+                  <ReceiptText className="mr-2 size-4" /> Print Invoice
+                </Button>
+              </>
+            )}
+            {invoiceLoading && (
+              <Button variant="outline" size="sm" disabled>
+                <Loader2 className="mr-2 size-4 animate-spin" /> Invoice…
+              </Button>
+            )}
             {user?.role === "doctor" && (
               <Button variant="outline" size="sm">
                 <Link to={`/doctor/reports/${patient._id}`}>

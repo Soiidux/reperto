@@ -6,7 +6,8 @@ import Consultation from '../db/models/consultation.model';
 import User from '../db/models/user.model';
 import { ApiError } from '../errors';
 import { canActForPatient } from '../utils/patientScope';
-import config from '../config';
+import { drawLetterhead, drawFooter } from '../utils/pdfLetterhead';
+import { buildInvoiceForConsultation } from './invoice.controllers';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -89,6 +90,14 @@ export const createConsultation = async (req: Request, res: Response) => {
   });
   appointment.status = 'completed';
   await appointment.save();
+
+  // Auto-generate the invoice for the completed visit. Emission is best
+  // effort: a failure here must never break the consultation flow.
+  try {
+    await buildInvoiceForConsultation(consultation._id.toString());
+  } catch (error) {
+    console.error('Invoice auto-generation failed:', error);
+  }
 
   const consultationCreated: ApiResponse<typeof consultation> = {
     success: true,
@@ -254,19 +263,7 @@ export const getPrescription = async (req: Request, res: Response) => {
 
     doc.pipe(res);
 
-    // Letterhead band
-    const PAGE_W = doc.page.width;
-
-    doc.save();
-    doc.rect(0, 0, PAGE_W, 130).fill('#166534');
-    doc.rect(0, 130, PAGE_W, 3).fill('#166534');
-    doc.fillColor('#ffffff');
-    doc.fontSize(20).font('Helvetica-Bold').text('REPERTO  HOMOEOPATHIC  CLINIC', 48, 34, { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text('Holistic care, individualised treatment', 48, 64, { align: 'center', characterSpacing: 0.6 });
-    doc.font('Helvetica-Bold').fillColor('#d1fae5').fontSize(9).text('A Classic Homoeopathy Practice', 48, 86, { align: 'center' });
-    doc.font('Helvetica').fillColor('#ffffff').fontSize(9).text(`Phone: ${config.clinic.phone}  |  Email: ${config.clinic.email}`, 48, 104, { align: 'center' });
-    doc.restore();
-    doc.y = 150;
+    drawLetterhead(doc);
 
     doc.font('Helvetica-Bold').fillColor('#111111').fontSize(14).text('PRESCRIPTION', { align: 'center' });
     doc.moveDown(0.3);
@@ -325,21 +322,11 @@ export const getPrescription = async (req: Request, res: Response) => {
     doc.font('Helvetica-Bold').fillColor('#111111').fontSize(12).text('Prescribed Remedies');
     doc.moveDown(0.4);
 
+    const PAGE_W = doc.page.width;
     const columnWidths = [180, 90, 130, 90];
     const tableLeft = doc.x;
     const headerY = doc.y;
     const rowH = 26;
-
-    const drawFooter = () => {
-      doc.save();
-      doc.rect(0, doc.page.height - 34, PAGE_W, 34).fill('#f4f4f5');
-      const footerText = 'Reperto Homeopathic Clinic · This is a machine-generated prescription.';
-      doc.font('Helvetica').fillColor('#888888').fontSize(9);
-      doc.text(footerText, (PAGE_W - doc.widthOfString(footerText)) / 2, doc.page.height - 24, {
-        lineBreak: false,
-      });
-      doc.restore();
-    };
 
     const drawRow = (cols: string[], y: number, bold = false, fill?: string) => {
       if (fill) {
@@ -426,7 +413,7 @@ export const getPrescription = async (req: Request, res: Response) => {
     doc.moveDown(0.1);
     doc.font('Helvetica').fontSize(8.5).fillColor('#555555').text('Licensed Homeopathic Practitioner', { align: 'right', width: 200 });
 
-    drawFooter();
+    drawFooter(doc, 'This is a machine-generated prescription.');
     doc.end();
   } catch (error) {
     if (!res.headersSent) {

@@ -26,6 +26,7 @@ import QueueBoard from './pages/QueueBoard';
 import PatientReports from './pages/PatientReports';
 import DoctorReports from './pages/DoctorReports';
 import StaffReports from './pages/StaffReports';
+import PatientInvoices from './pages/PatientInvoices';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -78,6 +79,7 @@ function App() {
             <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
             <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
             <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
+            <Route path="/patient/invoices" element={<PatientInvoices />} />
             <Route path="/patient/reports" element={<PatientReports />} />
             <Route path="/patient/profile" element={<Profile />} />
           </Route>

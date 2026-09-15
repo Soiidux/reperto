@@ -224,3 +224,9 @@ export const reviewSchema = z.object({
     .max(5, "Rating cannot exceed 5 stars"),
   comment: z.string().trim().max(1000, "Comment is too long").optional().or(z.literal("")),
 });
+
+// ---- Invoices ----
+
+export const invoiceStatusSchema = z.object({
+  status: z.enum(["issued", "paid", "cancelled"], "Invalid invoice status"),
+});

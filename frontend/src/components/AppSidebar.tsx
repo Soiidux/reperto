@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Armchair,
   FolderOpen,
+  ReceiptText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 const menuConfigs = {
@@ -39,6 +40,7 @@ const menuConfigs = {
       icon: CalendarDays,
     },
     { title: "Consultation History", url: `/patient/consultation/history/`, icon: History },
+    { title: "My Invoices", url: "/patient/invoices", icon: ReceiptText },
     { title: "My Reports", url: "/patient/reports", icon: FolderOpen },
     { title: "Find Doctors", url: "/patient/doctors", icon: SlidersHorizontal },
     {
