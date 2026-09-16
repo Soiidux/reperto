@@ -8,6 +8,7 @@ import { ApiError } from '../errors';
 import { canActForPatient } from '../utils/patientScope';
 import { drawLetterhead, drawFooter } from '../utils/pdfLetterhead';
 import { buildInvoiceForConsultation } from './invoice.controllers';
+import { computeFollowUpDate } from '../utils/followUps';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -69,6 +70,9 @@ export const createConsultation = async (req: Request, res: Response) => {
     return res.status(400).json(consultationExists);
   }
   
+  // Follow-up timeline: the course ends after the longest prescription.
+  const followUpDate = computeFollowUpDate(prescriptions, new Date());
+
   const consultation = new Consultation({
     appointmentId,
     patientId: appointment.patientId,
@@ -79,7 +83,9 @@ export const createConsultation = async (req: Request, res: Response) => {
     mentalGenerals,
     diagnosis,
     prescriptions,
-    doctorNotes
+    doctorNotes,
+    followUpDate,
+    followUpStatus: followUpDate ? 'pending' : 'skipped',
   });
   
   await consultation.save().catch((error: any) => {
@@ -90,6 +96,22 @@ export const createConsultation = async (req: Request, res: Response) => {
   });
   appointment.status = 'completed';
   await appointment.save();
+
+  // A new consultation after a previous course has run its course resolves
+  // the earlier follow-up automatically (patient is back in review).
+  if (followUpDate) {
+    await Consultation.updateMany(
+      {
+        patientId: appointment.patientId,
+        _id: { $ne: consultation._id },
+        followUpDate: { $lt: new Date() },
+        followUpStatus: { $in: ['pending', 'overdue'] },
+      },
+      { followUpStatus: 'done' },
+    ).catch((error) => {
+      console.error('Failed to auto-resolve previous follow-ups:', error);
+    });
+  }
 
   // Auto-generate the invoice for the completed visit. Emission is best
   // effort: a failure here must never break the consultation flow.
@@ -217,6 +239,88 @@ export const getConsultation = async (req: Request, res: Response) => {
     success: true,
     message: 'Consultation retrieved successfully',
     data: consultation
+  };
+  res.status(200).json(response);
+};
+
+// Follow-up tracker ---------------------------------------------------------
+
+// Range (in days) over which a doctor wants to see pending/overdue follow-ups
+// ahead of time, so they can prepare for the week.
+const FOLLOW_UP_LOOKAHEAD_DAYS = 14;
+
+export const getFollowUps = async (req: Request, res: Response) => {
+  const role = req.user.role;
+  const today = new Date();
+  const horizon = new Date(today.getTime() + FOLLOW_UP_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+
+  const query: Record<string, any> = {
+    followUpDate: { $ne: null },
+    // Normalise just-in-time so legacy rows (pre-backfill) still surface.
+    $or: [
+      { followUpStatus: { $in: ['pending', 'overdue'] } },
+      { followUpDate: { $lte: horizon }, followUpStatus: { $nin: ['done', 'skipped'] } },
+    ],
+  };
+  if (role === 'doctor') {
+    query.doctorId = req.user.id;
+  }
+
+  const consultations = await Consultation.find(query)
+    .populate('patientId', 'name gender dateOfBirth profileImageUrl')
+    .populate('doctorId', 'name')
+    .select('patientId doctorId diagnosis followUpDate followUpStatus appointmentId createdAt')
+    .sort({ followUpDate: 1 })
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    message: 'Follow-ups retrieved successfully',
+    data: consultations,
+  });
+};
+
+const FOLLOW_UP_TRANSITIONS: Record<string, string> = {
+  done: 'done',
+  skipped: 'skipped',
+};
+
+export const setFollowUpStatus = async (req: Request, res: Response) => {
+  const { status } = req.body;
+  if (!Object.prototype.hasOwnProperty.call(FOLLOW_UP_TRANSITIONS, status)) {
+    throw new ApiError(400, 'Invalid follow-up status. Expected "done", "skipped" or "restored".');
+  }
+
+  const consultation = await Consultation.findById(req.params.id)
+    .select('doctorId followUpDate followUpStatus')
+    .lean();
+  if (!consultation) {
+    return res.status(404).json({
+      success: false,
+      message: 'Consultation record not found',
+      data: null,
+    });
+  }
+
+  const role = req.user.role;
+  const isDoctorOwner = role === 'doctor' && consultation.doctorId.toString() === req.user.id;
+  if (!isDoctorOwner && role !== 'admin' && role !== 'staff') {
+    return res.status(403).json(unauthorizedResponse);
+  }
+
+  const target =
+    status === 'restored'
+      ? (consultation.followUpDate
+          ? (consultation.followUpDate.getTime() < Date.now() ? 'overdue' : 'pending')
+          : 'skipped')
+      : FOLLOW_UP_TRANSITIONS[status];
+
+  await Consultation.updateOne({ _id: consultation._id }, { followUpStatus: target });
+
+  const response: ApiResponse<object> = {
+    success: true,
+    message: 'Follow-up status updated',
+    data: { _id: consultation._id, followUpStatus: target },
   };
   res.status(200).json(response);
 };

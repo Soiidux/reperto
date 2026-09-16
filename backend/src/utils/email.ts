@@ -207,3 +207,25 @@ export const appointmentReminderEmailHtml = (options: {
     </p>
     <p style="margin:0;">If you need to reschedule, please do so through the portal.</p>
   `);
+
+export const followUpDueEmailHtml = (options: {
+  patientName: string;
+  doctorName: string;
+  courseEndDate: string;
+}) =>
+  layout(`
+    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
+    <p style="margin:0 0 16px;">
+      Your treatment course with <strong>${doctorFullName(options.doctorName)}</strong> has now run
+      its course (ended on <strong>${options.courseEndDate}</strong>).
+    </p>
+    <p style="margin:0 0 16px;">
+      For the best results, please book a follow-up consultation so the doctor can review your progress.
+    </p>
+    <p style="margin:0 0 16px;">
+      <a href="${config.clientOrigin}/patient/consultation/history/" style="background:#166534;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;display:inline-block;font-weight:bold;">View my record</a>
+    </p>
+    <p style="margin:16px 0 0;font-size:13px;color:#666;">
+      If you have already booked a follow-up, please ignore this reminder.
+    </p>
+  `);

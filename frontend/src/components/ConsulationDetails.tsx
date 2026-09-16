@@ -154,6 +154,9 @@ interface Consultation {
   }[];
 
   doctorNotes: string;
+
+  followUpDate?: string | null;
+  followUpStatus?: "pending" | "overdue" | "done" | "skipped";
 }
 
 function InfoCard({
@@ -569,6 +572,21 @@ const downloadPrescription = async () => {
         </CardHeader>
 
         <CardContent className="space-y-8">
+          {/* Follow-up banner: visible to patients when their course has ended */}
+          {user?.role === "patient" && consultationData?.followUpStatus && ["pending", "overdue"].includes(consultationData.followUpStatus) && (
+            <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${consultationData.followUpStatus === "overdue" ? "border-red-300 bg-red-50 text-red-700" : "border-amber-300 bg-amber-50 text-amber-800"}`}>
+              <span>
+                {consultationData.followUpStatus === "overdue"
+                  ? "Your treatment course ended — please book a follow-up consultation."
+                  : "Your treatment course is nearing its end. Consider booking a follow-up."}
+              </span>
+              <Button size="sm" asChild className={`${consultationData.followUpStatus === "overdue" ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"} text-white`}>
+                <Link to={`/patient/book-appointment?doctorId=${doctor._id}&type=Follow-up`}>
+                  Book Follow-up
+                </Link>
+              </Button>
+            </div>
+          )}
           <FieldSeparator />
 
           {/* Patient Information */}

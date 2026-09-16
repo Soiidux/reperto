@@ -6,6 +6,8 @@ import {
   getConsultation,
   getPrescription,
   getConsultationSummary,
+  getFollowUps,
+  setFollowUpStatus,
 } from '../controllers/consultation.controllers';
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
@@ -22,6 +24,10 @@ router.get('/history/:patientId', protect, getPatientHistory);
 router.get('/', protect, getConsultation);
 // Quick access to the last record for follow-ups
 router.get('/latest/:patientId', protect, getLatestConsultation);
+
+// Follow-up tracker: doctors see upcoming/overdue follow-ups and can mark them
+router.get('/follow-ups', protect, authorize('doctor', 'staff', 'admin'), getFollowUps);
+router.patch('/:id/follow-up', protect, authorize('doctor', 'staff', 'admin'), setFollowUpStatus);
 
 // E-prescription PDF (patient downloads their own)
 router.get('/:id/prescription', protect, getPrescription);

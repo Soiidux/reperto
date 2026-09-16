@@ -8,6 +8,7 @@ import leaveModel from './db/models/leave.model';
 import tokenModel from './db/models/token.model';
 import userModel from './db/models/user.model';
 import { startAppointmentRemindersJob } from './jobs/appointmentReminders';
+import { startFollowUpRemindersJob } from './jobs/followUpReminders';
 
 const models = [
   appointmentModel,
@@ -22,6 +23,7 @@ dbConnect().then(async () => {
     await model.syncIndexes();
   }
   startAppointmentRemindersJob();
+  startFollowUpRemindersJob();
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });

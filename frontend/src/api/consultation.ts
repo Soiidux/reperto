@@ -35,3 +35,11 @@ export const getConsultationSummary = async (consultationId: string) => {
     responseType: "blob",
   });
 };
+
+export const getFollowUps = async () => {
+  return await API.get("/consultation/follow-ups");
+};
+
+export const markFollowUp = async (consultationId: string, status: "done" | "skipped" | "restored") => {
+  return await API.patch(`/consultation/${consultationId}/follow-up`, { status });
+};

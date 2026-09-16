@@ -6,6 +6,7 @@ export const NOTIFICATION_TYPES = [
   "appointment-rescheduled",
   "invoice-issued",
   "invoice-status",
+  "follow-up-due",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

@@ -12,6 +12,10 @@ export interface Modalities {
   Aggravation: string;
   Amlioration: string;
 }
+
+export const FOLLOW_UP_STATUSES = ['pending', 'overdue', 'done', 'skipped'] as const;
+export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number];
+
 // 2. The Main Consultation Interface
 export interface IConsultation extends Document {
   appointmentId: mongoose.Types.ObjectId;
@@ -40,6 +44,11 @@ export interface IConsultation extends Document {
   diagnosis: string;          // e.g., "Acute Tonsillitis"
   prescriptions: IPrescription[]; // Array, in case multiple remedies are given
   doctorNotes: string;        // Private notes (not printed on prescription)
+
+  // Follow-up tracking for the treatment course
+  followUpDate: Date | null;                 // consultation date + max(durationInDays)
+  followUpStatus: FollowUpStatus;            // tracked life-cycle of the follow-up
+  followUpReminderSentAt: Date | null;       // idempotent guard for the reminder job
 }
 
 // 3. Mongoose Schema
@@ -77,7 +86,11 @@ const ConsultationSchema: Schema = new Schema({
     durationInDays: { type: Number, required: true }
   }],
 
-  doctorNotes: { type: String, default: '' }
+  doctorNotes: { type: String, default: '' },
+
+  followUpDate: { type: Date, default: null },
+  followUpStatus: { type: String, enum: FOLLOW_UP_STATUSES, default: 'skipped' },
+  followUpReminderSentAt: { type: Date, default: null },
 
 }, { timestamps: true });
 
