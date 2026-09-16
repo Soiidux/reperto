@@ -34,6 +34,32 @@ export interface AdminStats {
   collectedRevenue: number;
 }
 
+export interface MonthPoint {
+  month: string;
+  label: string;
+  value: number;
+  count?: number;
+}
+
+export interface DoctorAppointmentBreakdown {
+  doctorId: string;
+  doctorName: string;
+  total: number;
+  statuses: Record<string, number>;
+}
+
+export interface AdminAnalytics {
+  revenueByMonth: MonthPoint[];
+  appointmentsByDoctor: DoctorAppointmentBreakdown[];
+  statusRates: { status: string; count: number }[];
+  totalAppointments30d: number;
+  newPatientsByMonth: MonthPoint[];
+}
+
+export const getAdminAnalytics = async () => {
+  return await API.get("/admin/analytics");
+};
+
 export const getAdminStats = async () => {
   return await API.get("/admin/stats");
 };

@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import StatCard from "@/components/StatCard";
 import CreateUserDialog from "@/components/CreateUserDialog";
-import { getAdminStats, getAllUsers, toggleUserActive, type AdminStats, type UserSummary } from "@/api/admin";
+import { BarChart, HBarChart, DonutChart, statusColor, formatIndianRupees } from "@/components/charts/Charts";
+import { getAdminStats, getAdminAnalytics, getAllUsers, toggleUserActive, type AdminStats, type UserSummary, type AdminAnalytics } from "@/api/admin";
 import { getErrorMessage } from "@/lib/utils";
 
 const roleColor: Record<string, string> = {
@@ -21,6 +22,8 @@ const roleColor: Record<string, string> = {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -106,6 +109,19 @@ export default function AdminDashboard() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await getAdminAnalytics();
+        setAnalytics(response.data.data);
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, "Failed to load analytics"));
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    })();
+  }, []);
+
   const handleToggle = async (user: UserSummary) => {
     setTogglingId(user._id);
     try {
@@ -150,6 +166,50 @@ export default function AdminDashboard() {
           ))
         )}
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Analytics</CardTitle>
+            {analytics && (
+              <span className="text-sm text-neutral-500">
+                {analytics.totalAppointments30d} appointments in last 30 days
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {analyticsLoading ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
+            </div>
+          ) : analytics ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border p-4">
+                <h3 className="mb-3 text-sm font-semibold text-neutral-700">Revenue (last 12 months)</h3>
+                <BarChart data={analytics.revenueByMonth.map((p) => ({ label: p.label, value: p.value }))} format={formatIndianRupees} />
+              </div>
+              <div className="rounded-xl border p-4">
+                <h3 className="mb-3 text-sm font-semibold text-neutral-700">New patients (last 12 months)</h3>
+                <BarChart data={analytics.newPatientsByMonth.map((p) => ({ label: p.label, value: p.count ?? 0 }))} />
+              </div>
+              <div className="rounded-xl border p-4">
+                <h3 className="mb-3 text-sm font-semibold text-neutral-700">Appointments by doctor (last 30 days)</h3>
+                <HBarChart data={analytics.appointmentsByDoctor.map((d) => ({ label: d.doctorName, value: d.total })).sort((a, b) => b.value - a.value)} />
+              </div>
+              <div className="rounded-xl border p-4">
+                <h3 className="mb-3 text-sm font-semibold text-neutral-700">Appointment status mix</h3>
+                <DonutChart
+                  centerLabel="total"
+                  segments={analytics.statusRates.map((s) => ({ label: s.status, value: s.count, color: statusColor(s.status) }))}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-neutral-400">Could not load analytics</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
