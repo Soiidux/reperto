@@ -55,6 +55,7 @@ const menuConfigs = {
       url: "/doctor/dashboard",
       icon: LayoutDashboard,
     },
+    { title: "Agenda", url: "/doctor/agenda", icon: CalendarDays },
     { title: "Active Patients", url: "/doctor/active-patients", icon: ClipboardList },
     { title: "Waiting Queue", url: "/doctor/queue", icon: Armchair },
     { title: "Patient Directory", url: "/doctor/patients", icon: Users },

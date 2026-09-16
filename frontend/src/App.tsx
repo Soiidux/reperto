@@ -34,6 +34,7 @@ import PatientDashboard from '@/pages/PatientDashboard';
 
 // Doctor Viewports
 import DoctorDashboard from '@/pages/DoctorDashboard';
+import DoctorAgenda from '@/pages/DoctorAgenda';
 
 // Admin / Staff Viewports
 import AdminDashboard from '@/pages/AdminDashboard';
@@ -89,6 +90,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
             <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
             <Route path="/doctor/queue" element={<QueueBoard />} />
+            <Route path="/doctor/agenda" element={<DoctorAgenda />} />
             <Route path="/doctor/active-patients" element={<ActivePatients />} />
             <Route path="/doctor/patients" element={<PatientDirectory />} />
             <Route path="/doctor/appointments" element={<Appointments />} />
