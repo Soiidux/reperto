@@ -12,6 +12,7 @@ import {
   leaveFamilyMember,
   regenerateShareCode,
   joinByShareCode,
+  exportMyData,
 } from "../controllers/user.controllers";
 import { protect, authorize } from "../middlewares/auth.middlewares";
 import { upload } from "../utils/multer";
@@ -19,6 +20,8 @@ import { upload } from "../utils/multer";
 const router = Router();
 
 router.get("/me", protect, getMe);
+// GDPR-style export of everything the account can view.
+router.get("/me/export", protect, exportMyData);
 // Field name must stay "profileImage" to match the register endpoint's multer setup
 router.patch("/me/profile-image", protect, upload.single("profileImage"), updateProfileImage);
 

@@ -7,6 +7,7 @@ import {
   followUpDueEmailHtml,
 } from "../utils/email";
 import { createInAppNotification } from "../utils/notifications";
+import { resolveRecipientPhone, sendSms } from "../utils/sms";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -44,6 +45,7 @@ const sendFollowUpRemindersForDate = async (today: Date) => {
       }
 
       const recipientEmail = await resolveRecipientEmail(consultation.patientId);
+      const recipientPhone = await resolveRecipientPhone(consultation.patientId);
       const doctor = await User.findById(consultation.doctorId)
         .select("name")
         .lean();
@@ -60,6 +62,14 @@ const sendFollowUpRemindersForDate = async (today: Date) => {
             doctorName: doctor?.name || "your doctor",
             courseEndDate: formatDateLabel(consultation.followUpDate),
           }),
+        });
+      }
+
+      if (recipientPhone && consultation.followUpDate) {
+        const courseEndLabel = formatDateLabel(consultation.followUpDate);
+        await sendSms({
+          to: recipientPhone,
+          text: `Your treatment course with ${doctor?.name || "the doctor"} at Reperto has ended (${courseEndLabel}). Please book a follow-up visit.`,
         });
       }
 

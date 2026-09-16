@@ -22,6 +22,11 @@ export const updateProfileImage = async (file: File) => {
   return await API.patch("/user/me/profile-image", formData);
 }
 
+// GDPR-style export of everything the account can view.
+export const exportMyData = async () => {
+  return await API.get("/user/me/export");
+}
+
 // ---- Family accounts (dependents managed via share codes) ----
 
 export interface FamilyMember {

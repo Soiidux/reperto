@@ -6,6 +6,7 @@ import {
   sendEmail,
   appointmentReminderEmailHtml,
 } from "../utils/email";
+import { resolveRecipientPhone, sendSms } from "../utils/sms";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -34,7 +35,7 @@ const sendRemindersForDate = async (targetDate: Date) => {
   for (const appointment of due) {
     try {
       const recipientEmail = await resolveRecipientEmail(appointment.patientId);
-      if (!recipientEmail) continue;
+      const recipientPhone = await resolveRecipientPhone(appointment.patientId);
 
       const doctor = await User.findById(appointment.doctorId)
         .select("name")
@@ -43,16 +44,26 @@ const sendRemindersForDate = async (targetDate: Date) => {
         .select("name")
         .lean();
 
-      await sendEmail({
-        to: recipientEmail,
-        subject: "Reminder: your appointment is tomorrow",
-        html: appointmentReminderEmailHtml({
-          patientName: patient?.name || "there",
-          doctorName: doctor?.name || "Your doctor",
-          date: formatDateLabel(appointment.appointmentDate),
-          timeSlot: appointment.timeSlot,
-        }),
-      });
+      if (recipientEmail) {
+        await sendEmail({
+          to: recipientEmail,
+          subject: "Reminder: your appointment is tomorrow",
+          html: appointmentReminderEmailHtml({
+            patientName: patient?.name || "there",
+            doctorName: doctor?.name || "Your doctor",
+            date: formatDateLabel(appointment.appointmentDate),
+            timeSlot: appointment.timeSlot,
+          }),
+        });
+      }
+
+      if (recipientPhone) {
+        const dateLabel = formatDateLabel(appointment.appointmentDate);
+        await sendSms({
+          to: recipientPhone,
+          text: `Reminder: your appointment with ${doctor?.name || "the doctor"} at Reperto is tomorrow (${dateLabel}) at ${appointment.timeSlot}.`,
+        });
+      }
 
       await Appointment.updateOne(
         { _id: appointment._id, reminderEmailAt: null },

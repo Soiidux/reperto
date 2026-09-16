@@ -1,7 +1,12 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import User, { IUser } from "../db/models/user.model";
 import Review from "../db/models/review.model";
+import Appointment from "../db/models/appointment.model";
+import Consultation from "../db/models/consultation.model";
+import Invoice from "../db/models/invoice.model";
+import Notification from "../db/models/notification.model";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { ApiError } from "../errors";
 import {
@@ -485,4 +490,50 @@ export const joinByShareCode = async (req: Request, res: Response) => {
     data: familyMemberPayload(member),
   };
   res.status(200).json(joinedResponse);
+};
+
+// Data export (GDPR-style): returns everything the account can see as JSON.
+// Guarded per-role below so a patient never receives staff/doctor records.
+export const exportMyData = async (req: Request, res: Response) => {
+  const userId = req.user.id;
+  const user = await User.findById(userId).lean();
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+
+  const scopeIds: mongoose.Types.ObjectId[] = [user._id];
+  const familyMembers = await User.find({
+    accountType: "dependent",
+    guardians: userId,
+  })
+    .lean();
+
+  scopeIds.push(...familyMembers.map((m) => m._id));
+
+  const [appointments, consultations, invoices, notifications, reviews] =
+    await Promise.all([
+      Appointment.find({ patientId: { $in: scopeIds } }).lean(),
+      Consultation.find({ patientId: { $in: scopeIds } }).lean(),
+      Invoice.find({ patientId: { $in: scopeIds } }).lean(),
+      Notification.find({ recipientId: userId }).lean(),
+      Review.find({ patientId: userId }).lean(),
+    ]);
+
+  const data = {
+    exportedAt: new Date().toISOString(),
+    exportedBy: {
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email || "",
+      role: user.role,
+    },
+    profile: user,
+    familyMembers,
+    appointments,
+    consultations,
+    invoices,
+    notifications,
+    reviews,
+  };
+  res.status(200).json({ success: true, message: "Export ready", data });
 };

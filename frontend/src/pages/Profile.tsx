@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Controller, useForm, type Control, type FieldValues, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Download, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup, FieldLabel, Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { updateEmail, updatePhone, updatePassword } from "@/api/auth";
-import { updateProfileImage } from "@/api/user";
+import { updateProfileImage, exportMyData } from "@/api/user";
 import FamilySection from "@/components/FamilySection";
 import { getErrorMessage } from "@/lib/utils";
 import { emailSchema, phoneSchema, passwordSchema } from "@/lib/zodSchemas";
@@ -20,6 +20,33 @@ export default function Profile() {
   const { user, setUser } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await exportMyData();
+      const data = response.data?.data;
+      if (!data) {
+        toast.error("No data available to export");
+        return;
+      }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `reperto-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      toast.success("Your data export has been downloaded");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to export your data"));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleFilePicked = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -105,6 +132,18 @@ export default function Profile() {
       <UpdatePhoneCard />
       <UpdatePasswordCard />
       <FamilySection />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Download your data</CardTitle>
+          <CardDescription>Export everything your account can view — profile, family members, appointments, consultations, invoices, and notifications — as a JSON file.</CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            {isExporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            Download my data
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

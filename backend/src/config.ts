@@ -23,6 +23,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(""),
   SMTP_PASS: z.string().default(""),
   SMTP_FROM: z.string().default("Reperto <reperto@example.com>"),
+  SMS_PROVIDER: z.string().default(""),
+  SMS_API_KEY: z.string().default(""),
+  SMS_URL: z.string().default(""),
   CLINIC_PHONE: z.string().default("+91 98765 43210"),
   CLINIC_EMAIL: z.string().default("care@reperto.example"),
 });
@@ -63,6 +66,12 @@ type ClinicConfig = {
   email: string;
 };
 
+type SmsConfig = {
+  provider: string;
+  apiKey: string;
+  url: string;
+};
+
 type Config = {
   port: number;
   nodeEnv: string;
@@ -72,6 +81,7 @@ type Config = {
   jwt: JwtConfig;
   cloudinary: CloudinaryConfig;
   smtp: SmtpConfig;
+  sms: SmsConfig;
   clinic: ClinicConfig;
 };
 
@@ -96,6 +106,11 @@ const config: Config = {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
     from: env.SMTP_FROM,
+  },
+  sms: {
+    provider: env.SMS_PROVIDER,
+    apiKey: env.SMS_API_KEY,
+    url: env.SMS_URL,
   },
   clinic: {
     phone: env.CLINIC_PHONE,

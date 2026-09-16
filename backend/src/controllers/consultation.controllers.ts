@@ -7,6 +7,7 @@ import User from '../db/models/user.model';
 import { ApiError } from '../errors';
 import { canActForPatient } from '../utils/patientScope';
 import { drawLetterhead, drawFooter } from '../utils/pdfLetterhead';
+import { qrDataUrl } from '../utils/qr';
 import { buildInvoiceForConsultation } from './invoice.controllers';
 import { computeFollowUpDate } from '../utils/followUps';
 
@@ -516,6 +517,17 @@ export const getPrescription = async (req: Request, res: Response) => {
     doc.font('Helvetica-Bold').fontSize(9).fillColor('#444444').text('Signature', { align: 'right', width: 200 });
     doc.moveDown(0.1);
     doc.font('Helvetica').fontSize(8.5).fillColor('#555555').text('Licensed Homeopathic Practitioner', { align: 'right', width: 200 });
+
+    // Machine-verifiable QR ref (e.g. REPERTO_PRESCRIPTION:<id>:<patient>) in
+    // the bottom-left corner, above the footer band.
+    const qrRef = `REPERTO_PRESCRIPTION:${consultation._id.toString()}:${(patient.name || '').toLowerCase().replace(/\s+/g, '-')}`;
+    try {
+      const qr = await qrDataUrl(qrRef);
+      const qrSize = 62;
+      doc.image(qr, 48, doc.page.height - 34 - qrSize - 6, { width: qrSize, height: qrSize });
+    } catch (qrError) {
+      console.warn('Could not embed prescription QR code:', qrError);
+    }
 
     drawFooter(doc, 'This is a machine-generated prescription.');
     doc.end();
