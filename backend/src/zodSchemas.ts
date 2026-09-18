@@ -53,6 +53,13 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+const intakeDetailsSchema = z.object({
+  primaryComplaint: z.string().trim().min(1, "Enter a primary complaint"),
+  duration: z.string().trim().min(1, "Enter a duration"),
+  currentMedication: z.string().trim().min(1, "Enter current medication"),
+  pastMedicalHistory: z.string().trim().min(1, "Enter past medical history"),
+});
+
 export const bookingSchema = z
   .object({
     doctorId: z.string().min(1, "Select a doctor"),
@@ -65,12 +72,7 @@ export const bookingSchema = z
       .int()
       .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
     consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
-    intakeDetails: z.object({
-      primaryComplaint: z.string().trim().min(1, "Enter a primary complaint"),
-      duration: z.string().trim().min(1, "Enter a duration"),
-      currentMedication: z.string().trim().min(1, "Enter current medication"),
-      pastMedicalHistory: z.string().trim().min(1, "Enter past medical history"),
-    }),
+    intakeDetails: intakeDetailsSchema,
   })
   // Session length is fixed per type: Initial consults run 30 minutes,
   // Follow-ups and Acute visits run 15. The UI auto-sets this; this refine
@@ -141,6 +143,39 @@ export const updateAppointmentStatusSchema = z.object({
 export const rescheduleSchema = z.object({
   appointmentDate: z.string().min(1, "Select an appointment date"),
   timeSlot: z.string().min(1, "Select a time slot"),
+});
+
+// ---- Movie-style booking holds ----
+
+// Reserving a time chip. Mirrors the booking fields (minus intake details),
+// with the same session-length rule: Initial = 30 min, else 15 min.
+export const holdSchema = z
+  .object({
+    doctorId: z.string().min(1, "Select a doctor"),
+    // Patients may hold a slot for a family member they look after too
+    patientId: z.string().optional(),
+    appointmentDate: z.string().min(1, "Select an appointment date"),
+    timeSlot: z.string().min(1, "Select a time slot"),
+    durationInMinutes: z.coerce
+      .number()
+      .int()
+      .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
+    consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
+  })
+  .refine(
+    (data) =>
+      (data.consultationType === "Initial" && data.durationInMinutes === 30) ||
+      (data.consultationType !== "Initial" && data.durationInMinutes === 15),
+    {
+      message: "Initial consultations are 30 minutes; Follow-up and Acute are 15 minutes",
+      path: ["durationInMinutes"],
+    },
+  );
+
+// Converting a held slot into a real booking only needs the visit details;
+// the doctor/date/slot live on the hold itself.
+export const bookFromHoldSchema = z.object({
+  intakeDetails: intakeDetailsSchema,
 });
 
 // ---- Family accounts (dependents) ----

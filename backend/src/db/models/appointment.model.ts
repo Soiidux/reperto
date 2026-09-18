@@ -82,5 +82,17 @@ AppointmentSchema.index({ doctorId: 1, appointmentDate: 1, timeSlot: 1 }, {
     },
   });
 AppointmentSchema.index({ patientId: 1, status: 1 });
+// A patient can only hold ONE live booking (pending/arrived) at a time.
+// The controller checks this eagerly; this index closes the race between two
+// concurrent submissions and turns it into a friendly 409 via keyPattern.
+AppointmentSchema.index(
+  { patientId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["pending", "arrived"] },
+    },
+  },
+);
 
 export default mongoose.model<IAppointment>('Appointment', AppointmentSchema);

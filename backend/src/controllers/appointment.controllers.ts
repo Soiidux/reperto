@@ -22,13 +22,16 @@ import {
   getDayContext,
   isSlotBlockedByLeave,
   isSlotOverlappingBookings,
+  isSlotOverlappingHolds,
   getAvailableSlotsFor,
+  getSlotStatesFor,
+  type SlotStateInfo,
 } from "../utils/availability";
 
 // Escapes user input before embedding it in a $regex filter
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const formatDateLabel = (date: Date) =>
+export const formatDateLabel = (date: Date) =>
   new Date(date).toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
@@ -36,14 +39,14 @@ const formatDateLabel = (date: Date) =>
     timeZone: "UTC",
   });
 
-const getPatientName = async (patientId: string | mongoose.Types.ObjectId) => {
+export const getPatientName = async (patientId: string | mongoose.Types.ObjectId) => {
   const patient = await User.findById(patientId).select("name").lean();
   return patient?.name || "there";
 };
 
 // Transactional emails for the booking lifecycle; failures are logged by the
 // caller (fire-and-forget) so they never break the request flow.
-const sendAppointmentConfirmationEmail = async (appointment: any, doctorName: string) => {
+export const sendAppointmentConfirmationEmail = async (appointment: any, doctorName: string) => {
   const recipientEmail = await resolveRecipientEmail(appointment.patientId);
   if (!recipientEmail) return;
   await sendEmail({
@@ -86,20 +89,24 @@ const forbiddenResponse: ApiResponse<null> = {
 
 /**
  * Server-side enforcement of doctor availability at booking time.
- * Availability shown by getAvailableSlots and enforced here share
- * the same logic, so a blocked slot can never be booked.
+ * Availability shown by getAvailableSlots, getSlotStatesFor and enforced here
+ * share the same logic, so a blocked or held slot can never be booked.
+ * excludeHoldId lets the hold→booking conversion see past its own
+ * reservation (a hold it owns shouldn't block itself).
  */
-const assertSlotAvailable = async (
+export const assertSlotAvailable = async (
   doctorId: string,
   selectedDate: Date,
   timeSlot: string,
   durationInMinutes: number,
   excludeAppointmentId?: string,
+  excludeHoldId?: string,
 ): Promise<void> => {
-  const { blocks, bookings } = await getDayContext(
+  const { blocks, bookings, holds } = await getDayContext(
     doctorId,
     selectedDate,
     excludeAppointmentId,
+    excludeHoldId,
   );
 
   if (blocks.some((b) => b.type === "full-day")) {
@@ -115,6 +122,10 @@ const assertSlotAvailable = async (
 
   if (isSlotOverlappingBookings(bookings, slotStart, slotEnd)) {
     throw new ApiError(400, "Selected time overlaps with an existing appointment");
+  }
+
+  if (isSlotOverlappingHolds(holds, slotStart, slotEnd)) {
+    throw new ApiError(409, "This slot was just taken by someone else");
   }
 };
 
@@ -169,6 +180,15 @@ const applyPopulates = (query: any, populates: PopulateSpec[]) => {
     q = q.populate(spec.path, spec.select);
   }
   return q;
+};
+
+// Queue-style list endpoints default to 50 rows and never return more than
+// 200, so a busy clinic day can't balloon a response. The main list endpoint
+// (getAppointments) keeps its own explicit pagination contract.
+const parseQueueLimit = (raw: unknown): number => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 50;
+  return Math.min(Math.floor(n), 200);
 };
 
 export const bookAppointment = async (req: Request, res: Response) => {
@@ -265,6 +285,8 @@ export const bookAppointment = async (req: Request, res: Response) => {
 
   // A patient can hold only one live booking at a time, on any date.
   // Completed/cancelled/no-show appointments don't block new bookings.
+  // (A partial unique index on patientId+live-status backs this up at the
+  // database level; the save() below maps that conflict to this same message.)
   const activeBooking = await Appointment.findOne({
     patientId: targetPatientId,
     status: { $in: ["pending", "arrived"] },
@@ -296,28 +318,13 @@ export const bookAppointment = async (req: Request, res: Response) => {
     return res.status(400).json(alreadyBookedTodayResponse);
   }
 
-  const existingAppointment = await Appointment.findOne({
+  // Enforce doctor leave, overlap and active-hold rules server-side
+  await assertSlotAvailable(
     doctorId,
-    appointmentDate: selectedDate,
+    selectedDate,
     timeSlot,
-    status: { $ne: "cancelled" },
-  });
-    if (existingAppointment) {
-      const existingAppointmentResponse: ApiResponse<null> = {
-        success: false,
-        message: "Selected time slot is already booked",
-        data: null,
-      };
-      return res.status(400).json(existingAppointmentResponse);
-    }
-
-    // Enforce doctor leave and overlap rules server-side
-    await assertSlotAvailable(
-      doctorId,
-      selectedDate,
-      timeSlot,
-      Number(durationInMinutes),
-    );
+    Number(durationInMinutes),
+  );
 
   const newAppointment = new Appointment({
     patientId: targetPatientId,
@@ -332,8 +339,17 @@ export const bookAppointment = async (req: Request, res: Response) => {
   });
 
   await newAppointment.save().catch((error: any) => {
-    // Handle the Mongo Unique Index error specifically if it bypasses our check
+    // The Mongo Unique Index error as a last line of defence against races:
+    // keyPattern tells us whether it was the patient rule or the slot rule.
     if (error?.code === 11000) {
+      if (error?.keyPattern?.patientId) {
+        throw new ApiError(
+          409,
+          isStaffBooking
+            ? "Conflict: This patient already has an upcoming appointment"
+            : "Conflict: You already have an upcoming appointment",
+        );
+      }
       throw new ApiError(409, "Conflict: This slot was just taken by someone else!");
     }
     throw error;
@@ -342,6 +358,31 @@ export const bookAppointment = async (req: Request, res: Response) => {
   sendAppointmentConfirmationEmail(newAppointment, doctor?.name).catch((error: any) => {
     console.error("Failed to send booking confirmation email:", error);
   });
+
+  // In-app notices so both sides see the booking immediately.
+  try {
+    const patientName = await getPatientName(targetPatientId);
+    await notifyPatient(targetPatientId, {
+      type: "appointment-status",
+      title: "Appointment booked",
+      body: `Your appointment with ${doctor?.name || "your doctor"} on ${formatDateLabel(
+        selectedDate,
+      )} at ${timeSlot} is confirmed.`,
+      link: `/patient/appointments/${newAppointment._id}`,
+      appointmentId: newAppointment._id,
+    });
+    await createInAppNotification(doctorId, {
+      type: "appointment-status",
+      title: "New appointment",
+      body: `${patientName} booked a ${consultationType} appointment on ${formatDateLabel(
+        selectedDate,
+      )} at ${timeSlot}.`,
+      link: `/doctor/appointments/${newAppointment._id}`,
+      appointmentId: newAppointment._id,
+    });
+  } catch (error) {
+    console.error("Failed to send booking notifications:", error);
+  }
 
   const response: ApiResponse<typeof newAppointment> = {
     success: true,
@@ -465,7 +506,8 @@ export const getActiveAppointments = async (req: Request, res: Response) => {
   query.status = { $nin: ["completed", "cancelled", "no-show"] };
 
   const appointments = await applyPopulates(Appointment.find(query), populates)
-    .sort({ appointmentDate: -1, timeSlot: 1 });
+    .sort({ appointmentDate: -1, timeSlot: 1 })
+    .limit(parseQueueLimit(req.query.limit));
 
   const appointmentsResponse: ApiResponse<{
     count: number;
@@ -492,7 +534,8 @@ export const getArrivedPatients = async (req: any, res: Response) => {
   }
 
   const appointments = await applyPopulates(Appointment.find(query), populates)
-    .sort({ appointmentDate: -1, timeSlot: 1 });
+    .sort({ appointmentDate: -1, timeSlot: 1 })
+    .limit(parseQueueLimit(req.query.limit));
 
   const appointmentsResponse: ApiResponse<{
     count: number;
@@ -532,7 +575,8 @@ export const getTodaysAppointments = async (req: any, res: Response) => {
   }
 
   const appointments = await applyPopulates(Appointment.find(query), populates)
-    .sort({ timeSlot: 1 }); // Sorted by time for the daily schedule
+    .sort({ timeSlot: 1 }) // Sorted by time for the daily schedule
+    .limit(parseQueueLimit(req.query.limit));
 
   const response: ApiResponse<{
     count: number;
@@ -606,14 +650,18 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
       const timeSlotMinutes = timeToMinutes(appointment.timeSlot);
 
       const differenceInMinutes = timeSlotMinutes - nowMinutes;
-      if (differenceInMinutes < 120 && differenceInMinutes > 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Cannot cancel appointment within 2 hours of the slot",
-            data: null,
-          });
+      // Within 2h, or already past: the visit can't be un-booked anymore.
+      // (The old `> 0` guard let patients cancel slots that had already
+      // started — those are handled through no-show, not cancellation.)
+      if (differenceInMinutes < 120) {
+        return res.status(400).json({
+          success: false,
+          message:
+            differenceInMinutes >= 0
+              ? "Cannot cancel appointment within 2 hours of the slot"
+              : "This appointment has already started; please contact the clinic to reschedule",
+          data: null,
+        });
       }
     }
 
@@ -740,6 +788,20 @@ export const rescheduleAppointment = async (req: any, res: Response) => {
     });
   }
 
+  // Match the cancellation policy: patients can't move into a slot starting
+  // within the next 2 hours on the current clinic day.
+  if (isPatient && isClinicToday(selectedDate)) {
+    const nowMinutes = getClinicNowMinutes();
+    const slotMinutes = timeToMinutes(timeSlot);
+    if (slotMinutes - nowMinutes < 120) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot reschedule to a slot within 2 hours of now",
+        data: null,
+      });
+    }
+  }
+
   const isUnchanged =
     appointment.appointmentDate.getTime() === selectedDate.getTime() &&
     appointment.timeSlot === timeSlot;
@@ -856,4 +918,39 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     data: availableSlots,
   };
   res.json(availableSlotsResponse);
+};
+
+// Movie-style booking screen: every starting slot for a doctor/day with its
+// live state (free / held-by-me / held / taken). Held-by-me is only labelled
+// for the requesting patient; doctors/staff see holds as plain "held".
+export const getSlotStates = async (req: Request, res: Response) => {
+  const { doctorId, date, durationInMinutes = 15 } = req.query;
+
+  if (!doctorId || typeof doctorId !== "string") {
+    throw new ApiError(400, "doctorId query parameter is required");
+  }
+  if (!date || typeof date !== "string") {
+    throw new ApiError(400, "date query parameter is required");
+  }
+  const selectedDate = parseDateAnchor(date);
+  if (!selectedDate) {
+    throw new ApiError(400, "Invalid date format, expected YYYY-MM-DD");
+  }
+  const duration = Number(durationInMinutes);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new ApiError(400, "Invalid duration");
+  }
+
+  const states: SlotStateInfo[] = await getSlotStatesFor(
+    doctorId,
+    selectedDate,
+    duration,
+    req.user?.role === "patient" ? req.user.id : undefined,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Slot availability retrieved successfully",
+    data: states,
+  });
 };

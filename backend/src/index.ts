@@ -7,6 +7,7 @@ import consultationModel from './db/models/consultation.model';
 import leaveModel from './db/models/leave.model';
 import tokenModel from './db/models/token.model';
 import userModel from './db/models/user.model';
+import bookingHoldModel from './db/models/bookingHold.model';
 import { startAppointmentRemindersJob } from './jobs/appointmentReminders';
 import { startFollowUpRemindersJob } from './jobs/followUpReminders';
 
@@ -16,6 +17,7 @@ const models = [
   leaveModel,
   tokenModel,
   userModel,
+  bookingHoldModel,
 ];
 
 dbConnect().then(async () => {

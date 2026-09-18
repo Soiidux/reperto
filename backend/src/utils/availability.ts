@@ -1,13 +1,14 @@
 import { MASTER_SLOTS } from "../constants/slots";
 import Leave from "../db/models/leave.model";
 import Appointment from "../db/models/appointment.model";
+import BookingHold from "../db/models/bookingHold.model";
 import { isClinicToday, getClinicNowMinutes } from "../utils/clinicDate";
 
 /**
  * Shared availability math. Booking-time enforcement (assertSlotAvailable),
- * the slots picker (getAvailableSlots) and leave-conflict suggestion
- * generation all use these helpers so "available" means the same thing
- * everywhere.
+ * free-slot picker (getAvailableSlots), the league-conflict suggestion
+ * generator and the movie-style slot-states endpoint (getSlotStatesFor) all
+ * use these helpers, so "available" means the same thing everywhere.
  */
 
 /** "09:15 AM" / "02:30 PM" -> minutes since midnight. */
@@ -34,11 +35,25 @@ type Booking = {
   durationInMinutes: number;
 };
 
-/** Leaves + active bookings for one doctor on one clinic day. */
+/** Active reservation docs for one doctor on one clinic day. */
+export const getHoldsForDay = async (
+  doctorId: string,
+  selectedDate: Date,
+  excludeHoldId?: string,
+) =>
+  BookingHold.find({
+    doctorId,
+    appointmentDate: selectedDate,
+    status: "active",
+    ...(excludeHoldId ? { _id: { $ne: excludeHoldId } } : {}),
+  });
+
+/** Leaves + active bookings + active holds for one doctor on one clinic day. */
 export const getDayContext = async (
   doctorId: string,
   selectedDate: Date,
   excludeAppointmentId?: string,
+  excludeHoldId?: string,
 ) => {
   // A leave only "covers" selectedDate when it spans that day (endingDate set
   // and >= selectedDate) or is a single-day leave starting on it. A single-day
@@ -58,7 +73,8 @@ export const getDayContext = async (
     status: { $ne: "cancelled" },
     ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
   });
-  return { blocks, bookings };
+  const holds = await getHoldsForDay(doctorId, selectedDate, excludeHoldId);
+  return { blocks, bookings, holds };
 };
 
 /**
@@ -113,17 +129,36 @@ export const isSlotOverlappingBookings = (
   });
 };
 
+/** True when [slotStart, slotEnd] overlaps any active reservation. */
+export const isSlotOverlappingHolds = (
+  holds: (Booking & { _id?: unknown; patientId?: unknown })[],
+  slotStart: number,
+  slotEnd: number,
+): boolean => {
+  return holds.some((hold) => {
+    const start = timeToMinutes(hold.timeSlot);
+    const end = start + Number(hold.durationInMinutes);
+    return slotStart < end && slotEnd > start;
+  });
+};
+
 /**
  * Starting slots a doctor actually has open on a date, after leaves,
- * overlapping bookings and (for the current clinic day) the buffered
- * now + 15 min window. Returns [] for a full-day leave.
+ * overlapping bookings, active holds and (for the current clinic day) the
+ * buffered now + 15 min window. Returns [] for a full-day leave.
  */
 export const getAvailableSlotsFor = async (
   doctorId: string,
   selectedDate: Date,
   durationInMinutes: number,
+  excludeHoldId?: string,
 ): Promise<string[]> => {
-  const { blocks, bookings } = await getDayContext(doctorId, selectedDate);
+  const { blocks, bookings, holds } = await getDayContext(
+    doctorId,
+    selectedDate,
+    undefined,
+    excludeHoldId,
+  );
 
   if (blocks.some((b) => b.type === "full-day")) return [];
 
@@ -139,6 +174,66 @@ export const getAvailableSlotsFor = async (
       return false;
     }
 
-    return !isSlotOverlappingBookings(bookings, slotStart, slotEnd);
+    if (isSlotOverlappingBookings(bookings, slotStart, slotEnd)) {
+      return false;
+    }
+
+    return !isSlotOverlappingHolds(holds, slotStart, slotEnd);
+  });
+};
+
+export type SlotState = "free" | "held-by-me" | "held" | "taken";
+export type SlotStateInfo = { timeSlot: string; state: SlotState };
+
+/**
+ * Every starting slot on a date with its live state, for the movie-style
+ * booking screen (free / held by me / held by someone else / taken).
+ * "Taken" covers real bookings, leave blocks and the now+15min buffer on
+ * the current clinic day. When patientId is supplied, that patient's own
+ * active hold is labelled "held-by-me" instead of "held".
+ */
+export const getSlotStatesFor = async (
+  doctorId: string,
+  selectedDate: Date,
+  durationInMinutes: number,
+  patientId?: string,
+): Promise<SlotStateInfo[]> => {
+  const { blocks, bookings, holds } = await getDayContext(doctorId, selectedDate);
+
+  if (blocks.some((b) => b.type === "full-day")) {
+    return MASTER_SLOTS.map((timeSlot) => ({ timeSlot, state: "taken" as const }));
+  }
+
+  const overlapsHold = (hold: { timeSlot: string; durationInMinutes: number }, start: number, end: number) => {
+    const hStart = timeToMinutes(hold.timeSlot);
+    const hEnd = hStart + Number(hold.durationInMinutes);
+    return start < hEnd && end > hStart;
+  };
+
+  return MASTER_SLOTS.map((timeSlot) => {
+    const slotStart = timeToMinutes(timeSlot);
+    const slotEnd = slotStart + durationInMinutes;
+
+    if (isClinicToday(selectedDate)) {
+      if (slotStart < getClinicNowMinutes() + 15) return { timeSlot, state: "taken" as const };
+    }
+
+    if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
+      return { timeSlot, state: "taken" as const };
+    }
+
+    if (isSlotOverlappingBookings(bookings, slotStart, slotEnd)) {
+      return { timeSlot, state: "taken" as const };
+    }
+
+    if (patientId && holds.some((h) => String(h.patientId) === patientId && overlapsHold(h, slotStart, slotEnd))) {
+      return { timeSlot, state: "held-by-me" as const };
+    }
+
+    if (isSlotOverlappingHolds(holds, slotStart, slotEnd)) {
+      return { timeSlot, state: "held" as const };
+    }
+
+    return { timeSlot, state: "free" as const };
   });
 };
