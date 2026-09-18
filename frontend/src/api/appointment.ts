@@ -58,3 +58,65 @@ export const updateAppointmentStatus = async (id: string, data: {status: string,
 export const rescheduleAppointment = async (id: string, data: { appointmentDate: string; timeSlot: string }) => {
   return await API.patch(`/appointment/${id}/reschedule`, data);
 };
+
+// ---- Movie-style booking (holds + slot states) ----
+
+export type SlotStateInfo = {
+  timeSlot: string;
+  state: "free" | "held-by-me" | "held" | "taken";
+};
+
+export const getSlotStates = async (params: {
+  doctorId: string;
+  date: string;
+  durationInMinutes?: string;
+}) => {
+  return await API.get("/appointment/slots", { params });
+};
+
+export const createHold = async (data: {
+  doctorId: string;
+  appointmentDate: string;
+  timeSlot: string;
+  durationInMinutes: number;
+  consultationType: "Initial" | "Follow-up" | "Acute";
+  patientId?: string;
+}) => {
+  return await API.post("/appointment/hold", data);
+};
+
+export const bookFromHold = async (
+  holdId: string,
+  data: { intakeDetails: appointmentFormSchema["intakeDetails"] },
+) => {
+  return await API.post(`/appointment/hold/${holdId}/book`, data);
+};
+
+export const releaseHold = async (holdId: string) => {
+  return await API.delete(`/appointment/hold/${holdId}`);
+};
+
+// ---- Appointment ticket ----
+
+/** Object URL for the QR PNG (rendered in the booking confirmation). */
+export const getAppointmentTicketQrUrl = async (appointmentId: string) => {
+  const response = await API.get(`/appointment/${appointmentId}/ticket/qr`, {
+    responseType: "blob",
+  });
+  return URL.createObjectURL(response.data as Blob);
+};
+
+/** Downloads the printable ticket PDF. */
+export const downloadAppointmentTicket = async (appointmentId: string) => {
+  const response = await API.get(`/appointment/${appointmentId}/ticket?download=1`, {
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(response.data as Blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `appointment-ticket-${appointmentId}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
