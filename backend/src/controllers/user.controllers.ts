@@ -174,18 +174,9 @@ export const getPatients = async (req: Request, res: Response) => {
   });
 };
 
-// ---- Family accounts (dependents) ----
+// ---- Family accounts (dependents + linked real accounts) ----
 
-// Unambiguous alphabet: no I/L/O/0/1 to avoid transcription mistakes
-const SHARE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-const generateShareCode = (): string => {
-  let suffix = "";
-  for (let i = 0; i < 6; i++) {
-    suffix += SHARE_CODE_ALPHABET[crypto.randomInt(SHARE_CODE_ALPHABET.length)];
-  }
-  return `FAM-${suffix}`;
-};
+import { generateShareCode } from "../utils/shareCode";
 
 const FAMILY_SELECT =
   "name gender dateOfBirth bloodGroup phone relationship profileImageUrl accountType guardians createdBy shareCode isActive";
@@ -201,9 +192,28 @@ const familyMemberPayload = (member: IUser) => ({
   profileImageUrl: member.profileImageUrl || "",
   shareCode: member.shareCode || "",
   isActive: member.isActive,
+  accountType: member.accountType,
   guardians: (member.guardians || []).map((g) => String(g)),
   createdBy: member.createdBy ? String(member.createdBy) : null,
 });
+
+// The user's own family code, generated on first view so existing accounts
+// (created before codes existed) can be linked too.
+export const getMyShareCode = async (req: Request, res: Response) => {
+  const user = await User.findById(req.user.id).select("shareCode");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+  if (!user.shareCode) {
+    user.shareCode = generateShareCode();
+    await user.save();
+  }
+  res.status(200).json({
+    success: true,
+    message: "Family code fetched",
+    data: { shareCode: user.shareCode },
+  });
+};
 
 export const createFamilyMember = async (req: Request, res: Response) => {
   const parsed = createFamilyMemberSchema.safeParse(req.body);
@@ -277,7 +287,6 @@ export const createFamilyMember = async (req: Request, res: Response) => {
 
 export const listFamilyMembers = async (req: Request, res: Response) => {
   const members = await User.find({
-    accountType: "dependent",
     guardians: req.user.id,
   })
     .select(FAMILY_SELECT)
@@ -296,7 +305,6 @@ export const listFamilyMembers = async (req: Request, res: Response) => {
 const findGuardianMember = async (memberId: string, userId: string) => {
   const member = await User.findOne({
     _id: memberId,
-    accountType: "dependent",
     guardians: userId,
   });
   if (!member) {
@@ -336,10 +344,19 @@ export const updateFamilyMember = async (req: Request, res: Response) => {
   res.status(200).json(response);
 };
 
-// Soft-deletes the member. Any guardian may do this; records are kept.
+// Soft-deletes a created dependent profile. Any guardian may do this;
+// records are kept. Real (self) accounts cannot be deleted this way —
+// a guardian should Leave instead so the account keeps working.
 export const removeFamilyMember = async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const member = await findGuardianMember(id, req.user.id);
+
+  if (member.accountType !== "dependent") {
+    throw new ApiError(
+      400,
+      "This is a real account, not a created profile. Use 'Leave' to stop managing them.",
+    );
+  }
 
   member.isActive = false;
   // Rotate rather than clear: a stale code must never grant access again,
@@ -354,14 +371,18 @@ export const removeFamilyMember = async (req: Request, res: Response) => {
   });
 };
 
-// Creator strips a co-guardian's access. Rotates the share code afterwards
-// so the removed guardian cannot silently re-join with one they saw.
+// Creator strips a co-guardian's access. For a real (self) account the
+// account owner is the "creator". Rotates the share code afterwards so
+// the removed guardian cannot silently re-join with one they saw.
 export const removeGuardian = async (req: Request, res: Response) => {
   const memberId = String(req.params.id);
   const guardianId = String(req.params.guardianId);
   const member = await findGuardianMember(memberId, req.user.id);
 
-  if (String(member.createdBy) !== req.user.id) {
+  const isOwner =
+    String(member.createdBy) === req.user.id ||
+    String(member._id) === req.user.id;
+  if (!isOwner) {
     throw new ApiError(403, "Only the member's creator can remove guardians");
   }
   if (guardianId === req.user.id) {
@@ -392,7 +413,6 @@ export const leaveFamilyMember = async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const member = await User.findOne({
     _id: id,
-    accountType: "dependent",
     guardians: req.user.id,
   });
   if (!member) {
@@ -402,7 +422,10 @@ export const leaveFamilyMember = async (req: Request, res: Response) => {
   const remaining = (member.guardians || [])
     .map(String)
     .filter((g) => g !== req.user.id);
-  if (remaining.length === 0) {
+  // A real (self) account always keeps its owner, so any guardian may leave.
+  // Only created dependent profiles need someone to stay behind to manage them.
+  const isSelfAccount = member.accountType !== "dependent";
+  if (remaining.length === 0 && !isSelfAccount) {
     throw new ApiError(
       400,
       "You are the last guardian. Remove the member instead of leaving.",
@@ -422,8 +445,12 @@ export const regenerateShareCode = async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const member = await findGuardianMember(id, req.user.id);
 
-  // Only the creator rotates codes; co-guardians just consume them
-  if (String(member.createdBy) !== req.user.id) {
+  // Only the creator (or the account owner themself) rotates codes;
+  // co-guardians just consume them
+  const isOwner =
+    String(member.createdBy) === req.user.id ||
+    String(member._id) === req.user.id;
+  if (!isOwner) {
     throw new ApiError(403, "Only the member's creator can regenerate the code");
   }
   if (!member.isActive) {
@@ -441,7 +468,11 @@ export const regenerateShareCode = async (req: Request, res: Response) => {
   res.status(200).json(response);
 };
 
-export const joinByShareCode = async (req: Request, res: Response) => {
+// Add a family member by their own code. The code belongs to a real
+// (self) patient account OR a created dependent profile; entering it links
+// that person into the acting user's family space so they can book and
+// manage on their behalf.
+export const addByShareCode = async (req: Request, res: Response) => {
   const parsed = joinByShareCodeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -454,16 +485,32 @@ export const joinByShareCode = async (req: Request, res: Response) => {
 
   const member = await User.findOne({
     shareCode: parsed.data.code,
-    accountType: "dependent",
+    role: "patient",
     isActive: true,
   });
-  // Same message whether the code is wrong or stale — don't leak which
+  // Same message whether the code is wrong, stale, or the account has no
+  // code yet — don't leak which one the caller guessed.
   if (!member) {
     return res.status(404).json({
       success: false,
       message: "Invalid or expired family code",
       data: null,
     });
+  }
+
+  if (String(member._id) === req.user.id) {
+    throw new ApiError(400, "You can't add yourself");
+  }
+
+  const managedCount = await User.countDocuments({
+    guardians: req.user.id,
+    isActive: true,
+  });
+  if (managedCount >= MAX_DEPENDENTS_PER_GUARDIAN) {
+    throw new ApiError(
+      400,
+      `You can manage up to ${MAX_DEPENDENTS_PER_GUARDIAN} family members`,
+    );
   }
 
   const guardianIds = (member.guardians || []).map((g) => String(g));
@@ -483,12 +530,12 @@ export const joinByShareCode = async (req: Request, res: Response) => {
   member.guardians = [...guardianIds, req.user.id as any];
   await member.save();
 
-  const joinedResponse: ApiResponse<ReturnType<typeof familyMemberPayload>> = {
+  const addedResponse: ApiResponse<ReturnType<typeof familyMemberPayload>> = {
     success: true,
-    message: `You now have access to ${member.name}`,
+    message: `${member.name} added to your family`,
     data: familyMemberPayload(member),
   };
-  res.status(200).json(joinedResponse);
+  res.status(200).json(addedResponse);
 };
 
 // Data export (GDPR-style): returns everything the account can see as JSON.
@@ -502,7 +549,6 @@ export const exportMyData = async (req: Request, res: Response) => {
 
   const scopeIds: mongoose.Types.ObjectId[] = [user._id];
   const familyMembers = await User.find({
-    accountType: "dependent",
     guardians: userId,
   })
     .lean();

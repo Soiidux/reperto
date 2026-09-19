@@ -6,23 +6,24 @@ export const MAX_DEPENDENTS_PER_GUARDIAN = 10;
 
 type Actor = { id: string; role: string };
 
-// Ids of active dependents the user may act for, plus their own id —
-// feed this straight into a `$in` query.
+// Ids of active patients the user may act for, plus their own id —
+// feed this straight into a `$in` query. This covers created dependent
+// profiles AND real accounts the user was linked to via a family code.
 export async function resolvePatientScope(userId: string): Promise<string[]> {
-  const dependents = await User.find({
-    accountType: "dependent",
+  const managed = await User.find({
     guardians: userId,
     isActive: true,
   })
     .select("_id")
     .lean();
 
-  return [userId, ...dependents.map((d) => String(d._id))];
+  return [userId, ...managed.map((d) => String(d._id))];
 }
 
 // True when the acting user is the patient themself or an active guardian
-// of the dependent. Staff/admin bypass lives with role checks in callers;
-// doctors authorize via appointment/consultation assignment, not ownership.
+// (of a dependent profile or a linked real account). Staff/admin bypass
+// lives with role checks in callers; doctors authorize via
+// appointment/consultation assignment, not ownership.
 export async function canActForPatient(
   userId: string,
   patientId: string,
@@ -32,7 +33,6 @@ export async function canActForPatient(
   return Boolean(
     await User.exists({
       _id: patientId,
-      accountType: "dependent",
       guardians: userId,
       isActive: true,
     }),

@@ -27,7 +27,7 @@ export const exportMyData = async () => {
   return await API.get("/user/me/export");
 }
 
-// ---- Family accounts (dependents managed via share codes) ----
+// ---- Family accounts (created dependents + linked real accounts) ----
 
 export interface FamilyMember {
   _id: string;
@@ -40,6 +40,8 @@ export interface FamilyMember {
   profileImageUrl?: string;
   shareCode?: string;
   isActive: boolean;
+  accountType?: "self" | "dependent";
+  createdBy?: string | null;
   guardians: { _id: string; name: string; profileImageUrl?: string }[];
 }
 
@@ -62,8 +64,12 @@ export const removeFamilyMember = async (id: string) => {
   return await API.delete(`/user/me/family/${id}`);
 }
 
-export const joinFamilyByCode = async (code: string) => {
-  return await API.post("/user/me/family/join", { code });
+export const addFamilyByCode = async (code: string) => {
+  return await API.post("/user/me/family/add-by-code", { code });
+}
+
+export const getMyShareCode = async () => {
+  return await API.get("/user/me/share-code");
 }
 
 export const regenerateShareCode = async (id: string) => {

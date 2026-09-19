@@ -6,6 +6,7 @@ import { generateAccessToken, generateRefreshToken, validateAccessToken, getBear
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { hashToken } from "../utils/tokenHash";
 import { evictAuthCache } from "../middlewares/auth.middlewares";
+import { generateShareCode } from "../utils/shareCode";
 import config from "../config";
 import { sendEmail, verificationEmailHtml, resetPasswordEmailHtml } from "../utils/email";
 import { issueEmailToken, consumeEmailToken, buildActionLink } from "../utils/emailToken";
@@ -85,6 +86,8 @@ export const registerUser = async (req: Request, res: Response) => {
     gender,
     dateOfBirth,
     bloodGroup,
+    // Every patient account gets a family code so family members can link it
+    ...(roleToAssign === "patient" && { shareCode: generateShareCode() }),
     ...(roleToAssign === "doctor" && { doctorProfile: req.body.doctorProfile }),
   })
   

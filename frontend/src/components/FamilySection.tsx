@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Copy, Plus, RefreshCw, UserPlus, LogOut, Trash2 } from "lucide-react";
+import { Copy, Plus, RefreshCw, LogOut, Trash2, KeyRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,8 @@ import {
   type FamilyMember,
   createFamilyMember,
   getFamilyMembers,
-  joinFamilyByCode,
+  addFamilyByCode,
+  getMyShareCode,
   leaveFamilyMember,
   regenerateShareCode,
   removeFamilyMember,
@@ -38,6 +39,7 @@ export default function FamilySection({ onChange }: { onChange?: (members: Famil
   const { user } = useAuthStore();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [myCode, setMyCode] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -70,6 +72,14 @@ export default function FamilySection({ onChange }: { onChange?: (members: Famil
         .finally(() => {
           if (active) setIsLoading(false);
         });
+      // Every patient has a family code they can share to be added
+      getMyShareCode()
+        .then((resp) => {
+          if (active) setMyCode(resp.data?.data?.shareCode ?? "");
+        })
+        .catch(() => {
+          // The code is a convenience — never block the page over it.
+        });
     }
     return () => {
       active = false;
@@ -80,6 +90,16 @@ export default function FamilySection({ onChange }: { onChange?: (members: Famil
 
   const activeMembers = members.filter((m) => m.isActive);
 
+  const copyMyCode = async () => {
+    if (!myCode) return;
+    try {
+      await navigator.clipboard.writeText(myCode);
+      toast.success("Your family code copied");
+    } catch {
+      toast.error("Could not copy to clipboard");
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -89,17 +109,30 @@ export default function FamilySection({ onChange }: { onChange?: (members: Famil
             Book and manage appointments for people you care for.
           </p>
         </div>
-        <div className="flex gap-2">
-          <JoinSheet onJoined={refresh} />
-          <AddMemberSheet onCreated={refresh} />
-        </div>
+        <AddMemberSheet onCreated={refresh} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* The user's own code: share it so family can add you */}
+        <div className="flex items-center gap-2 rounded-lg bg-neutral-50 border border-neutral-100 px-2.5 py-1.5">
+          <KeyRound className="size-3.5 text-neutral-400" />
+          <span className="text-sm text-neutral-500">Your family code</span>
+          <span className="font-mono text-xs tracking-wider text-neutral-700">{myCode || "—"}</span>
+          <button
+            type="button"
+            aria-label="Copy your family code"
+            onClick={copyMyCode}
+            disabled={!myCode}
+            className="ml-auto text-neutral-400 hover:text-primary disabled:opacity-40"
+          >
+            <Copy className="size-3.5" />
+          </button>
+        </div>
+
         {isLoading ? (
           <p className="text-sm text-neutral-400">Loading…</p>
         ) : activeMembers.length === 0 ? (
           <p className="text-sm text-neutral-400">
-            No family members yet. Add one to book on their behalf.
+            No family members yet. Add someone by their family code, or create a profile for them.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -121,7 +154,11 @@ function MemberCard({
   onChanged: () => void;
 }) {
   const { user } = useAuthStore();
-  const isCreator = member.guardians.some((g) => g._id === user?.id);
+  // "Creator" of a created dependent profile; real (self) accounts have no
+  // creator — their own account is in charge, so the viewing guardian is
+  // always a co-guardian there.
+  const isDependent = member.accountType !== "self";
+  const isCreator = isDependent && member.createdBy === user?.id;
   const coGuardians = member.guardians.filter((g) => g._id !== user?.id);
 
   const copyCode = async () => {
@@ -194,12 +231,14 @@ function MemberCard({
         <div className="min-w-0">
           <p className="truncate font-semibold text-neutral-900">{member.name}</p>
           <p className="text-xs capitalize text-neutral-500">
-            {member.relationship} · {getAge(member.dateOfBirth)} yrs
+            {member.relationship || "Family member"} · {getAge(member.dateOfBirth)} yrs
           </p>
         </div>
-        <Badge variant="outline" className="ml-auto capitalize">
-          {member.relationship}
-        </Badge>
+        {member.relationship && (
+          <Badge variant="outline" className="ml-auto capitalize">
+            {member.relationship}
+          </Badge>
+        )}
       </div>
 
       {/* Share code: visible to every guardian, rotated by the creator */}
@@ -257,7 +296,7 @@ function MemberCard({
             <LogOut className="size-3 mr-1" /> Leave
           </Button>
         )}
-        {isCreator && (
+        {isCreator && isDependent && (
           <Button
             type="button"
             size="sm"
@@ -275,11 +314,35 @@ function MemberCard({
 
 function AddMemberSheet({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"code" | "profile">("code");
+  const [code, setCode] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<File | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const reset = () => {
+    setMode("code");
+    setCode("");
+    setPhoto(null);
+    setOpen(false);
+  };
+
+  const handleAddByCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+    try {
+      const response = await addFamilyByCode(code.trim().toUpperCase());
+      toast.success(response.data?.message || "Family member added");
+      reset();
+      onCreated();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Invalid or expired family code"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -299,6 +362,23 @@ function AddMemberSheet({ onCreated }: { onCreated: () => void }) {
     }
   };
 
+  const modeTab = (value: "code" | "profile", label: string, hint: string) => (
+    <button
+      type="button"
+      onClick={() => setMode(value)}
+      className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+        mode === value
+          ? "bg-white text-neutral-900 shadow-sm"
+          : "text-neutral-500 hover:text-neutral-700"
+      }`}
+    >
+      <span className="block">{label}</span>
+      <span className={`block font-normal ${mode === value ? "text-neutral-400" : "text-neutral-400"}`}>
+        {hint}
+      </span>
+    </button>
+  );
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -310,139 +390,113 @@ function AddMemberSheet({ onCreated }: { onCreated: () => void }) {
         <SheetHeader>
           <SheetTitle>Add family member</SheetTitle>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <Field>
-            <FieldLabel>Name *</FieldLabel>
-            <Input name="name" required placeholder="Full name" autoComplete="off" />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Gender *</FieldLabel>
-              <Select name="gender" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Relationship *</FieldLabel>
-              <Select name="relationship" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="spouse">Spouse</SelectItem>
-                  <SelectItem value="child">Child</SelectItem>
-                  <SelectItem value="parent">Parent</SelectItem>
-                  <SelectItem value="sibling">Sibling</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
+            {modeTab("code", "Has an account", "add by their family code")}
+            {modeTab("profile", "No account", "create a profile for them")}
           </div>
-          <Field>
-            <FieldLabel>Date of birth *</FieldLabel>
-            <Input name="dateOfBirth" type="date" required max={new Date().toISOString().slice(0, 10)} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Blood group</FieldLabel>
-              <Select name="bloodGroup">
-                <SelectTrigger>
-                  <SelectValue placeholder="Optional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
-                    <SelectItem key={bg} value={bg}>{bg}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Phone</FieldLabel>
-              <Input name="phone" inputMode="numeric" pattern="\d{10}" maxLength={10} placeholder="Optional" />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel>Photo</FieldLabel>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                Choose image
+
+          {mode === "code" ? (
+            <form onSubmit={handleAddByCode} className="space-y-4">
+              <Field>
+                <FieldLabel>Family code</FieldLabel>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="FAM-XXXXXX"
+                  className="font-mono tracking-wider"
+                  required
+                />
+                <p className="text-xs text-neutral-400">
+                  Ask the person for their family code — they can find it in
+                  their own Profile → Family Members.
+                </p>
+              </Field>
+              <Button type="submit" disabled={isSaving} className="w-full">
+                {isSaving ? "Adding…" : "Add member"}
               </Button>
-              {photo && <span className="text-xs text-neutral-500 truncate">{photo.name}</span>}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-              />
-            </div>
-          </Field>
-          <Button type="submit" disabled={isSaving} className="w-full">
-            {isSaving ? "Adding…" : "Add member"}
-          </Button>
-        </form>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function JoinSheet({ onJoined }: { onJoined: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
-  const [isJoining, setIsJoining] = useState(false);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsJoining(true);
-    try {
-      const response = await joinFamilyByCode(code.trim().toUpperCase());
-      toast.success(response.data?.message || "Access granted");
-      setCode("");
-      setOpen(false);
-      onJoined();
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Invalid or expired family code"));
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button size="sm" variant="outline">
-          <UserPlus className="size-4 mr-1" /> Join
-        </Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Join a family member</SheetTitle>
-        </SheetHeader>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <Field>
-            <FieldLabel>Share code</FieldLabel>
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="FAM-XXXXXX"
-              className="font-mono tracking-wider"
-              required
-            />
-            <p className="text-xs text-neutral-400">
-              Ask the member's creator to share their FAM-code with you.
-            </p>
-          </Field>
-          <Button type="submit" disabled={isJoining} className="w-full">
-            {isJoining ? "Joining…" : "Get access"}
-          </Button>
-        </form>
+            </form>
+          ) : (
+            <form onSubmit={handleCreateProfile} className="space-y-4">
+              <Field>
+                <FieldLabel>Name *</FieldLabel>
+                <Input name="name" required placeholder="Full name" autoComplete="off" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel>Gender *</FieldLabel>
+                  <Select name="gender" required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>Relationship *</FieldLabel>
+                  <Select name="relationship" required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="spouse">Spouse</SelectItem>
+                      <SelectItem value="child">Child</SelectItem>
+                      <SelectItem value="parent">Parent</SelectItem>
+                      <SelectItem value="sibling">Sibling</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel>Date of birth *</FieldLabel>
+                <Input name="dateOfBirth" type="date" required max={new Date().toISOString().slice(0, 10)} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel>Blood group</FieldLabel>
+                  <Select name="bloodGroup">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Optional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
+                        <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>Phone</FieldLabel>
+                  <Input name="phone" inputMode="numeric" pattern="\d{10}" maxLength={10} placeholder="Optional" />
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel>Photo</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    Choose image
+                  </Button>
+                  {photo && <span className="text-xs text-neutral-500 truncate">{photo.name}</span>}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+              </Field>
+              <Button type="submit" disabled={isSaving} className="w-full">
+                {isSaving ? "Adding…" : "Add member"}
+              </Button>
+            </form>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
