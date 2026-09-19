@@ -213,8 +213,8 @@ const downloadPrescription = async () => {
     if (!consultationData) return;
     try {
       const response = await getPrescription(consultationData._id);
-      downloadBlob(new Blob([response.data]), `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
-      toast.success("Prescription downloaded");
+      const started = await downloadBlob(response.data, `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
+      if (started) toast.success("Prescription downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download prescription"));
     }
@@ -245,8 +245,8 @@ const downloadPrescription = async () => {
     if (!consultationData) return;
     try {
       const response = await getConsultationSummary(consultationData._id);
-      downloadBlob(new Blob([response.data]), `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
-      toast.success("Consultation summary downloaded");
+      const started = await downloadBlob(response.data, `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
+      if (started) toast.success("Consultation summary downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download consultation summary"));
     }
@@ -303,11 +303,11 @@ const downloadPrescription = async () => {
     if (!invoiceInfo) return;
     try {
       const response = await getInvoicePdf(invoiceInfo._id, download);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
       if (download) {
-        downloadBlob(new Blob([response.data]), `invoice-${invoiceInfo._id}.pdf`);
-        toast.success("Invoice downloaded");
+        const started = await downloadBlob(response.data, `invoice-${invoiceInfo._id}.pdf`);
+        if (started) toast.success("Invoice downloaded");
       } else {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
         const win = window.open("", "_blank");
         if (!win) {
           toast.error("Pop-up blocked. Please allow pop-ups to print the invoice.");

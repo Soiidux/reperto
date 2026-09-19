@@ -33,8 +33,8 @@ export default function Profile() {
         return;
       }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      downloadBlob(blob, `reperto-data-export-${new Date().toISOString().slice(0, 10)}.json`);
-      toast.success("Your data export has been downloaded");
+      const started = await downloadBlob(blob, `reperto-data-export-${new Date().toISOString().slice(0, 10)}.json`);
+      if (started) toast.success("Your data export has been downloaded");
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to export your data"));
     } finally {

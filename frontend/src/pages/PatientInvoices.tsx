@@ -63,8 +63,8 @@ export default function PatientInvoices() {
   const downloadInvoice = async (invoice: Invoice) => {
     try {
       const response = await getInvoicePdf(invoice._id, true);
-      downloadBlob(new Blob([response.data]), `invoice-${invoice.invoiceNumber}.pdf`);
-      toast.success("Invoice downloaded");
+      const started = await downloadBlob(response.data, `invoice-${invoice.invoiceNumber}.pdf`);
+      if (started) toast.success("Invoice downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download invoice"));
     }
