@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   Armchair,
   FolderOpen,
-  ReceiptText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 const menuConfigs = {
@@ -40,7 +39,6 @@ const menuConfigs = {
       icon: CalendarDays,
     },
     { title: "Consultation History", url: `/patient/consultation/history/`, icon: History },
-    { title: "My Invoices", url: "/patient/invoices", icon: ReceiptText },
     { title: "My Reports", url: "/patient/reports", icon: FolderOpen },
     { title: "Find Doctors", url: "/patient/doctors", icon: SlidersHorizontal },
     {
@@ -71,7 +69,6 @@ const menuConfigs = {
       url: "/doctor/schedule",
       icon: CalendarOff,
     },
-    { title: "Invoices", url: "/doctor/invoices", icon: ReceiptText },
     { title: "Profile", url: "/doctor/profile", icon: UserSquare2 },
   ],
   admin: [
@@ -80,7 +77,6 @@ const menuConfigs = {
       url: "/admin/dashboard",
       icon: ShieldCheck,
     },
-    { title: "Invoices", url: "/admin/invoices", icon: ReceiptText },
   ],
   staff: [
     {
@@ -109,7 +105,6 @@ const menuConfigs = {
       icon: CalendarDays,
     },
     { title: "Patient Reports", url: "/staff/reports", icon: FolderOpen },
-    { title: "Invoices", url: "/staff/invoices", icon: ReceiptText },
   ],
 };
 

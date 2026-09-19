@@ -5,7 +5,6 @@ import User, { IUser } from "../db/models/user.model";
 import Review from "../db/models/review.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
-import Invoice from "../db/models/invoice.model";
 import Notification from "../db/models/notification.model";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { ApiError } from "../errors";
@@ -510,11 +509,10 @@ export const exportMyData = async (req: Request, res: Response) => {
 
   scopeIds.push(...familyMembers.map((m) => m._id));
 
-  const [appointments, consultations, invoices, notifications, reviews] =
+  const [appointments, consultations, notifications, reviews] =
     await Promise.all([
       Appointment.find({ patientId: { $in: scopeIds } }).lean(),
       Consultation.find({ patientId: { $in: scopeIds } }).lean(),
-      Invoice.find({ patientId: { $in: scopeIds } }).lean(),
       Notification.find({ recipientId: userId }).lean(),
       Review.find({ patientId: userId }).lean(),
     ]);
@@ -531,7 +529,6 @@ export const exportMyData = async (req: Request, res: Response) => {
     familyMembers,
     appointments,
     consultations,
-    invoices,
     notifications,
     reviews,
   };

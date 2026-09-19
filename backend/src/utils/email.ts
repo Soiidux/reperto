@@ -173,25 +173,6 @@ export const appointmentCancelledEmailHtml = (options: {
     </p>
   `);
 
-export const invoiceReceiptEmailHtml = (options: {
-  patientName: string;
-  invoiceNumber: string;
-  amount: string;
-  date: string;
-}) =>
-  layout(`
-    <p style="margin:0 0 16px;">Dear ${options.patientName},</p>
-    <p style="margin:0 0 16px;">
-      Thank you for your payment. We have marked the following invoice as <strong>paid</strong>:
-    </p>
-    <table style="margin:0 0 16px;border-collapse:collapse;width:100%;font-size:14px;">
-      <tr><td style="padding:6px 0;color:#555;">Invoice Number</td><td style="padding:6px 0;"><strong>${options.invoiceNumber}</strong></td></tr>
-      <tr><td style="padding:6px 0;color:#555;">Amount</td><td style="padding:6px 0;"><strong>${options.amount}</strong></td></tr>
-      <tr><td style="padding:6px 0;color:#555;">Paid On</td><td style="padding:6px 0;"><strong>${options.date}</strong></td></tr>
-    </table>
-    <p style="margin:0;">You can download a copy of this invoice anytime from the Reperto portal.</p>
-  `);
-
 export const appointmentReminderEmailHtml = (options: {
   patientName: string;
   doctorName: string;

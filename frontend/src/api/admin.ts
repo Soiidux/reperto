@@ -28,10 +28,6 @@ export interface AdminStats {
   todaysAppointments: number;
   pendingAppointments: number;
   completedConsultations: number;
-  totalInvoices: number;
-  totalPaidInvoices: number;
-  totalCancelledInvoices: number;
-  collectedRevenue: number;
 }
 
 export interface MonthPoint {
@@ -49,7 +45,6 @@ export interface DoctorAppointmentBreakdown {
 }
 
 export interface AdminAnalytics {
-  revenueByMonth: MonthPoint[];
   appointmentsByDoctor: DoctorAppointmentBreakdown[];
   statusRates: { status: string; count: number }[];
   totalAppointments30d: number;

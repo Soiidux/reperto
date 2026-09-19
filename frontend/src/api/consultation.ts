@@ -24,18 +24,6 @@ export const getLatestConsultation = async (patientId: string) => {
   return response;
 };
 
-export const getPrescription = async (consultationId: string) => {
-  return await API.get(`/consultation/${consultationId}/prescription`, {
-    responseType: "blob",
-  });
-};
-
-export const getConsultationSummary = async (consultationId: string) => {
-  return await API.get(`/consultation/${consultationId}/summary`, {
-    responseType: "blob",
-  });
-};
-
 export const getFollowUps = async () => {
   return await API.get("/consultation/follow-ups");
 };

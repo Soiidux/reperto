@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3, FileText, BadgeCheck, Ban, IndianRupee } from "lucide-react";
+import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import StatCard from "@/components/StatCard";
 import CreateUserDialog from "@/components/CreateUserDialog";
-import { BarChart, HBarChart, DonutChart, statusColor, formatIndianRupees } from "@/components/charts/Charts";
+import { BarChart, HBarChart, DonutChart, statusColor } from "@/components/charts/Charts";
 import { getAdminStats, getAdminAnalytics, getAllUsers, toggleUserActive, type AdminStats, type UserSummary, type AdminAnalytics } from "@/api/admin";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -155,13 +155,9 @@ export default function AdminDashboard() {
             <StatCard title="Today's Appointments" value={stats.todaysAppointments} icon={CalendarCheck} />
             <StatCard title="Pending Appointments" value={stats.pendingAppointments} icon={Clock3 } />
             <StatCard title="Completed Consultations" value={stats.completedConsultations} icon={ClipboardCheck} />
-            <StatCard title="Issued Invoices" value={stats.totalInvoices} icon={FileText} />
-            <StatCard title="Paid Invoices" value={stats.totalPaidInvoices} icon={BadgeCheck} />
-            <StatCard title="Cancelled Invoices" value={stats.totalCancelledInvoices} icon={Ban} />
-            <StatCard title="Collected Revenue" value={`₹${stats.collectedRevenue.toLocaleString("en-IN")}`} icon={IndianRupee} />
           </>
         ) : (
-          Array.from({ length: 11 }).map((_, i) => (
+          Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))
         )}
@@ -185,10 +181,6 @@ export default function AdminDashboard() {
             </div>
           ) : analytics ? (
             <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-xl border p-4">
-                <h3 className="mb-3 text-sm font-semibold text-neutral-700">Revenue (last 12 months)</h3>
-                <BarChart data={analytics.revenueByMonth.map((p) => ({ label: p.label, value: p.value }))} format={formatIndianRupees} />
-              </div>
               <div className="rounded-xl border p-4">
                 <h3 className="mb-3 text-sm font-semibold text-neutral-700">New patients (last 12 months)</h3>
                 <BarChart data={analytics.newPatientsByMonth.map((p) => ({ label: p.label, value: p.count ?? 0 }))} />

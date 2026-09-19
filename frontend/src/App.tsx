@@ -26,8 +26,6 @@ import QueueBoard from './pages/QueueBoard';
 import PatientReports from './pages/PatientReports';
 import DoctorReports from './pages/DoctorReports';
 import StaffReports from './pages/StaffReports';
-import PatientInvoices from './pages/PatientInvoices';
-import InvoiceManagement from './pages/InvoiceManagement';
 
 // Patient Viewports
 import PatientDashboard from '@/pages/PatientDashboard';
@@ -81,7 +79,6 @@ function App() {
             <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
             <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
             <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
-            <Route path="/patient/invoices" element={<PatientInvoices />} />
             <Route path="/patient/reports" element={<PatientReports />} />
             <Route path="/patient/profile" element={<Profile />} />
           </Route>
@@ -102,7 +99,6 @@ function App() {
             <Route path="/doctor/consultation/:id" element={<ViewConsultation />} />
             <Route path="/doctor/consultation/history/:patientId" element={<ConsultationHistory />} />
             <Route path="/doctor/reports/:patientId" element={<DoctorReports />} />
-            <Route path="/doctor/invoices" element={<InvoiceManagement />} />
             <Route path="/doctor/profile" element={<Profile />} />
           </Route>
 
@@ -110,7 +106,6 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/book-appointment" element={<BookAppointment />} />
-            <Route path="/admin/invoices" element={<InvoiceManagement />} />
           </Route>
 
           {/* 🔐 STAFF WORKSPACE ROUTE TREE */}
@@ -123,7 +118,6 @@ function App() {
             <Route path="/staff/appointments/all" element={<AllAppointments />} />
             <Route path="/staff/appointments/:id" element={<ViewAppointment />} />
             <Route path="/staff/reports" element={<StaffReports />} />
-            <Route path="/staff/invoices" element={<InvoiceManagement />} />
           </Route>
         </Route>
 

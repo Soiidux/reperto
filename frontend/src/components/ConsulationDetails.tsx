@@ -40,17 +40,13 @@ import {
   Stethoscope,
   FileText,
   FolderOpen,
-  ReceiptText,
-  Loader2,
 } from "lucide-react";
 
 import { getAppointmentById } from "@/api/appointment";
-import { getConsultation, getPrescription, getConsultationSummary } from "@/api/consultation";
-import { generateInvoice, getInvoicePdf } from "@/api/invoice";
+import { getConsultation } from "@/api/consultation";
 import { getReviewList, saveReview, deleteReview, type Review } from "@/api/review";
 import { useAuthStore } from "@/store/authStore";
 import { getErrorMessage } from "@/lib/utils";
-import { downloadBlob } from "@/lib/download";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -209,119 +205,6 @@ const [comment, setComment] = useState("");
 const [saving, setSaving] = useState(false);
 const [deleting, setDeleting] = useState(false);
 
-const downloadPrescription = async () => {
-    if (!consultationData) return;
-    try {
-      const response = await getPrescription(consultationData._id);
-      const started = await downloadBlob(response.data, `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
-      if (started) toast.success("Prescription downloaded");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to download prescription"));
-    }
-  };
-
-  const printPrescription = async () => {
-    if (!consultationData) return;
-    try {
-      const response = await getPrescription(consultationData._id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const win = window.open("", "_blank");
-      if (!win) {
-        toast.error("Pop-up blocked. Please allow pop-ups to print the prescription.");
-        return;
-      }
-      // Navigate the tab straight to the PDF — no iframe wrapper. Firefox
-      // and Safari often refuse to render blob PDFs inside an iframe inside
-      // a popup, which showed up as a blank new tab. The browser's own PDF
-      // viewer opens the file here and the user can print from it.
-      win.location.href = url;
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to open prescription"));
-    }
-  };
-
-  const downloadSummary = async () => {
-    if (!consultationData) return;
-    try {
-      const response = await getConsultationSummary(consultationData._id);
-      const started = await downloadBlob(response.data, `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
-      if (started) toast.success("Consultation summary downloaded");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to download consultation summary"));
-    }
-  };
-
-  const printSummary = async () => {
-    if (!consultationData) return;
-    try {
-      const response = await getConsultationSummary(consultationData._id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const win = window.open("", "_blank");
-      if (!win) {
-        toast.error("Pop-up blocked. Please allow pop-ups to print the consultation summary.");
-        return;
-      }
-      // Navigate the tab straight to the PDF — no iframe wrapper. Firefox
-      // and Safari often refuse to render blob PDFs inside an iframe inside
-      // a popup, which showed up as a blank new tab. The browser's own PDF
-      // viewer opens the file here and the user can print from it.
-      win.location.href = url;
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to open consultation summary"));
-    }
-  };
-
-  const [invoiceInfo, setInvoiceInfo] = useState<{ _id: string } | null>(null);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
-
-  // Fetch (or backfill) the invoice for this consultation once the
-  // consultation record is known.
-  useEffect(() => {
-    if (!consultationData?._id) return;
-    let cancelled = false;
-    const load = async () => {
-      setInvoiceLoading(true);
-      try {
-        const resp = await generateInvoice(consultationData._id);
-        if (cancelled) return;
-        setInvoiceInfo(resp.data.data);
-      } catch {
-        // Older records may not have an invoice; leave the buttons hidden.
-      } finally {
-        if (!cancelled) setInvoiceLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [consultationData?._id]);
-
-  const openInvoice = async (download: boolean) => {
-    if (!invoiceInfo) return;
-    try {
-      const response = await getInvoicePdf(invoiceInfo._id, download);
-      if (download) {
-        const started = await downloadBlob(response.data, `invoice-${invoiceInfo._id}.pdf`);
-        if (started) toast.success("Invoice downloaded");
-      } else {
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const win = window.open("", "_blank");
-        if (!win) {
-          toast.error("Pop-up blocked. Please allow pop-ups to print the invoice.");
-          return;
-        }
-        // Navigate the tab straight to the PDF — no iframe wrapper (see
-        // printPrescription for why). The browser's PDF viewer opens it here.
-        win.location.href = url;
-        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-      }
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to open invoice"));
-    }
-  };
 
   useEffect(() => {
     if (!id) return;
@@ -504,33 +387,6 @@ const downloadPrescription = async () => {
           </CardDescription>
 
           <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={downloadPrescription}>
-              <FileText className="mr-2 size-4" /> Download Prescription
-            </Button>
-            <Button variant="outline" size="sm" onClick={printPrescription}>
-              <FileText className="mr-2 size-4" /> Print Prescription
-            </Button>
-            <Button variant="outline" size="sm" onClick={downloadSummary}>
-              <NotepadText className="mr-2 size-4" /> Download Summary
-            </Button>
-            <Button variant="outline" size="sm" onClick={printSummary}>
-              <FileText className="mr-2 size-4" /> Print Summary
-            </Button>
-            {!invoiceLoading && invoiceInfo && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => openInvoice(true)}>
-                  <ReceiptText className="mr-2 size-4" /> Download Invoice
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => openInvoice(false)}>
-                  <ReceiptText className="mr-2 size-4" /> Print Invoice
-                </Button>
-              </>
-            )}
-            {invoiceLoading && (
-              <Button variant="outline" size="sm" disabled>
-                <Loader2 className="mr-2 size-4 animate-spin" /> Invoice…
-              </Button>
-            )}
             {user?.role === "doctor" && (
               <Button variant="outline" size="sm">
                 <Link to={`/doctor/reports/${patient._id}`}>

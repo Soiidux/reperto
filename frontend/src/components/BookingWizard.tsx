@@ -36,7 +36,6 @@ import {
   releaseHold,
   getSlotStates,
   getAppointmentTicketQrUrl,
-  downloadAppointmentTicket,
   type SlotStateInfo,
 } from "@/api/appointment";
 import { useAuthStore } from "@/store/authStore";
@@ -703,13 +702,6 @@ export default function BookingWizard({
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => downloadAppointmentTicket(bookedAppointment._id)}
-                >
-                  Download ticket (PDF)
-                </Button>
                 <Button type="button" onClick={() => navigate(`/${user?.role}/appointments`)}>
                   View my appointments
                 </Button>

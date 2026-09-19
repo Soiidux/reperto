@@ -1,7 +1,7 @@
 import express from 'express';
 import { bookAppointment, getActiveAppointments, getAppointment, getAppointments, getTodaysAppointments, updateAppointmentStatus, rescheduleAppointment, getAvailableSlots, getArrivedPatients, getSlotStates } from '../controllers/appointment.controllers';
 import { createHold, bookFromHold, releaseHold } from '../controllers/hold.controllers';
-import { getAppointmentTicket, getAppointmentTicketQr } from '../controllers/ticket.controllers';
+import { getAppointmentTicketQr } from '../controllers/ticket.controllers';
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
 import { bookingSchema, updateAppointmentStatusSchema, rescheduleSchema, holdSchema, bookFromHoldSchema } from '../zodSchemas';
@@ -30,6 +30,5 @@ router.get('/available-slots', protect, getAvailableSlots);
 router.get('/:id', protect, getAppointment);
 router.patch('/:id/status', bookingLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);
 router.patch('/:id/reschedule', bookingLimiter, protect, validate(rescheduleSchema), rescheduleAppointment);
-router.get('/:id/ticket', protect, getAppointmentTicket);
 router.get('/:id/ticket/qr', protect, getAppointmentTicketQr);
 export default router;

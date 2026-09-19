@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import User from "../db/models/user.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
-import Invoice from "../db/models/invoice.model";
 import { getClinicTodayAnchor } from "../utils/clinicDate";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TIMEZONE } from "../constants/clinic";
@@ -53,18 +52,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
   const today = getClinicTodayAnchor();
   const thirtyDaysAgo = new Date(today.getTime() - 30 * DAY_MS);
 
-  // 1. Revenue per month from paid invoices (last 12 clinic months).
-  const paidInvoices = await Invoice.find({
-    status: "paid",
-    createdAt: { $gte: new Date(today.getTime() - 365 * DAY_MS) },
-  })
-    .select("createdAt amount")
-    .lean();
-  const revenueByMonth = lastTwelveMonthBuckets(
-    paidInvoices.map((i: any) => ({ createdAt: i.createdAt, amount: i.amount })),
-  );
-
-  // 2. Appointment mix by doctor (last 30 clinic days).
+  // 1. Appointment mix by doctor (last 30 clinic days).
   const byDoctorRows = await Appointment.aggregate([
     { $match: { appointmentDate: { $gte: thirtyDaysAgo } } },
     { $group: { _id: { doctorId: "$doctorId", status: "$status" }, count: { $sum: 1 } } },
@@ -88,7 +76,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
     statuses: doctorStatuses.get(d._id.toString()) ?? {},
   }));
 
-  // 3. Overall appointment status mix.
+  // 2. Overall appointment status mix.
   const statusRows = await Appointment.aggregate([
     { $group: { _id: "$status", count: { $sum: 1 } } },
   ]);
@@ -98,7 +86,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
   }));
   const totalAppointments30d = Array.from(doctorTotals.values()).reduce((a, b) => a + b, 0);
 
-  // 4. New patient registrations per month (last 12 clinic months).
+  // 3. New patient registrations per month (last 12 clinic months).
   const patients = await User.find({
     role: "patient",
     createdAt: { $gte: new Date(today.getTime() - 365 * DAY_MS) },
@@ -113,7 +101,6 @@ export const getAnalytics = async (req: Request, res: Response) => {
     success: true,
     message: "Analytics fetched successfully",
     data: {
-      revenueByMonth,
       appointmentsByDoctor,
       statusRates,
       totalAppointments30d,
@@ -212,7 +199,7 @@ export const getStats = async (req: Request, res: Response) => {
   // "Today" anchored to the clinic timezone, stored as UTC midnight
   const todayAnchor = getClinicTodayAnchor();
 
-  const [totalPatients, totalDoctors, totalStaff, totalAppointments, todaysAppointments, pendingAppointments, completedConsultations, totalInvoices, totalPaidInvoices, totalCancelledInvoices, collectedRevenue] =
+  const [totalPatients, totalDoctors, totalStaff, totalAppointments, todaysAppointments, pendingAppointments, completedConsultations] =
     await Promise.all([
       User.countDocuments({ role: "patient", isActive: true }),
       User.countDocuments({ role: "doctor", isActive: true }),
@@ -224,13 +211,6 @@ export const getStats = async (req: Request, res: Response) => {
       }),
       Appointment.countDocuments({ status: "pending" }),
       Consultation.countDocuments(),
-      Invoice.countDocuments(),
-      Invoice.countDocuments({ status: "paid" }),
-      Invoice.countDocuments({ status: "cancelled" }),
-      Invoice.aggregate([
-        { $match: { status: "paid" } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]).then((rows) => rows[0]?.total ?? 0),
     ]);
 
   res.status(200).json({
@@ -244,10 +224,6 @@ export const getStats = async (req: Request, res: Response) => {
       todaysAppointments,
       pendingAppointments,
       completedConsultations,
-      totalInvoices,
-      totalPaidInvoices,
-      totalCancelledInvoices,
-      collectedRevenue,
     },
   });
 };

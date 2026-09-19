@@ -1,11 +1,9 @@
 import express from 'express';
-import { 
-  createConsultation, 
-  getPatientHistory, 
+import {
+  createConsultation,
+  getPatientHistory,
   getLatestConsultation,
   getConsultation,
-  getPrescription,
-  getConsultationSummary,
   getFollowUps,
   setFollowUpStatus,
 } from '../controllers/consultation.controllers';
@@ -28,11 +26,5 @@ router.get('/latest/:patientId', protect, getLatestConsultation);
 // Follow-up tracker: doctors see upcoming/overdue follow-ups and can mark them
 router.get('/follow-ups', protect, authorize('doctor', 'staff', 'admin'), getFollowUps);
 router.patch('/:id/follow-up', protect, authorize('doctor', 'staff', 'admin'), setFollowUpStatus);
-
-// E-prescription PDF (patient downloads their own)
-router.get('/:id/prescription', protect, getPrescription);
-
-// Full consultation summary PDF (case record)
-router.get('/:id/summary', protect, getConsultationSummary);
 
 export default router;

@@ -1,5 +1,4 @@
 import  API  from "./axios";
-import { downloadBlob } from "@/lib/download";
 import type { appointmentFormSchema } from "@/lib/zodSchemas";
 
 
@@ -105,12 +104,4 @@ export const getAppointmentTicketQrUrl = async (appointmentId: string) => {
     responseType: "blob",
   });
   return URL.createObjectURL(response.data as Blob);
-};
-
-/** Downloads the printable ticket PDF. */
-export const downloadAppointmentTicket = async (appointmentId: string) => {
-  const response = await API.get(`/appointment/${appointmentId}/ticket?download=1`, {
-    responseType: "blob",
-  });
-  downloadBlob(response.data as Blob, `appointment-ticket-${appointmentId}.pdf`);
 };
