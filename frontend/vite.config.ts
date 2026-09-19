@@ -11,4 +11,16 @@ export default defineConfig({
         '@': path.resolve(__dirname, './src'), // Maps @ to the src directory
       },
     },
+  // Dev and preview both forward API calls to the backend, so the app always
+  // talks to "/api" same-origin (matching the production single-server setup).
+  server: {
+    proxy: {
+      "/api": { target: "http://localhost:5000", changeOrigin: true },
+    },
+  },
+  preview: {
+    proxy: {
+      "/api": { target: "http://localhost:5000", changeOrigin: true },
+    },
+  },
 })

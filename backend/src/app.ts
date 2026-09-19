@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from 'cors';
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -68,6 +71,23 @@ app.get("/health", (_req, res) => {
   }
   return res.json({ success: true, message: "OK", data: { db: "up" } });
 });
+
+//Production frontend: when the built app exists (frontend/dist), serve it
+// from the same origin as the API. One server, no CORS, no second process —
+// this is how the site runs in production. Works in both dev run modes:
+// tsx (backend/src) and compiled (backend/dist) via __dirname depth.
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendDist = path.resolve(currentDir, "../../frontend/dist");
+const distIndex = path.join(frontendDist, "index.html");
+if (fs.existsSync(distIndex)) {
+  app.use(express.static(frontendDist));
+  // SPA fallback: any non-API GET (deep links, refreshes) gets the app shell
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.path.startsWith("/api/")) return next();
+    res.sendFile(distIndex);
+  });
+}
 
 //404 + central error handler
 app.use(notFound);
