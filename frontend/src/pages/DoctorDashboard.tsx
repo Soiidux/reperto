@@ -27,6 +27,7 @@ interface FollowUp {
   diagnosis?: string;
   followUpDate: string;
   followUpStatus: "pending" | "overdue" | "done" | "skipped";
+  appointmentId?: string;
 }
 
 export default function DoctorDashboard() {
@@ -202,7 +203,7 @@ export default function DoctorDashboard() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <Button size="sm" variant="outline" asChild className="px-3">
-                          <Link to={`/doctor/consultation/${f._id}`}>Review</Link>
+                          <Link to={`/doctor/consultation/${f.appointmentId || f._id}`}>Review</Link>
                         </Button>
                         <Button size="sm" variant="outline" className="px-3" disabled={submitting === f._id} onClick={() => resolveFollowUp(f._id, "done")}>
                           {submitting === f._id ? <CircleDashed className="size-4 animate-spin" /> : <CircleCheck className="size-4" />}

@@ -79,22 +79,12 @@ export default function PatientInvoices() {
         toast.error("Pop-up blocked. Please allow pop-ups to print the invoice.");
         return;
       }
-      win.document.write(
-        `<html><head><title>Invoice ${invoice.invoiceNumber}</title>` +
-          `<style>body{margin:0}#pdf{width:100%;height:100%;border:0}</style>` +
-          `</head><body><iframe id="pdf" src="${url}"></iframe></body></html>`,
-      );
-      win.document.close();
-      win.focus();
-      setTimeout(() => {
-        try {
-          win.focus();
-          win.print();
-        } catch {
-          // Print may be blocked while the PDF renders; the tab stays open.
-        }
-        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-      }, 600);
+      // Navigate the tab straight to the PDF — no iframe wrapper. Firefox
+      // and Safari often refuse to render blob PDFs inside an iframe inside
+      // a popup, which showed up as a blank new tab. The browser's own PDF
+      // viewer opens the file here and the user can print from it.
+      win.location.href = url;
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to open invoice"));
     }
