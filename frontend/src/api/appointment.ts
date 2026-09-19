@@ -1,4 +1,5 @@
 import  API  from "./axios";
+import { downloadBlob } from "@/lib/download";
 import type { appointmentFormSchema } from "@/lib/zodSchemas";
 
 
@@ -111,12 +112,5 @@ export const downloadAppointmentTicket = async (appointmentId: string) => {
   const response = await API.get(`/appointment/${appointmentId}/ticket?download=1`, {
     responseType: "blob",
   });
-  const url = URL.createObjectURL(response.data as Blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `appointment-ticket-${appointmentId}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(response.data as Blob, `appointment-ticket-${appointmentId}.pdf`);
 };

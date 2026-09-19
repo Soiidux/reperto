@@ -31,6 +31,7 @@ import {
 } from "@/api/invoice";
 import { getDoctors } from "@/api/user";
 import { useAuthStore } from "@/store/authStore";
+import { downloadBlob } from "@/lib/download";
 
 interface Invoice {
   _id: string;
@@ -117,14 +118,7 @@ export default function InvoiceManagement() {
   const downloadInvoice = async (invoice: Invoice) => {
     try {
       const response = await getInvoicePdf(invoice._id, true);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `invoice-${invoice.invoiceNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      downloadBlob(new Blob([response.data]), `invoice-${invoice.invoiceNumber}.pdf`);
       toast.success("Invoice downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download invoice"));

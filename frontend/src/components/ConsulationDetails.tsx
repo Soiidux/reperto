@@ -50,6 +50,7 @@ import { generateInvoice, getInvoicePdf } from "@/api/invoice";
 import { getReviewList, saveReview, deleteReview, type Review } from "@/api/review";
 import { useAuthStore } from "@/store/authStore";
 import { getErrorMessage } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -210,14 +211,7 @@ const downloadPrescription = async () => {
     if (!consultationData) return;
     try {
       const response = await getPrescription(consultationData._id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      downloadBlob(new Blob([response.data]), `prescription-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
       toast.success("Prescription downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download prescription"));
@@ -260,14 +254,7 @@ const downloadPrescription = async () => {
     if (!consultationData) return;
     try {
       const response = await getConsultationSummary(consultationData._id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      downloadBlob(new Blob([response.data]), `consultation-summary-${appointmentData?.patientId?.name?.replace(/\s+/g, "-").toLowerCase() || "patient"}.pdf`);
       toast.success("Consultation summary downloaded");
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to download consultation summary"));

@@ -13,6 +13,7 @@ import { updateEmail, updatePhone, updatePassword } from "@/api/auth";
 import { updateProfileImage, exportMyData } from "@/api/user";
 import FamilySection from "@/components/FamilySection";
 import { getErrorMessage } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 import { emailSchema, phoneSchema, passwordSchema } from "@/lib/zodSchemas";
 import type { emailFormSchema, phoneFormSchema, passwordFormSchema } from "@/lib/zodSchemas";
 
@@ -32,14 +33,7 @@ export default function Profile() {
         return;
       }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `reperto-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `reperto-data-export-${new Date().toISOString().slice(0, 10)}.json`);
       toast.success("Your data export has been downloaded");
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to export your data"));
