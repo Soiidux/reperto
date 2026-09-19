@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getArrivedAppointments } from "@/api/appointment";
 import { getErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 
 interface QueueEntry {
   _id: string;
@@ -40,16 +41,15 @@ export default function QueueBoard() {
   );
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
     (async () => {
       await loadQueue(true);
       setLoading(false);
-      interval = setInterval(() => loadQueue(false), 30000);
     })();
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   }, [loadQueue]);
+
+  // Refresh the board only while the tab is visible; the poll pauses as soon
+  // as the tab is hidden and refreshes once when the user comes back.
+  useVisibilityPolling(() => loadQueue(false), 30_000);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

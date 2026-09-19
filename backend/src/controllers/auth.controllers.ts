@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import { generateAccessToken, generateRefreshToken, validateAccessToken, getBearerToken} from "../utils/token";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { hashToken } from "../utils/tokenHash";
+import { evictAuthCache } from "../middlewares/auth.middlewares";
 import config from "../config";
 import { sendEmail, verificationEmailHtml, resetPasswordEmailHtml } from "../utils/email";
 import { issueEmailToken, consumeEmailToken, buildActionLink } from "../utils/emailToken";
@@ -255,6 +256,12 @@ await RefreshToken.findOneAndUpdate(
 { isRevoked: true },
 );
 }
+    // Drop the cached account check so a disabled/removed account's access
+    // token stops working on its next request (the route isn't behind
+    // `protect`, so be defensive about req.user being absent).
+    if (req.user) {
+      evictAuthCache(req.user.id);
+    }
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: config.isProd,

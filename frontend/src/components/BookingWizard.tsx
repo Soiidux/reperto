@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,46 @@ type ConsultationType = "Initial" | "Follow-up" | "Acute";
 
 const detailsSchema = appointmentSchema.pick({ intakeDetails: true });
 type DetailsForm = z.infer<typeof detailsSchema>;
+
+// The time-chip grid. Kept outside the wizard and memoized so the 1-second
+// hold countdown re-renders the wizard without re-rendering every chip.
+const SlotGrid = memo(function SlotGrid({
+  slots,
+  onPick,
+}: {
+  slots: SlotStateInfo[];
+  onPick: (timeSlot: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {slots.map((slot) => {
+        const isMine = slot.state === "held-by-me";
+        const disabled = slot.state !== "free" && !isMine;
+        return (
+          <Button
+            key={slot.timeSlot}
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onPick(slot.timeSlot)}
+            className={
+              isMine
+                ? "border-amber-400 bg-amber-100 font-semibold text-amber-800 hover:bg-amber-200"
+                : slot.state === "free"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  : slot.state === "held"
+                    ? "border-neutral-200 bg-neutral-100 text-neutral-400"
+                    : "border-neutral-100 bg-neutral-50 text-neutral-300"
+            }
+          >
+            {slot.timeSlot}
+            {isMine && " ✓"}
+          </Button>
+        );
+      })}
+    </div>
+  );
+});
 
 // Movie-style booking: the patient picks a time chip ("seat"), the slot is
 // held for 5 minutes while they fill in details, then the hold converts into
@@ -162,19 +203,12 @@ export default function BookingWizard({
     }
   }, [doctorId, dateStr, duration]);
 
-  // Refresh on entry to the time-chip step, then every 30s + on window focus
-  useEffect(() => {
-    if (step !== 1) return;
-    if (!doctorId || !dateStr) return;
-    loadSlots();
-    const timer = setInterval(loadSlots, 30_000);
-    const onFocus = () => loadSlots();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [step, loadSlots]);
+  // Poll the chips only while on the time step AND the tab is visible:
+  // the visibility hook pauses the timer whenever the tab is hidden, fires
+  // once on return, and intervalMs=0 disables polling entirely on the other
+  // steps.
+  const slotPollInterval = step === 1 && doctorId && dateStr ? 30_000 : 0;
+  useVisibilityPolling(loadSlots, slotPollInterval);
 
   // Held-slot countdown
   useEffect(() => {
@@ -221,34 +255,46 @@ export default function BookingWizard({
     }
   };
 
-  const pickSlot = async (timeSlot: string) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      // Switching chips: free the old hold first, then grab the new one
-      if (hold) await releaseHold(hold.id).catch(() => {});
-      const res = await createHold({
-        doctorId,
-        appointmentDate: dateStr,
-        timeSlot,
-        durationInMinutes: Number(duration),
-        consultationType,
-        patientId: selectedPatientId || undefined,
-      });
-      const data = res.data?.data;
-      setHold({
-        id: data.hold.id,
-        timeSlot: data.hold.timeSlot,
-        expiresAt: new Date(data.hold.expiresAt).getTime(),
-      });
-      toast.success(`Slot ${timeSlot} is held for you — you have a few minutes to finish`);
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Could not hold this slot. Please try again."));
-    } finally {
-      setBusy(false);
-      loadSlots();
-    }
-  };
+  const pickSlot = useCallback(
+    async (timeSlot: string) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        // Switching chips: free the old hold first, then grab the new one
+        if (hold) await releaseHold(hold.id).catch(() => {});
+        const res = await createHold({
+          doctorId,
+          appointmentDate: dateStr,
+          timeSlot,
+          durationInMinutes: Number(duration),
+          consultationType,
+          patientId: selectedPatientId || undefined,
+        });
+        const data = res.data?.data;
+        setHold({
+          id: data.hold.id,
+          timeSlot: data.hold.timeSlot,
+          expiresAt: new Date(data.hold.expiresAt).getTime(),
+        });
+        toast.success(`Slot ${timeSlot} is held for you — you have a few minutes to finish`);
+      } catch (err) {
+        toast.error(getErrorMessage(err, "Could not hold this slot. Please try again."));
+      } finally {
+        setBusy(false);
+        loadSlots();
+      }
+    },
+    [
+      busy,
+      hold,
+      doctorId,
+      dateStr,
+      duration,
+      consultationType,
+      selectedPatientId,
+      loadSlots,
+    ],
+  );
 
   const confirmBooking = async (values: DetailsForm) => {
     if (!hold) {
@@ -498,33 +544,7 @@ export default function BookingWizard({
                   another date.
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {slots.map((slot) => {
-                    const isMine = slot.state === "held-by-me";
-                    const disabled = slot.state !== "free" && !isMine;
-                    return (
-                      <Button
-                        key={slot.timeSlot}
-                        type="button"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => pickSlot(slot.timeSlot)}
-                        className={
-                          isMine
-                            ? "border-amber-400 bg-amber-100 font-semibold text-amber-800 hover:bg-amber-200"
-                            : slot.state === "free"
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                              : slot.state === "held"
-                                ? "border-neutral-200 bg-neutral-100 text-neutral-400"
-                                : "border-neutral-100 bg-neutral-50 text-neutral-300"
-                        }
-                      >
-                        {slot.timeSlot}
-                        {isMine && " ✓"}
-                      </Button>
-                    );
-                  })}
-                </div>
+                <SlotGrid slots={slots} onPick={pickSlot} />
               )}
 
               <div className="flex items-center justify-between pt-2">

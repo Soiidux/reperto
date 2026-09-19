@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
+import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import {
   Popover,
   PopoverContent,
@@ -49,11 +50,9 @@ const NotificationBell = () => {
     }
   };
 
-  useEffect(() => {
-    refreshUnread();
-    const timer = setInterval(refreshUnread, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, []);
+  // Poll the unread badge only while the tab is actually visible; the moment
+  // the tab is hidden the polling pauses, and it refreshes on return.
+  useVisibilityPolling(refreshUnread, POLL_INTERVAL_MS);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);

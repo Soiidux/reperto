@@ -55,25 +55,27 @@ export const getDayContext = async (
   excludeAppointmentId?: string,
   excludeHoldId?: string,
 ) => {
-  // A leave only "covers" selectedDate when it spans that day (endingDate set
-  // and >= selectedDate) or is a single-day leave starting on it. A single-day
-  // leave has no endingDate, so without this it would wrongly swallow every
-  // future day.
-  const blocks = await Leave.find({
-    doctorId,
-    $or: [
-      { startingDate: { $lte: selectedDate }, endingDate: { $gte: selectedDate } },
-      { startingDate: selectedDate, endingDate: null },
-    ],
-  });
-  // Cancelled appointments free their slot back up
-  const bookings = await Appointment.find({
-    doctorId,
-    appointmentDate: selectedDate,
-    status: { $ne: "cancelled" },
-    ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
-  });
-  const holds = await getHoldsForDay(doctorId, selectedDate, excludeHoldId);
+  const [blocks, bookings, holds] = await Promise.all([
+    // A leave only "covers" selectedDate when it spans that day (endingDate set
+    // and >= selectedDate) or is a single-day leave starting on it. A single-day
+    // leave has no endingDate, so without this it would wrongly swallow every
+    // future day.
+    Leave.find({
+      doctorId,
+      $or: [
+        { startingDate: { $lte: selectedDate }, endingDate: { $gte: selectedDate } },
+        { startingDate: selectedDate, endingDate: null },
+      ],
+    }),
+    // Cancelled appointments free their slot back up
+    Appointment.find({
+      doctorId,
+      appointmentDate: selectedDate,
+      status: { $ne: "cancelled" },
+      ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
+    }),
+    getHoldsForDay(doctorId, selectedDate, excludeHoldId),
+  ]);
   return { blocks, bookings, holds };
 };
 
