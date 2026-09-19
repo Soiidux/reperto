@@ -151,8 +151,9 @@ const getAppointmentScope = async (
       query: { patientId: { $in: await resolvePatientScope(req.user.id) } },
       populates: [
         { path: "doctorId", select: "name profileImageUrl" },
-        // Patients now book for family too; the UI labels whose it is
-        { path: "patientId", select: "name profileImageUrl" },
+        // Patients now book for family too; the UI labels whose it is and
+        // shows gender/age on the card, so both sides are populated.
+        { path: "patientId", select: "name profileImageUrl gender dateOfBirth" },
       ],
     };
   }

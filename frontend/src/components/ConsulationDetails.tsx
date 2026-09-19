@@ -622,8 +622,9 @@ const downloadPrescription = async () => {
                   icon={<VenusAndMars size={20} />}
                   label="Gender"
                   value={
-                    patient.gender.charAt(0).toUpperCase() +
-                    patient.gender.slice(1)
+                    patient.gender
+                      ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)
+                      : "\u2014"
                   }
                 />
               </div>

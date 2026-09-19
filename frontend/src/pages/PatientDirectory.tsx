@@ -122,7 +122,7 @@ export default function PatientDirectory() {
                     <p className="truncate font-medium text-neutral-900">{patient.name}</p>
                     <p className="text-sm text-neutral-500">
                       {patient.phone} · {patient.email} · {patient.dateOfBirth ? getAge(patient.dateOfBirth) : "—"}y ·{" "}
-                      {patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
+                      {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : "\u2014"}
                     </p>
                   </div>
                   {canBook && (

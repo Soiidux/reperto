@@ -137,7 +137,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
         {/* Row 2: Grid Summary Details */}
         <div className="grid grid-cols-2 gap-y-3 gap-x-2">
 
-          {typeof patientId !== 'string' && (
+          {typeof patientId !== 'string' && patientId.gender && (
             <div className="flex items-start gap-2">
               <User className="w-4 h-4 text-neutral-400 mt-0.5 shrink-0" />
               <div className="flex flex-col">
@@ -149,7 +149,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
             </div>
           )}
 
-          {typeof patientId !== 'string' && (
+          {typeof patientId !== 'string' && patientId.dateOfBirth && (
             <div className="flex items-start gap-2">
               <CalendarIcon className="w-4 h-4 text-neutral-400 mt-0.5 shrink-0" />
               <div className="flex flex-col">

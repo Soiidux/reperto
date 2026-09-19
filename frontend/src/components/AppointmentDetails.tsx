@@ -188,8 +188,10 @@ export default function AppointmentDetails() {
                       {appointmentData &&
                         typeof appointmentData.patientId !== "string" && (
                           <span className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
-                            {appointmentData.patientId.gender.charAt(0).toUpperCase() +
-                              appointmentData.patientId.gender.slice(1)}
+                            {appointmentData.patientId.gender
+                              ? appointmentData.patientId.gender.charAt(0).toUpperCase() +
+                                appointmentData.patientId.gender.slice(1)
+                              : "\u2014"}
                           </span>
                       )}
                     </div>
