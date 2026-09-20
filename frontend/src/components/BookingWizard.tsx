@@ -27,9 +27,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, formatSlotLabel, formatWindowLabel } from "@/lib/utils";
 import { appointmentSchema } from "@/lib/zodSchemas";
 import { getFamilyMembers, type FamilyMember } from "@/api/user";
+import { getClinicSettings, type ClinicSettings } from "@/api/clinic";
 import {
   createHold,
   bookFromHold,
@@ -77,7 +78,7 @@ const SlotGrid = memo(function SlotGrid({
                     : "border-neutral-100 bg-neutral-50 text-neutral-300"
             }
           >
-            {slot.timeSlot}
+            {formatSlotLabel(slot.timeSlot)}
             {isMine && " ✓"}
           </Button>
         );
@@ -115,8 +116,25 @@ export default function BookingWizard({
   const [bookedAppointment, setBookedAppointment] = useState<any>(null);
   const [qrUrl, setQrUrl] = useState("");
   const [dateOpen, setDateOpen] = useState(false);
+  const [clinic, setClinic] = useState<ClinicSettings | null>(null);
 
-  const duration = consultationType === "Initial" ? "30" : "15";
+  // Every visit is one 15-minute slot (clinic-wide)
+  const duration = "15";
+
+  // Cancellation-policy copy for the booking screen
+  useEffect(() => {
+    let active = true;
+    getClinicSettings()
+      .then((response) => {
+        if (active) setClinic(response.data?.success ? response.data?.data : null);
+      })
+      .catch(() => {
+        if (active) setClinic(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const {
     register,
@@ -275,7 +293,7 @@ export default function BookingWizard({
           timeSlot: data.hold.timeSlot,
           expiresAt: new Date(data.hold.expiresAt).getTime(),
         });
-        toast.success(`Slot ${timeSlot} is held for you — you have a few minutes to finish`);
+        toast.success(`Slot ${formatSlotLabel(timeSlot)} is held for you — you have a few minutes to finish`);
       } catch (err) {
         toast.error(getErrorMessage(err, "Could not hold this slot. Please try again."));
       } finally {
@@ -430,11 +448,16 @@ export default function BookingWizard({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Initial">Initial (30 minutes)</SelectItem>
-                    <SelectItem value="Follow-up">Follow-up (15 minutes)</SelectItem>
-                    <SelectItem value="Acute">Acute (15 minutes)</SelectItem>
+                    <SelectItem value="Initial">First visit</SelectItem>
+                    <SelectItem value="Follow-up">Follow-up</SelectItem>
+                    <SelectItem value="Acute">Acute / urgent</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-neutral-400">
+                  Each visit takes 15 minutes · Free cancellation up to{" "}
+                  {clinic ? formatWindowLabel(clinic.cancellationWindowMinutes) : "2 hours"} before
+                  your visit.
+                </p>
               </Field>
 
               {familyMembers.length > 0 && (
@@ -507,7 +530,7 @@ export default function BookingWizard({
                       <span className="relative inline-flex size-3 rounded-full bg-amber-500" />
                     </span>
                     <span className="text-sm font-semibold text-amber-800">
-                      {hold.timeSlot} is held for you
+                      {formatSlotLabel(hold.timeSlot)} is held for you
                     </span>
                     <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-xs font-bold text-white tabular-nums">
                       {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
@@ -678,7 +701,7 @@ export default function BookingWizard({
                   <div className="flex justify-between">
                     <span className="text-neutral-500">Time</span>
                     <span className="font-semibold text-neutral-900">
-                      {bookedAppointment.timeSlot}
+                      {formatSlotLabel(bookedAppointment.timeSlot)}
                     </span>
                   </div>
                   <div className="flex justify-between">

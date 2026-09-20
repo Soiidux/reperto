@@ -1,8 +1,9 @@
-import { MASTER_SLOTS } from "../constants/slots";
 import Leave from "../db/models/leave.model";
 import Appointment from "../db/models/appointment.model";
 import BookingHold from "../db/models/bookingHold.model";
+import ClinicBlockout from "../db/models/clinicBlockout.model";
 import { isClinicToday, getClinicNowMinutes } from "../utils/clinicDate";
+import { getClinicDaySlots } from "../utils/clinicSettings";
 
 /**
  * Shared availability math. Booking-time enforcement (assertSlotAvailable),
@@ -48,14 +49,18 @@ export const getHoldsForDay = async (
     ...(excludeHoldId ? { _id: { $ne: excludeHoldId } } : {}),
   });
 
-/** Leaves + active bookings + active holds for one doctor on one clinic day. */
+/** Clinic-wide date blockouts (admin-managed, apply to every doctor). */
+const getClinicBlocksForDay = (selectedDate: Date) =>
+  ClinicBlockout.find({ date: selectedDate });
+
+/** Leaves + active bookings + active holds + clinic blocks for one day. */
 export const getDayContext = async (
   doctorId: string,
   selectedDate: Date,
   excludeAppointmentId?: string,
   excludeHoldId?: string,
 ) => {
-  const [blocks, bookings, holds] = await Promise.all([
+  const [blocks, bookings, holds, clinicBlocks] = await Promise.all([
     // A leave only "covers" selectedDate when it spans that day (endingDate set
     // and >= selectedDate) or is a single-day leave starting on it. A single-day
     // leave has no endingDate, so without this it would wrongly swallow every
@@ -75,9 +80,31 @@ export const getDayContext = async (
       ...(excludeAppointmentId ? { _id: { $ne: excludeAppointmentId } } : {}),
     }),
     getHoldsForDay(doctorId, selectedDate, excludeHoldId),
+    getClinicBlocksForDay(selectedDate),
   ]);
-  return { blocks, bookings, holds };
+  return { blocks, bookings, holds, clinicBlocks };
 };
+
+type ClinicBlockLike = { allDay?: boolean; slots?: string[] };
+
+/**
+ * True when [slotStart, slotEnd] overlaps any clinic-wide blockout for the
+ * day. An "all day" entry blocks everything; otherwise each blocked slot
+ * start covers its own 15-minute window.
+ */
+export const isSlotBlockedByClinic = (
+  clinicBlocks: ClinicBlockLike[],
+  slotStart: number,
+  slotEnd: number,
+): boolean =>
+  clinicBlocks.some((block) => {
+    if (block.allDay) return true;
+    return (block.slots ?? []).some((blocked) => {
+      const bStart = timeToMinutes(blocked);
+      const bEnd = bStart + 15;
+      return slotStart < bEnd && slotEnd > bStart;
+    });
+  });
 
 /**
  * True when [slotStart, slotEnd] overlaps any leave block on selectedDate.
@@ -155,7 +182,11 @@ export const getAvailableSlotsFor = async (
   durationInMinutes: number,
   excludeHoldId?: string,
 ): Promise<string[]> => {
-  const { blocks, bookings, holds } = await getDayContext(
+  // The clinic's own hours gate the day: closed days have no slots at all.
+  const daySlots = await getClinicDaySlots(selectedDate);
+  if (daySlots.length === 0) return [];
+
+  const { blocks, bookings, holds, clinicBlocks } = await getDayContext(
     doctorId,
     selectedDate,
     undefined,
@@ -164,12 +195,16 @@ export const getAvailableSlotsFor = async (
 
   if (blocks.some((b) => b.type === "full-day")) return [];
 
-  return MASTER_SLOTS.filter((slot) => {
+  return daySlots.filter((slot) => {
     const slotStart = timeToMinutes(slot);
     const slotEnd = slotStart + durationInMinutes;
 
     if (isClinicToday(selectedDate)) {
       if (slotStart < getClinicNowMinutes() + 15) return false;
+    }
+
+    if (isSlotBlockedByClinic(clinicBlocks, slotStart, slotEnd)) {
+      return false;
     }
 
     if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
@@ -200,10 +235,14 @@ export const getSlotStatesFor = async (
   durationInMinutes: number,
   patientId?: string,
 ): Promise<SlotStateInfo[]> => {
-  const { blocks, bookings, holds } = await getDayContext(doctorId, selectedDate);
+  // Closed clinic day -> no chips at all (booking screen shows "no slots").
+  const daySlots = await getClinicDaySlots(selectedDate);
+  if (daySlots.length === 0) return [];
+
+  const { blocks, bookings, holds, clinicBlocks } = await getDayContext(doctorId, selectedDate);
 
   if (blocks.some((b) => b.type === "full-day")) {
-    return MASTER_SLOTS.map((timeSlot) => ({ timeSlot, state: "taken" as const }));
+    return daySlots.map((timeSlot) => ({ timeSlot, state: "taken" as const }));
   }
 
   const overlapsHold = (hold: { timeSlot: string; durationInMinutes: number }, start: number, end: number) => {
@@ -212,12 +251,16 @@ export const getSlotStatesFor = async (
     return start < hEnd && end > hStart;
   };
 
-  return MASTER_SLOTS.map((timeSlot) => {
+  return daySlots.map((timeSlot) => {
     const slotStart = timeToMinutes(timeSlot);
     const slotEnd = slotStart + durationInMinutes;
 
     if (isClinicToday(selectedDate)) {
       if (slotStart < getClinicNowMinutes() + 15) return { timeSlot, state: "taken" as const };
+    }
+
+    if (isSlotBlockedByClinic(clinicBlocks, slotStart, slotEnd)) {
+      return { timeSlot, state: "taken" as const };
     }
 
     if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {

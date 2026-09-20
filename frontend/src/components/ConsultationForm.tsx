@@ -171,7 +171,7 @@ export default function ConsultationForm() {
                 Patient Information
                 {appointmentData && typeof appointmentData.patientId !== "string" && (
                   <Link
-                    to={`/${user!.role}/consultation/history/${appointmentData.patientId._id}`}
+                    to={`/${user!.role}/medical-history/${appointmentData.patientId._id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="
@@ -183,7 +183,7 @@ export default function ConsultationForm() {
                       transition-colors
                     "
                   >
-                    Consultation History
+                    Medical History
                   </Link>
                 )}
               </FieldLegend>

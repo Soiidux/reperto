@@ -21,6 +21,7 @@ import {
   CalendarOff,
   FileClock,
   ShieldCheck,
+  Settings2,
   Armchair,
   FolderOpen,
 } from "lucide-react";
@@ -38,7 +39,7 @@ const menuConfigs = {
       url: "/patient/appointments",
       icon: CalendarDays,
     },
-    { title: "Consultation History", url: `/patient/consultation/history/`, icon: History },
+    { title: "Medical History", url: "/patient/medical-history", icon: History },
     { title: "My Reports", url: "/patient/reports", icon: FolderOpen },
     { title: "Find Doctors", url: "/patient/doctors", icon: SlidersHorizontal },
     {
@@ -76,6 +77,11 @@ const menuConfigs = {
       title: "Admin Dashboard",
       url: "/admin/dashboard",
       icon: ShieldCheck,
+    },
+    {
+      title: "Clinic Settings",
+      url: "/admin/settings",
+      icon: Settings2,
     },
   ],
   staff: [

@@ -16,7 +16,7 @@ import AllAppointments from './pages/AllAppointments';
 import TakeConsultation from './pages/TakeConsultation';
 import ViewAppointment from './pages/ViewAppointment';
 import ViewConsultation from './pages/ViewConsultation';
-import ConsultationHistory from './pages/ConsultationHistory';
+import PatientTimeline from './pages/PatientTimeline';
 import ActivePatients from './pages/ActivePatients';
 import Profile from './pages/Profile';
 import PatientDirectory from './pages/PatientDirectory';
@@ -36,6 +36,7 @@ import DoctorAgenda from '@/pages/DoctorAgenda';
 
 // Admin / Staff Viewports
 import AdminDashboard from '@/pages/AdminDashboard';
+import ClinicSettings from '@/pages/ClinicSettings';
 import StaffDashboard from '@/pages/StaffDashboard';
 
 // 🚀 INLINE PUBLIC GATE DISPATCHER
@@ -78,7 +79,8 @@ function App() {
             <Route path="/patient/appointments/all" element={<AllAppointments />} />
             <Route path="/patient/appointments/:id" element={<ViewAppointment />} />
             <Route path="/patient/consultation/:id" element={<ViewConsultation />} />
-            <Route path="/patient/consultation/history/" element={<ConsultationHistory />} />
+            <Route path="/patient/medical-history" element={<PatientTimeline />} />
+            <Route path="/patient/consultation/history" element={<Navigate to="/patient/medical-history" replace />} />
             <Route path="/patient/reports" element={<PatientReports />} />
             <Route path="/patient/profile" element={<Profile />} />
           </Route>
@@ -97,7 +99,8 @@ function App() {
             <Route path="/doctor/schedule" element={<Schedule />} />
             <Route path="/doctor/start-consultation/:id" element={<TakeConsultation />} />
             <Route path="/doctor/consultation/:id" element={<ViewConsultation />} />
-            <Route path="/doctor/consultation/history/:patientId" element={<ConsultationHistory />} />
+            <Route path="/doctor/medical-history/:patientId" element={<PatientTimeline />} />
+            <Route path="/doctor/consultation/history/:patientId" element={<PatientTimeline />} />
             <Route path="/doctor/reports/:patientId" element={<DoctorReports />} />
             <Route path="/doctor/profile" element={<Profile />} />
           </Route>
@@ -106,6 +109,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/book-appointment" element={<BookAppointment />} />
+            <Route path="/admin/settings" element={<ClinicSettings />} />
           </Route>
 
           {/* 🔐 STAFF WORKSPACE ROUTE TREE */}

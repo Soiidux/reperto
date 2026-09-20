@@ -7,6 +7,8 @@ import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TIMEZONE } from "../constants/clinic";
 import { toCsv } from "../utils/csv";
+import ClinicBlockout from "../db/models/clinicBlockout.model";
+import ClinicSettings from "../db/models/clinicSettings.model";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -439,4 +441,176 @@ export const exportPatientsCsv = async (req: Request, res: Response) => {
     `attachment; filename="${csvFilename("patients")}"`,
   );
   res.send(toCsv([header, ...rows]));
+};
+
+// ---- Clinic settings & date blockouts ----
+
+const blockoutPayload = (doc: {
+  date: Date;
+  allDay: boolean;
+  slots: string[];
+  reason?: string;
+}) => ({
+  date: formatInTimeZone(doc.date, CLINIC_TIMEZONE, "yyyy-MM-dd"),
+  allDay: doc.allDay,
+  slots: doc.slots,
+  reason: doc.reason ?? "",
+});
+
+/**
+ * Save the whole clinic settings document. The route validates the body with
+ * clinicSettingsSchema; here we only normalize each day's slots (dedupe +
+ * sort) and upsert the singleton document.
+ */
+export const updateClinicSettings = async (req: Request, res: Response) => {
+  const {
+    clinicName,
+    address,
+    phone,
+    email,
+    about,
+    cancellationWindowMinutes,
+    hours,
+  } = req.body;
+
+  const normalized = {
+    clinicName,
+    address,
+    phone,
+    email: email ?? "",
+    about: about ?? "",
+    cancellationWindowMinutes,
+    hours: hours.map(
+      (h: { day: number; isOpen: boolean; slots: string[] }) => ({
+        day: h.day,
+        isOpen: h.isOpen,
+        slots: Array.from(new Set((h.slots ?? []).map((s) => s.trim()))).sort(),
+      }),
+    ),
+  };
+
+  const doc = await ClinicSettings.findOneAndUpdate({}, normalized, {
+    upsert: true,
+    returnDocument: "after",
+    runValidators: true,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Clinic settings saved",
+    data: doc.toObject(),
+  });
+};
+
+/** Clinic-wide date blockouts, optional from/to (YYYY-MM-DD) range. */
+export const getClinicBlockouts = async (req: Request, res: Response) => {
+  const { from, to } = req.query;
+  const filter: { date?: { $gte?: Date; $lte?: Date } } = {};
+  if (from !== undefined) {
+    const fromDate = parseDateAnchor(String(from));
+    if (!fromDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid from date (use YYYY-MM-DD)",
+        data: null,
+      });
+    }
+    filter.date = { ...(filter.date ?? {}), $gte: fromDate };
+  }
+  if (to !== undefined) {
+    const toDate = parseDateAnchor(String(to));
+    if (!toDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid to date (use YYYY-MM-DD)",
+        data: null,
+      });
+    }
+    filter.date = { ...(filter.date ?? {}), $lte: toDate };
+  }
+
+  const blockouts = await ClinicBlockout.find(filter).sort({ date: 1 }).lean();
+
+  res.status(200).json({
+    success: true,
+    message: "Clinic blockouts",
+    data: blockouts.map(blockoutPayload),
+  });
+};
+
+/** Create or overwrite the blockout for one clinic day. */
+export const saveClinicBlockout = async (req: Request, res: Response) => {
+  const { date, allDay, slots, reason } = req.body;
+
+  const selectedDate = parseDateAnchor(String(date));
+  if (!selectedDate) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid date (use YYYY-MM-DD)",
+      data: null,
+    });
+  }
+  if (selectedDate.getTime() < getClinicTodayAnchor().getTime()) {
+    return res.status(400).json({
+      success: false,
+      message: "Cannot block a date in the past",
+      data: null,
+    });
+  }
+
+  const normalizedSlots = allDay
+    ? []
+    : Array.from(new Set((slots ?? []).map((s: string) => s.trim()))).sort();
+
+  const doc = await ClinicBlockout.findOneAndUpdate(
+    { date: selectedDate },
+    {
+      date: selectedDate,
+      allDay: Boolean(allDay),
+      slots: normalizedSlots,
+      reason: reason ?? "",
+    },
+    { upsert: true, returnDocument: "after", runValidators: true },
+  );
+
+  res.status(200).json({
+    success: true,
+    message: allDay
+      ? "Clinic marked unavailable for this date"
+      : "Slots blocked for this date",
+    data: blockoutPayload(doc),
+  });
+};
+
+/** Remove a blockout by clinic date (YYYY-MM-DD in the URL). */
+export const deleteClinicBlockout = async (req: Request, res: Response) => {
+  const { date } = req.params as { date: string };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid date format (use YYYY-MM-DD)",
+      data: null,
+    });
+  }
+
+  const selectedDate = parseDateAnchor(date);
+  if (!selectedDate) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid date (use YYYY-MM-DD)",
+      data: null,
+    });
+  }
+
+  const result = await ClinicBlockout.deleteOne({ date: selectedDate });
+
+  if (result.deletedCount === 0) {
+    return res.status(404).json({
+      success: false,
+      message: "No blockout found for that date",
+      data: null,
+    });
+  }
+
+  res.status(200).json({ success: true, message: "Blockout removed", data: null });
 };

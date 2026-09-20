@@ -1,15 +1,36 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDoctorStore } from "@/store/doctorStore";
 import { DoctorCard } from "@/components/DoctorCard";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, MapPin, Phone, Clock } from "lucide-react";
+import { getClinicSettings, type ClinicSettings } from "@/api/clinic";
+import { formatSlotLabel } from "@/lib/utils";
 
 export default function FindDoctors() {
   const { doctors, isLoading, error, fetchDoctors } = useDoctorStore();
+  const [clinic, setClinic] = useState<ClinicSettings | null>(null);
+
+  // Public clinic card (name, address, today's hours) — no auth needed
+  useEffect(() => {
+    let active = true;
+    getClinicSettings()
+      .then((response) => {
+        if (active) setClinic(response.data?.success ? response.data?.data : null);
+      })
+      .catch(() => {
+        if (active) setClinic(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Hydrate the doctor directory universally on component load
   useEffect(() => {
     fetchDoctors();
   }, [fetchDoctors]);
+
+  const todaySlots = clinic?.today?.slots ?? [];
+  const isOpenToday = Boolean(clinic?.today?.isOpen) && todaySlots.length > 0;
 
   return (
     <div className="space-y-6 w-full max-w-6xl mx-auto p-4 md:p-6">
@@ -23,6 +44,49 @@ export default function FindDoctors() {
           Browse available expert practitioners at Reperto Clinic to guide your personalized holistic treatment plan.
         </p>
       </div>
+
+      {/* 🏥 Clinic info card */}
+      {clinic && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-neutral-900">{clinic.clinicName}</h2>
+              {clinic.about && (
+                <p className="max-w-2xl text-sm text-neutral-500">{clinic.about}</p>
+              )}
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm text-neutral-600">
+                {clinic.address && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="size-4 text-primary" />
+                    {clinic.address}
+                  </span>
+                )}
+                {clinic.phone && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Phone className="size-4 text-primary" />
+                    {clinic.phone}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                isOpenToday
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-neutral-200 bg-neutral-50 text-neutral-500"
+              }`}
+            >
+              <Clock className="size-4" />
+              <span>{isOpenToday ? "Open today" : "Closed today"}</span>
+              {isOpenToday && (
+                <span className="font-medium text-neutral-600">
+                  {formatSlotLabel(todaySlots[0])} – {formatSlotLabel(todaySlots[todaySlots.length - 1])}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ⏳ Async Rendering State Triggers */}
       {isLoading ? (

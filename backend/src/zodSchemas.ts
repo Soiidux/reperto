@@ -79,32 +79,20 @@ const intakeDetailsSchema = z.object({
   pastMedicalHistory: z.string().trim().min(1, "Enter past medical history"),
 });
 
-export const bookingSchema = z
-  .object({
-    doctorId: z.string().min(1, "Select a doctor"),
-    // Required for staff/admin booking on behalf of a patient; patients omit it
-    patientId: z.string().optional(),
-    appointmentDate: z.string().min(1, "Select an appointment date"),
-    timeSlot: z.string().min(1, "Select a time slot"),
-    durationInMinutes: z.coerce
-      .number()
-      .int()
-      .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
-    consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
-    intakeDetails: intakeDetailsSchema,
-  })
-  // Session length is fixed per type: Initial consults run 30 minutes,
-  // Follow-ups and Acute visits run 15. The UI auto-sets this; this refine
-  // stops API callers from sending mismatched pairs.
-  .refine(
-    (data) =>
-      (data.consultationType === "Initial" && data.durationInMinutes === 30) ||
-      (data.consultationType !== "Initial" && data.durationInMinutes === 15),
-    {
-      message: "Initial consultations are 30 minutes; Follow-up and Acute are 15 minutes",
-      path: ["durationInMinutes"],
-    },
-  );
+export const bookingSchema = z.object({
+  doctorId: z.string().min(1, "Select a doctor"),
+  // Required for staff/admin booking on behalf of a patient; patients omit it
+  patientId: z.string().optional(),
+  appointmentDate: z.string().min(1, "Select an appointment date"),
+  timeSlot: z.string().min(1, "Select a time slot"),
+  // Every visit is one 15-minute slot (clinic-wide); the UI always sends 15.
+  durationInMinutes: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === 15, "Each appointment takes 15 minutes"),
+  consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
+  intakeDetails: intakeDetailsSchema,
+});
 
 const modalitiesSchema = z.object({
   Aggravation: z.string().min(1, "Enter aggravation"),
@@ -167,29 +155,19 @@ export const rescheduleSchema = z.object({
 // ---- Movie-style booking holds ----
 
 // Reserving a time chip. Mirrors the booking fields (minus intake details),
-// with the same session-length rule: Initial = 30 min, else 15 min.
-export const holdSchema = z
-  .object({
-    doctorId: z.string().min(1, "Select a doctor"),
-    // Patients may hold a slot for a family member they look after too
-    patientId: z.string().optional(),
-    appointmentDate: z.string().min(1, "Select an appointment date"),
-    timeSlot: z.string().min(1, "Select a time slot"),
-    durationInMinutes: z.coerce
-      .number()
-      .int()
-      .refine((v) => v === 15 || v === 30, "Select a duration in minutes"),
-    consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
-  })
-  .refine(
-    (data) =>
-      (data.consultationType === "Initial" && data.durationInMinutes === 30) ||
-      (data.consultationType !== "Initial" && data.durationInMinutes === 15),
-    {
-      message: "Initial consultations are 30 minutes; Follow-up and Acute are 15 minutes",
-      path: ["durationInMinutes"],
-    },
-  );
+// with the same clinic-wide 15-minute session length.
+export const holdSchema = z.object({
+  doctorId: z.string().min(1, "Select a doctor"),
+  // Patients may hold a slot for a family member they look after too
+  patientId: z.string().optional(),
+  appointmentDate: z.string().min(1, "Select an appointment date"),
+  timeSlot: z.string().min(1, "Select a time slot"),
+  durationInMinutes: z.coerce
+    .number()
+    .int()
+    .refine((v) => v === 15, "Each appointment takes 15 minutes"),
+  consultationType: z.enum(["Initial", "Follow-up", "Acute"], "Select a consultation type"),
+});
 
 // Converting a held slot into a real booking only needs the visit details;
 // the doctor/date/slot live on the hold itself.
@@ -278,3 +256,52 @@ export const reviewSchema = z.object({
     .max(5, "Rating cannot exceed 5 stars"),
   comment: z.string().trim().max(1000, "Comment is too long").optional().or(z.literal("")),
 });
+
+// ---- Clinic settings & date blockouts ----
+
+// "HH:mm" on the 15-minute grid the app uses for every slot.
+const slotTimeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:mm")
+  .refine((t) => Number(t.slice(3)) % 15 === 0, "Slots step in 15 minutes");
+
+const dayHoursSchema = z.object({
+  day: z.number().int().min(0, "Day must be 0-6").max(6, "Day must be 0-6"),
+  isOpen: z.boolean(),
+  slots: z.array(slotTimeSchema).max(48, "Too many slots for one day"),
+});
+
+// Full clinic settings document, validated on every admin save.
+export const clinicSettingsSchema = z
+  .object({
+    clinicName: z.string().trim().min(1, "Clinic name is required").max(80),
+    address: z.string().trim().max(200).optional().or(z.literal("")),
+    phone: z.string().trim().max(20).optional().or(z.literal("")),
+    email: z.string().trim().email("Invalid email address").optional().or(z.literal("")),
+    about: z.string().trim().max(500, "About is too long").optional().or(z.literal("")),
+    cancellationWindowMinutes: z.coerce
+      .number()
+      .int()
+      .min(0, "Cancellation window must be 0 or more minutes")
+      .max(4320, "Cancellation window cannot exceed 3 days"),
+    hours: z
+      .array(dayHoursSchema)
+      .length(7, "Hours must cover all 7 days of the week"),
+  })
+  .refine((d) => new Set(d.hours.map((h) => h.day)).size === 7, {
+    message: "Each weekday can appear only once",
+    path: ["hours"],
+  });
+
+// A clinic-wide blockout for one specific date: whole day, or specific slots.
+export const clinicBlockoutSchema = z
+  .object({
+    date: z.string().min(1, "Date is required"),
+    allDay: z.boolean().optional().default(false),
+    slots: z.array(slotTimeSchema).max(48, "Too many blocked slots").optional().default([]),
+    reason: z.string().trim().max(200, "Reason is too long").optional().or(z.literal("")),
+  })
+  .refine((d) => d.allDay || d.slots.length > 0, {
+    message: "Block at least one slot or mark the whole day",
+    path: ["slots"],
+  });

@@ -2,6 +2,8 @@ import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import config from "./config";
 import User from "./db/models/user.model";
+import ClinicSettings from "./db/models/clinicSettings.model";
+import { buildDefaultSettings } from "./utils/clinicSettings";
 
 const seed = async () => {
   try {
@@ -92,6 +94,15 @@ const seed = async () => {
       },
       { upsert: true, returnDocument: "after" },
     );
+
+    // Clinic settings singleton with sane defaults (Sun closed, 9-1 + 2-4,
+    // 2h cancellation window). Upsert only mints it when missing so admin
+    // edits made via the UI are never clobbered by re-running the seed.
+    const settingsDoc = await ClinicSettings.findOne();
+    if (!settingsDoc) {
+      await ClinicSettings.create(buildDefaultSettings());
+      console.log("  Clinic   -> settings created with defaults");
+    }
 
     console.log("Seed complete:");
     console.log(`  Admin   -> admin@reperto.com / ${adminPlainPassword} (${admin._id})`);

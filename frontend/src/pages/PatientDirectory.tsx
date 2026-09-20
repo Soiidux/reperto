@@ -134,7 +134,7 @@ export default function PatientDirectory() {
                       </Button>
                     </Link>
                   )}
-                  <Link to={`/doctor/consultation/history/${patient._id}`}>
+                  <Link to={`/doctor/medical-history/${patient._id}`}>
                     <Button variant="outline" size="sm">
                       <History className="size-4" /> View History
                     </Button>

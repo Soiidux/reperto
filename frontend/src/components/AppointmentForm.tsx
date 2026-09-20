@@ -65,7 +65,7 @@ export default function AppointmentForm({
       doctorId: defaultDoctorId,
       patientId: defaultPatientId || undefined,
       appointmentDate: "",
-      durationInMinutes: defaultType === "Follow-up" ? "15" : "30",
+      durationInMinutes: "15",
       consultationType: defaultType,
     },
   });
@@ -119,8 +119,8 @@ export default function AppointmentForm({
 
   useEffect(() => {
     if (consultationType) {
-      const duration = consultationType === "Initial" ? "30" : "15";
-      setValue("durationInMinutes", duration, { shouldValidate: true });
+      // Every visit is one 15-minute slot (clinic-wide)
+      setValue("durationInMinutes", "15", { shouldValidate: true });
     }
   }, [consultationType, setValue]);
   useEffect(() => {
@@ -424,7 +424,6 @@ export default function AppointmentForm({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="15">15 minutes</SelectItem>
-                          <SelectItem value="30">30 minutes</SelectItem>
                         </SelectContent>
                       </Select>
                       {fieldState.invalid && (

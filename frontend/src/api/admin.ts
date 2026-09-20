@@ -110,3 +110,49 @@ export interface TeamMemberInput {
     consultationFee?: number;
   };
 }
+
+// ---- Clinic settings & date blockouts ----
+
+export interface ClinicDayHoursInput {
+  day: number;
+  isOpen: boolean;
+  slots: string[];
+}
+
+export interface ClinicSettingsInput {
+  clinicName: string;
+  address: string;
+  phone: string;
+  email: string;
+  about: string;
+  cancellationWindowMinutes: number;
+  hours: ClinicDayHoursInput[];
+}
+
+export interface ClinicBlockout {
+  date: string; // YYYY-MM-DD (clinic timezone)
+  allDay: boolean;
+  slots: string[];
+  reason: string;
+}
+
+export const updateClinicSettings = async (data: ClinicSettingsInput) => {
+  return await API.put("/admin/clinic-settings", data);
+};
+
+export const getClinicBlockouts = async (params?: { from?: string; to?: string }) => {
+  return await API.get("/admin/clinic-blockouts", { params });
+};
+
+export const saveClinicBlockout = async (data: {
+  date: string;
+  allDay?: boolean;
+  slots?: string[];
+  reason?: string;
+}) => {
+  return await API.post("/admin/clinic-blockouts", data);
+};
+
+export const deleteClinicBlockout = async (date: string) => {
+  return await API.delete(`/admin/clinic-blockouts/${date}`);
+};

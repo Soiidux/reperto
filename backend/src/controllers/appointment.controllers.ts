@@ -20,6 +20,7 @@ import {
 import {
   timeToMinutes,
   getDayContext,
+  isSlotBlockedByClinic,
   isSlotBlockedByLeave,
   isSlotOverlappingBookings,
   isSlotOverlappingHolds,
@@ -27,6 +28,13 @@ import {
   getSlotStatesFor,
   type SlotStateInfo,
 } from "../utils/availability";
+import {
+  getClinicSettings,
+  SLOT_STEP_MINUTES,
+  formatWindow,
+} from "../utils/clinicSettings";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Escapes user input before embedding it in a $regex filter
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -102,7 +110,7 @@ export const assertSlotAvailable = async (
   excludeAppointmentId?: string,
   excludeHoldId?: string,
 ): Promise<void> => {
-  const { blocks, bookings, holds } = await getDayContext(
+  const { blocks, bookings, holds, clinicBlocks } = await getDayContext(
     doctorId,
     selectedDate,
     excludeAppointmentId,
@@ -115,6 +123,11 @@ export const assertSlotAvailable = async (
 
   const slotStart = timeToMinutes(timeSlot);
   const slotEnd = slotStart + durationInMinutes;
+
+  // Admin-managed clinic blockouts apply to every doctor on that date
+  if (isSlotBlockedByClinic(clinicBlocks, slotStart, slotEnd)) {
+    throw new ApiError(400, "This time is blocked on that day — the clinic is unavailable");
+  }
 
   if (isSlotBlockedByLeave(blocks, selectedDate, slotStart, slotEnd)) {
     throw new ApiError(400, "Doctor is unavailable during the selected time");
@@ -217,6 +230,12 @@ export const bookAppointment = async (req: Request, res: Response) => {
       data: null,
     };
     return res.status(400).json(missingFieldsResponse);
+  }
+
+  // Every visit is one 15-minute slot (clinic-wide). Belt-and-suspenders on
+  // top of the zod schema, guarding the direct booking path.
+  if (Number(durationInMinutes) !== SLOT_STEP_MINUTES) {
+    throw new ApiError(400, `Each appointment takes ${SLOT_STEP_MINUTES} minutes`);
   }
 
   // Resolve who the appointment is for: patients book for themselves;
@@ -645,21 +664,22 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   }
 
   if (status === "cancelled") {
+    const settings = await getClinicSettings();
     const selectedDate = new Date(appointment.appointmentDate);
-    if (isPatient && isClinicToday(selectedDate)) {
-      const nowMinutes = getClinicNowMinutes();
-      const timeSlotMinutes = timeToMinutes(appointment.timeSlot);
-
-      const differenceInMinutes = timeSlotMinutes - nowMinutes;
-      // Within 2h, or already past: the visit can't be un-booked anymore.
-      // (The old `> 0` guard let patients cancel slots that had already
-      // started — those are handled through no-show, not cancellation.)
-      if (differenceInMinutes < 120) {
+    if (isPatient) {
+      // Minutes until the visit starts, across any date: the same formula the
+      // reschedule path uses. Inside the clinic's configured cancellation
+      // window (not just "today"), the visit can't be un-booked anymore.
+      const differenceInMinutes =
+        ((selectedDate.getTime() - getClinicTodayAnchor().getTime()) / DAY_MS) * 1440 +
+        timeToMinutes(appointment.timeSlot) -
+        getClinicNowMinutes();
+      if (differenceInMinutes < settings.cancellationWindowMinutes) {
         return res.status(400).json({
           success: false,
           message:
             differenceInMinutes >= 0
-              ? "Cannot cancel appointment within 2 hours of the slot"
+              ? `Cannot cancel within ${formatWindow(settings.cancellationWindowMinutes)} of your appointment`
               : "This appointment has already started; please contact the clinic to reschedule",
           data: null,
         });
@@ -789,15 +809,21 @@ export const rescheduleAppointment = async (req: any, res: Response) => {
     });
   }
 
-  // Match the cancellation policy: patients can't move into a slot starting
-  // within the next 2 hours on the current clinic day.
-  if (isPatient && isClinicToday(selectedDate)) {
-    const nowMinutes = getClinicNowMinutes();
-    const slotMinutes = timeToMinutes(timeSlot);
-    if (slotMinutes - nowMinutes < 120) {
+  // Match the cancellation policy: patients can't move into a slot that
+  // starts inside the clinic's configured cancellation window (any date).
+  if (isPatient) {
+    const settings = await getClinicSettings();
+    const differenceInMinutes =
+      ((selectedDate.getTime() - getClinicTodayAnchor().getTime()) / DAY_MS) * 1440 +
+      timeToMinutes(timeSlot) -
+      getClinicNowMinutes();
+    if (differenceInMinutes < settings.cancellationWindowMinutes) {
       return res.status(400).json({
         success: false,
-        message: "Cannot reschedule to a slot within 2 hours of now",
+        message:
+          differenceInMinutes >= 0
+            ? `Cannot reschedule to a slot within ${formatWindow(settings.cancellationWindowMinutes)} of now`
+            : "This slot has already started; please contact the clinic to reschedule",
         data: null,
       });
     }

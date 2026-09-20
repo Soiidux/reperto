@@ -2,7 +2,7 @@ import  API  from "./axios";
 import type { appointmentFormSchema } from "@/lib/zodSchemas";
 
 
-export const getAvailableSlots = async (doctorId: string, date: string, durationInMinutes: string = "30") => {
+export const getAvailableSlots = async (doctorId: string, date: string, durationInMinutes: string = "15") => {
   const response = await API.get("/appointment/available-slots", {
     params: {
       doctorId,

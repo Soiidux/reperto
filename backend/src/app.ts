@@ -15,6 +15,7 @@ import adminRoutes from "./routes/admin.routes";
 import reportRoutes from "./routes/report.routes";
 import reviewRoutes from "./routes/review.routes";
 import notificationRoutes from "./routes/notification.routes";
+import clinicRoutes from "./routes/clinic.routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFound } from "./middlewares/notFound";
 import { globalLimiter } from "./middlewares/rateLimiters";
@@ -56,6 +57,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/review", reviewRoutes);
 app.use("/api/notification", notificationRoutes);
+app.use("/api/clinic", clinicRoutes);
 
 //Health check
 app.get("/health", (_req, res) => {

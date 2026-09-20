@@ -38,7 +38,7 @@ export const appointmentSchema = z.object({
   timeSlot: z
     .string({ message: "Select a time slot" })
     .min(1, { message: "Select a time slot" }),
-  durationInMinutes: z.enum(["15", "30"], {
+  durationInMinutes: z.enum(["15"], {
     message: "Select a duration in minutes",
   }),
   consultationType: z.enum(["Initial", "Follow-up", "Acute"], {
