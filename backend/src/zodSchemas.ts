@@ -31,6 +31,25 @@ export const registerSchema = z.object({
   doctorProfile: doctorProfileSchema,
 });
 
+// Admin-created team accounts (doctors + front-desk staff). Unlike public
+// registration these are vouched for by the admin, so role is restricted to
+// doctor/staff and there is no verification email step.
+export const createTeamMemberSchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  email: z.string().trim().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  phone: z
+    .string()
+    .trim()
+    .length(10, "Phone number must be exactly 10 digits")
+    .regex(/^\d+$/, "Phone number must contain only numbers"),
+  gender: z.enum(["male", "female", "other"], "Please select a valid gender"),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  bloodGroup: bloodGroupEnum,
+  role: z.enum(["doctor", "staff"]),
+  doctorProfile: doctorProfileSchema,
+});
+
 export const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),

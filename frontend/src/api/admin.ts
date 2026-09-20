@@ -72,3 +72,25 @@ export const getAllUsers = async (params?: {
 export const toggleUserActive = async (id: string, isActive: boolean) => {
   return await API.patch(`/admin/users/${id}/activate`, { isActive });
 };
+
+export const createTeamMember = async (data: TeamMemberInput) => {
+  return await API.post("/admin/team", data);
+};
+
+export interface TeamMemberInput {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  gender: "male" | "female" | "other";
+  dateOfBirth: string;
+  bloodGroup: string;
+  role: "doctor" | "staff";
+  doctorProfile?: {
+    qualifications?: string[];
+    experienceYears?: number;
+    specializations?: string[];
+    languagesSpoken?: string[];
+    consultationFee?: number;
+  };
+}

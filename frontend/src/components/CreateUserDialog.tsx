@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
-import { register } from "@/api/auth";
+import { createTeamMember, type TeamMemberInput } from "@/api/admin";
 import { getErrorMessage } from "@/lib/utils";
 import { createUserSchema } from "@/lib/zodSchemas";
 import type { createUserFormSchema } from "@/lib/zodSchemas";
@@ -35,18 +35,25 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
         gender: "male",
         dateOfBirth: "",
         bloodGroup: "A+",
-        role: "patient",
+        role: "doctor",
       },
     });
 
-  const role = watch("role");
+  const role = watch("role") as "doctor" | "staff";
 
   const onSubmit = async (formData: createUserFormSchema) => {
     try {
-      const payload: createUserFormSchema & { doctorProfile?: unknown } = { ...formData };
-      if (formData.role !== "doctor") {
-        delete payload.doctorProfile;
-      } else {
+      const payload: TeamMemberInput = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone: formData.phone,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        bloodGroup: formData.bloodGroup,
+        role,
+      };
+      if (role === "doctor") {
         payload.doctorProfile = {
           qualifications: doctorExtras.qualifications ? doctorExtras.qualifications.split(",").map((s) => s.trim()).filter(Boolean) : [],
           specializations: doctorExtras.specializations ? doctorExtras.specializations.split(",").map((s) => s.trim()).filter(Boolean) : [],
@@ -56,9 +63,9 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
         };
       }
 
-      const response = await register(payload);
+      const response = await createTeamMember(payload);
       if (response.data.success) {
-        toast.success(response.data.message || "User created successfully");
+        toast.success(response.data.message || "Team member added");
         setOpen(false);
         reset();
         setDoctorExtras({
@@ -71,7 +78,7 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
         onCreated?.();
       }
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to create user"));
+      toast.error(getErrorMessage(err, "Failed to add team member"));
     }
   };
 
@@ -79,12 +86,12 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button>
-          <Plus className="size-4" /> Create User
+          <Plus className="size-4" /> Add Doctor / Staff
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Create New User</SheetTitle>
+          <SheetTitle>Add Doctor or Staff Member</SheetTitle>
         </SheetHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="px-4 pb-4">
           <Card className="border-0 shadow-none">
@@ -103,10 +110,8 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger id="role"><SelectValue placeholder="Select role" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="patient">Patient</SelectItem>
                         <SelectItem value="doctor">Doctor</SelectItem>
                         <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
@@ -180,7 +185,7 @@ export default function CreateUserDialog({ onCreated }: { onCreated?: () => void
               )}
 
               <Button type="submit" disabled={isSubmitting} className="mt-2">
-                {isSubmitting ? "Creating..." : "Create User"}
+                {isSubmitting ? "Adding..." : "Add Team Member"}
               </Button>
             </CardContent>
           </Card>

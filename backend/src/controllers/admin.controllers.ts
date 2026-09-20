@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import bcrypt from "bcrypt";
 import User from "../db/models/user.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
@@ -224,6 +225,65 @@ export const getStats = async (req: Request, res: Response) => {
       todaysAppointments,
       pendingAppointments,
       completedConsultations,
+    },
+  });
+};
+
+// Admin creates a doctor or front-desk staff account. The creator vouches
+// for the person, so the account starts activated and email-verified, and
+// no verification email is needed. Role is locked to doctor/staff — the
+// admin UI can never mint another admin.
+export const createTeamMember = async (req: Request, res: Response) => {
+  const {
+    name,
+    email,
+    password,
+    phone,
+    gender,
+    dateOfBirth,
+    bloodGroup,
+    role,
+    doctorProfile,
+  } = req.body;
+
+  const existing = await User.findOne({ email });
+  if (existing) {
+    return res.status(409).json({
+      success: false,
+      message: "A user with this email already exists",
+      data: null,
+    });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  const user = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+    phone,
+    role,
+    gender,
+    dateOfBirth,
+    bloodGroup,
+    accountType: "self",
+    isActive: true,
+    emailVerified: true,
+    ...(role === "doctor" && { doctorProfile: doctorProfile || undefined }),
+  });
+
+  res.status(200).json({
+    success: true,
+    message:
+      role === "doctor"
+        ? "Doctor created successfully"
+        : "Staff member created successfully",
+    data: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
     },
   });
 };
