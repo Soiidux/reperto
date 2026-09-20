@@ -3,9 +3,10 @@ import bcrypt from "bcrypt";
 import User from "../db/models/user.model";
 import Appointment from "../db/models/appointment.model";
 import Consultation from "../db/models/consultation.model";
-import { getClinicTodayAnchor } from "../utils/clinicDate";
+import { getClinicTodayAnchor, parseDateAnchor } from "../utils/clinicDate";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TIMEZONE } from "../constants/clinic";
+import { toCsv } from "../utils/csv";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -286,4 +287,156 @@ export const createTeamMember = async (req: Request, res: Response) => {
       role: user.role,
     },
   });
+};
+
+const APPOINTMENT_STATUSES = [
+  "pending",
+  "arrived",
+  "completed",
+  "cancelled",
+  "no-show",
+];
+
+// Default export window: the last 30 clinic days (inclusive of today).
+const DEFAULT_EXPORT_DAYS = 30;
+
+const csvFilename = (prefix: string): string =>
+  `reperto-${prefix}-${formatInTimeZone(new Date(), CLINIC_TIMEZONE, "yyyyMMdd")}.csv`;
+
+// Appointments CSV for a date range (default: last 30 clinic days), with an
+// optional status filter. Data-only export — no PDFs.
+export const exportAppointmentsCsv = async (req: Request, res: Response) => {
+  const { from, to, status } = req.query;
+
+  if (status !== undefined && !APPOINTMENT_STATUSES.includes(String(status))) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid status filter", data: null });
+  }
+
+  const fromDate =
+    typeof from === "string" && from ? parseDateAnchor(from) : undefined;
+  if (typeof from === "string" && from && !fromDate) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid start date (use YYYY-MM-DD)",
+      data: null,
+    });
+  }
+  const toDate =
+    typeof to === "string" && to ? parseDateAnchor(to) : undefined;
+  if (typeof to === "string" && to && !toDate) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid end date (use YYYY-MM-DD)",
+      data: null,
+    });
+  }
+
+  const today = getClinicTodayAnchor();
+  const gte =
+    fromDate ?? new Date(today.getTime() - (DEFAULT_EXPORT_DAYS - 1) * DAY_MS);
+  // End-of-window is exclusive: one clinic anchor after `to` (or today).
+  const lt = toDate
+    ? new Date(toDate.getTime() + DAY_MS)
+    : new Date(today.getTime() + DAY_MS);
+  if (gte.getTime() >= lt.getTime()) {
+    return res.status(400).json({
+      success: false,
+      message: "Start date must be before end date",
+      data: null,
+    });
+  }
+
+  const query: Record<string, unknown> = {
+    appointmentDate: { $gte: gte, $lt: lt },
+  };
+  if (status !== undefined) query.status = String(status);
+
+  const appointments = await Appointment.find(query)
+    .populate("patientId", "name phone")
+    .populate("doctorId", "name")
+    .populate("bookedBy", "name")
+    .sort({ appointmentDate: 1, timeSlot: 1 })
+    .lean();
+
+  const header = [
+    "Date",
+    "Time",
+    "Duration (min)",
+    "Doctor",
+    "Patient",
+    "Patient Phone",
+    "Status",
+    "Type",
+    "Primary Complaint",
+    "Cancellation Reason",
+    "Booked By",
+  ];
+  const rows = appointments.map((apt) => {
+    const patient = apt.patientId as any;
+    const doctor = apt.doctorId as any;
+    const bookedBy = apt.bookedBy as any;
+    return [
+      formatInTimeZone(apt.appointmentDate, CLINIC_TIMEZONE, "yyyy-MM-dd"),
+      apt.timeSlot,
+      apt.durationInMinutes,
+      doctor?.name ?? "",
+      patient?.name ?? "",
+      patient?.phone ?? "",
+      apt.status,
+      apt.consultationType,
+      apt.intakeDetails?.primaryComplaint ?? "",
+      apt.cancellationReason ?? "",
+      bookedBy?.name ?? "",
+    ];
+  });
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${csvFilename("appointments")}"`,
+  );
+  res.send(toCsv([header, ...rows]));
+};
+
+// Patients CSV: every patient account (self + managed profiles) with
+// contact and clinical basics. Data-only export — no PDFs.
+export const exportPatientsCsv = async (req: Request, res: Response) => {
+  const patients = await User.find({ role: "patient" })
+    .select(
+      "name email phone gender dateOfBirth bloodGroup accountType isActive createdAt",
+    )
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const header = [
+    "Name",
+    "Email",
+    "Phone",
+    "Gender",
+    "Date of Birth",
+    "Blood Group",
+    "Account",
+    "Registered At",
+    "Status",
+  ];
+  const rows = patients.map((p) => [
+    p.name,
+    p.email ?? "",
+    p.phone ?? "",
+    p.gender,
+    formatInTimeZone(p.dateOfBirth, CLINIC_TIMEZONE, "yyyy-MM-dd"),
+    p.bloodGroup ?? "",
+    p.accountType === "dependent" ? "Managed profile" : "Self",
+    formatInTimeZone((p as any).createdAt, CLINIC_TIMEZONE, "yyyy-MM-dd"),
+    p.isActive ? "Active" : "Inactive",
+  ]);
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${csvFilename("patients")}"`,
+  );
+  res.send(toCsv([header, ...rows]));
 };

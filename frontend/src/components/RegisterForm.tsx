@@ -85,7 +85,7 @@ const RegisterForm = () => {
     try {
       const response = await register(formData, profileFile);
       if (response.data.success) {
-        toast.success("Registration successful! Please log in.");
+        toast.success("Registration successful! A verification link was sent to your email — verify it, then log in.");
         navigate("/login");      }
       
 } catch (err: unknown) {

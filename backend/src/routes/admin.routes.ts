@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
   createTeamMember,
+  exportAppointmentsCsv,
+  exportPatientsCsv,
   getAllUsers,
   toggleUserActive,
   getStats,
@@ -19,5 +21,7 @@ router.get("/analytics", getAnalytics);
 router.get("/users", getAllUsers);
 router.patch("/users/:id/activate", toggleUserActive);
 router.post("/team", validate(createTeamMemberSchema), createTeamMember);
+router.get("/export/appointments", exportAppointmentsCsv);
+router.get("/export/patients", exportPatientsCsv);
 
 export default router;

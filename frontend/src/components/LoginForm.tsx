@@ -31,17 +31,18 @@ const LoginForm = () => {
       if (response.data.success && response.data.data) {
         const { user, accessToken } = response.data.data;
         loginGlobal(user, accessToken);
-        // Non-blocking: verified users proceed; unverified get a resend banner
-        // while still being allowed in.
-        if (user.emailVerified === false) {
-          setUnverifiedEmail(formData.email);
-          toast.info("Please verify your email to receive appointment notifications.");
-          return;
-        }
         navigate(`/${user.role}/dashboard`);
         toast.success("Login successful");
       }
     } catch (err: unknown) {
+      // 403 with requiresVerification = blocked login for an unverified email.
+      // Tokens were never issued, so nothing to log in with — show the banner.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) {
+        setUnverifiedEmail(formData.email);
+        toast.info("Please verify your email address to log in.");
+        return;
+      }
       const serverErrorMessage = getErrorMessage(err, "Invalid credentials. Please try again.");
       toast.error(serverErrorMessage);
     }
@@ -118,29 +119,16 @@ const LoginForm = () => {
           <div className="px-6 pb-4">
             <div className="border border-amber-300 bg-amber-50 rounded-md p-3 text-sm text-amber-800">
               <p className="font-semibold mb-1">Your email isn't verified yet.</p>
-              <p className="text-amber-700 mb-2">Resend the verification link to {unverifiedEmail}.</p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResend}
-                  disabled={resending}
-                >
-                  {resending ? "Sending…" : "Resend link"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    setUnverifiedEmail(null);
-                    const role = JSON.parse(localStorage.getItem("user") || "{}").role;
-                    navigate(`/${role || "patient"}/dashboard`);
-                  }}
-                >
-                  Continue anyway
-                </Button>
-              </div>
+              <p className="text-amber-700 mb-2">We sent a verification link to {unverifiedEmail}. Check your inbox (and spam), then log in again.</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResend}
+                disabled={resending}
+              >
+                {resending ? "Sending…" : "Resend link"}
+              </Button>
             </div>
           </div>
         )}

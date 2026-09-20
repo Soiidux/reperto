@@ -144,7 +144,23 @@ if (!isMatch) {
   return res.status(401).json(invalidCredentialsResponse);
 }
 
-//3.Generate tokens and save refresh token in db
+//3. Verified emails only. Registration creates unverified accounts and emails
+// a link; login stays blocked until the user verifies it (resend endpoint
+// exists). Seed accounts and admin-created doctors/staff are pre-verified,
+// so enforcement only touches freshly-registered users.
+if (!user.emailVerified) {
+  const unverifiedResponse: ApiResponse<{ requiresVerification: boolean; email: string }> = {
+    success: false,
+    message: "Please verify your email address before logging in",
+    data: {
+      requiresVerification: true,
+      email: user.email || "",
+    },
+  };
+  return res.status(403).json(unverifiedResponse);
+}
+
+//4.Generate tokens and save refresh token in db
 const accessToken = generateAccessToken(user._id.toString(), user.role)
 const refreshToken = generateRefreshToken();
 

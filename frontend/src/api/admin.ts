@@ -77,6 +77,22 @@ export const createTeamMember = async (data: TeamMemberInput) => {
   return await API.post("/admin/team", data);
 };
 
+// CSV exports return raw text (responseType "text"), not JSON.
+export const exportAppointmentsCsv = async (params?: {
+  from?: string;
+  to?: string;
+  status?: string;
+}) => {
+  return await API.get("/admin/export/appointments", {
+    params,
+    responseType: "text",
+  });
+};
+
+export const exportPatientsCsv = async () => {
+  return await API.get("/admin/export/patients", { responseType: "text" });
+};
+
 export interface TeamMemberInput {
   name: string;
   email: string;

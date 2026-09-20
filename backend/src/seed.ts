@@ -30,6 +30,7 @@ const seed = async () => {
         bloodGroup: "O+",
         role: "admin",
         isActive: true,
+        emailVerified: true,
       },
       { upsert: true, returnDocument: "after" },
     );

@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3 } from "lucide-react";
+import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FieldLabel, Field } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import StatCard from "@/components/StatCard";
 import CreateUserDialog from "@/components/CreateUserDialog";
 import { BarChart, HBarChart, DonutChart, statusColor } from "@/components/charts/Charts";
-import { getAdminStats, getAdminAnalytics, getAllUsers, toggleUserActive, type AdminStats, type UserSummary, type AdminAnalytics } from "@/api/admin";
+import { getAdminStats, getAdminAnalytics, getAllUsers, toggleUserActive, exportAppointmentsCsv, exportPatientsCsv, type AdminStats, type UserSummary, type AdminAnalytics } from "@/api/admin";
 import { getErrorMessage } from "@/lib/utils";
+import { downloadTextFile } from "@/lib/downloadText";
 
 const roleColor: Record<string, string> = {
   admin: "bg-violet-100 text-violet-700",
@@ -135,6 +137,47 @@ export default function AdminDashboard() {
     }
   };
 
+  // ---- CSV exports ----
+  const localDateStr = (d: Date) => {
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${day}`;
+  };
+  const today = new Date();
+  const [from, setFrom] = useState(() => {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return localDateStr(start);
+  });
+  const [to, setTo] = useState(() => localDateStr(today));
+  const [exporting, setExporting] = useState<"appointments" | "patients" | null>(null);
+  const exportFileName = `reperto-export-${localDateStr(new Date())}.csv`;
+
+  const handleExportAppointments = async () => {
+    setExporting("appointments");
+    try {
+      const response = await exportAppointmentsCsv({ from, to });
+      downloadTextFile(exportFileName, String(response.data));
+      toast.success("Appointments CSV downloaded");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Export failed"));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportPatients = async () => {
+    setExporting("patients");
+    try {
+      const response = await exportPatientsCsv();
+      downloadTextFile(exportFileName, String(response.data));
+      toast.success("Patients CSV downloaded");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Export failed"));
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
@@ -200,6 +243,45 @@ export default function AdminDashboard() {
           ) : (
             <p className="py-8 text-center text-sm text-neutral-400">Could not load analytics</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Exports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <Field>
+                <FieldLabel className="text-xs text-neutral-500">From</FieldLabel>
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full sm:w-40" />
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs text-neutral-500">To</FieldLabel>
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full sm:w-40" />
+              </Field>
+              <Button
+                variant="outline"
+                onClick={handleExportAppointments}
+                disabled={exporting !== null}
+              >
+                <Download className="size-4 mr-1" />
+                {exporting === "appointments" ? "Exporting…" : "Appointments CSV"}
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleExportPatients}
+              disabled={exporting !== null}
+            >
+              <Download className="size-4 mr-1" />
+              {exporting === "patients" ? "Exporting…" : "Patients CSV"}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            Appointments export uses the date range above (default: this month so far). Both are simple CSV files — no PDFs.
+          </p>
         </CardContent>
       </Card>
 
