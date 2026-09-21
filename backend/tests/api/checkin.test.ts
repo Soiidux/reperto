@@ -133,6 +133,9 @@ describe("reception ticket check-in", () => {
 
     const stored = await Appointment.findById(appointment._id);
     expect(stored!.status).toBe("arrived");
+    // Check-in audit records who did it.
+    expect(stored!.checkedInAt).toBeInstanceOf(Date);
+    expect(stored!.checkedInBy?.toString()).toBe(userIds.staff);
 
     const notice = await Notification.countDocuments({
       recipientId: userIds.patient,
@@ -160,31 +163,27 @@ describe("reception ticket check-in", () => {
     expect(notice).toBe(1);
   });
 
-  it("lets the assigned doctor and an admin check in too", async () => {
+  it("lets an admin check in, but blocks doctors (front-desk only)", async () => {
     const appointment = await makeAppointment();
     const code = ticketRef(appointment);
 
     const byDoctor = await checkIn(code, tokens.doctor1);
-    expect(byDoctor.status).toBe(200);
-    expect(byDoctor.body.data.appointment.status).toBe("arrived");
+    expect(byDoctor.status).toBe(403);
+
+    const byAdmin = await checkIn(code, tokens.admin);
+    expect(byAdmin.status).toBe(200);
+    expect(byAdmin.body.data.appointment.status).toBe("arrived");
   });
 
-  it("rejects a patient and a doctor who isn't the assigned doctor", async () => {
+  it("rejects patients and doctors (front-desk only)", async () => {
     const appointment = await makeAppointment();
     const code = ticketRef(appointment);
 
     const asPatient = await checkIn(code, tokens.patient);
     expect(asPatient.status).toBe(403);
 
-    // A different patient + a different slot so the live-booking and
-    // doctor+date+slot unique indexes are both respected.
-    const otherDoctor = await makeAppointment({
-      timeSlot: "10:00",
-      doctorId: userIds.doctor2,
-      patientId: userIds.patient2,
-    });
-    const asWrongDoctor = await checkIn(ticketRef(otherDoctor), tokens.doctor1);
-    expect(asWrongDoctor.status).toBe(403);
+    const asOtherDoctor = await checkIn(code, tokens.doctor2);
+    expect(asOtherDoctor.status).toBe(403);
   });
 
   it("allows staff to check in patients booked under another doctor", async () => {

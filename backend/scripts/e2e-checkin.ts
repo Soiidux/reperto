@@ -160,5 +160,71 @@ const garbage = await api("/appointment/check-in", {
 });
 check("malformed code is rejected (400)", garbage.status === 400, garbage.body?.message);
 
+// 6. Doctors are locked out of the front desk: no check-in, no status edits.
+const doctorToken = await login("doctor@reperto.com", "Doctor@123");
+
+const doctorScan = await api("/appointment/check-in", {
+  method: "POST",
+  token: doctorToken,
+  body: { code },
+});
+check("doctor cannot check patients in (403)", doctorScan.status === 403, doctorScan.body?.message);
+
+const doctorStatus = await api(`/appointment/${appointment._id}/status`, {
+  method: "PATCH",
+  token: doctorToken,
+  body: { status: "completed" },
+});
+check("doctor cannot change status (403)", doctorStatus.status === 403, doctorStatus.body?.message);
+
+// Patients may only cancel their own booking, nothing else.
+const patientStatus = await api(`/appointment/${appointment._id}/status`, {
+  method: "PATCH",
+  token: patientToken,
+  body: { status: "completed" },
+});
+check("patient cannot set a non-cancel status (403)", patientStatus.status === 403, patientStatus.body?.message);
+
+// 7. Staff can move the booking to any status — reopen it and watch the audit clear.
+const reopen = await api(`/appointment/${appointment._id}/status`, {
+  method: "PATCH",
+  token: staffToken,
+  body: { status: "pending" },
+});
+check(
+  "staff can reopen the booking to pending (200)",
+  reopen.status === 200 && reopen.body?.data?.status === "pending",
+  reopen.body?.message
+);
+
+const findRow = (body: any) =>
+  (body?.data?.appointments ?? []).find((a: any) => String(a._id) === String(appointment._id));
+
+const afterReopen = findRow((await api("/appointment/today", { token: staffToken })).body);
+check(
+  "reopen clears the check-in audit stamp",
+  Boolean(afterReopen) && !afterReopen.checkedInAt,
+  { checkedInAt: afterReopen?.checkedInAt ?? null }
+);
+
+// 8. Check in again; the queue records who did it.
+const reScan = await api("/appointment/check-in", {
+  method: "POST",
+  token: staffToken,
+  body: { code },
+});
+check(
+  "can check in again after a reopen",
+  reScan.status === 200 && reScan.body?.data?.appointment?.status === "arrived",
+  reScan.body?.message
+);
+
+const afterCheckIn = findRow((await api("/appointment/today", { token: staffToken })).body);
+check(
+  "audit line records who checked the patient in",
+  Boolean(afterCheckIn?.checkedInAt && afterCheckIn?.checkedInBy?.name),
+  { checkedInAt: afterCheckIn?.checkedInAt ?? null, checkedInBy: afterCheckIn?.checkedInBy?.name ?? null }
+);
+
 console.log(failures === 0 ? "\nAll E2E check-in checks passed." : `\n${failures} check(s) FAILED.`);
 process.exit(failures ? 1 : 0);

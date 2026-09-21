@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import QRCode from "qrcode";
 import Appointment from "../db/models/appointment.model";
 import { canActForPatient } from "../utils/patientScope";
@@ -93,15 +94,6 @@ export const checkInByTicket = async (req: Request, res: Response) => {
     });
   }
 
-  // Doctors scan only their own patients' tickets (staff/admin cover the desk).
-  if (req.user.role === "doctor" && toId(appointment.doctorId) !== req.user.id) {
-    return res.status(403).json({
-      success: false,
-      message: "You are not authorized to check in this patient.",
-      data: null,
-    });
-  }
-
   // The desk checks patients in on the appointment's clinic day.
   const todayAnchor = getClinicTodayAnchor();
   if (appointment.appointmentDate.getTime() !== todayAnchor.getTime()) {
@@ -123,6 +115,8 @@ export const checkInByTicket = async (req: Request, res: Response) => {
   const justCheckedIn = appointment.status === "pending";
   if (justCheckedIn) {
     appointment.status = "arrived";
+    appointment.checkedInAt = new Date();
+    appointment.checkedInBy = new mongoose.Types.ObjectId(req.user.id);
     await appointment.save();
     try {
       await notifyPatientArrived(appointment);
@@ -145,6 +139,7 @@ export const checkInByTicket = async (req: Request, res: Response) => {
         timeSlot: appointment.timeSlot,
         consultationType: appointment.consultationType,
         status: appointment.status,
+        checkedInAt: appointment.checkedInAt ?? null,
         patient: { _id: patient?._id ?? appointment.patientId, name: patient?.name ?? "Patient" },
         doctor: { _id: doctor?._id ?? appointment.doctorId, name: doctor?.name ?? "Doctor" },
       },

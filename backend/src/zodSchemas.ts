@@ -140,7 +140,7 @@ export const addLeaveSchema = z.object({
 
 export const updateAppointmentStatusSchema = z.object({
   status: z.enum(
-    ["arrived", "completed", "cancelled", "no-show"],
+    ["pending", "arrived", "completed", "cancelled", "no-show"],
     "Invalid status",
   ),
   reason: z.string().optional(),

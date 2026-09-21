@@ -28,9 +28,10 @@ router.get('/arrived', protect, getArrivedPatients);
 router.get('/today', protect, getTodaysAppointments);
 router.get('/available-slots', protect, getAvailableSlots);
 
-// Reception check-in from the e-ticket QR: scan or type the code. Registered
-// before /:id so the static segment never reads as an appointment id.
-router.post('/check-in', checkInLimiter, protect, authorize('staff', 'admin', 'doctor'), validate(checkInTicketSchema), checkInByTicket);
+// Reception check-in from the e-ticket QR: scan or type the code. Front-desk
+// only (staff/admin). Registered before /:id so the static segment never reads
+// as an appointment id.
+router.post('/check-in', checkInLimiter, protect, authorize('staff', 'admin'), validate(checkInTicketSchema), checkInByTicket);
 
 router.get('/:id', protect, getAppointment);
 router.patch('/:id/status', bookingLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);

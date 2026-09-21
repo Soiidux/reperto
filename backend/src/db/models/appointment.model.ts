@@ -38,6 +38,10 @@ interface IAppointment extends Document{
   };
   cancellationReason?: string;
   bookedBy?: mongoose.Types.ObjectId;
+  // Reception check-in audit: who moved the booking to "arrived" and when.
+  // Cleared when staff send it back to "pending".
+  checkedInAt?: Date | null;
+  checkedInBy?: mongoose.Types.ObjectId | null;
   // Timestamp of the transactional reminder email sent the day before the
   // visit; null until the appointment is completed/cancelled (or reminded).
   reminderEmailAt?: Date | null;
@@ -63,6 +67,9 @@ const AppointmentSchema = new Schema({
   cancellationReason: { type: String, default: '' },
   // Set when staff/admin books on behalf of a patient; absent for self-booked
   bookedBy: { type: mongoose.Types.ObjectId, ref: 'User' },
+  // Reception check-in audit (see IAppointment)
+  checkedInAt: { type: Date, default: null },
+  checkedInBy: { type: mongoose.Types.ObjectId, ref: 'User', default: null },
   reminderEmailAt: { type: Date, default: null },
   needsReschedule: { type: Boolean, default: false },
   rescheduleSuggestions: [

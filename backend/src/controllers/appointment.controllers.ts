@@ -141,15 +141,6 @@ export const assertSlotAvailable = async (
 
 type PopulateSpec = { path: string; select: string };
 
-// Legal status transitions; terminal states allow nothing
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ["arrived", "completed", "cancelled", "no-show"],
-  arrived: ["completed", "cancelled", "no-show"],
-  completed: [],
-  cancelled: [],
-  "no-show": [],
-};
-
 // Role-aware scope: patients see their own + their dependents', doctors see
 // theirs, staff/admin can view everything with both sides populated.
 const getAppointmentScope = async (
@@ -581,7 +572,12 @@ export const getTodaysAppointments = async (req: any, res: Response) => {
   const populates: PopulateSpec[] =
     role === "patient"
       ? [{ path: "doctorId", select: "name profileImageUrl gender dateOfBirth" }]
-      : [{ path: "patientId", select: "name email phone profileImageUrl gender dateOfBirth" }];
+      : [
+          { path: "patientId", select: "name email phone profileImageUrl gender dateOfBirth" },
+          // The front-desk queue shows the doctor and the check-in audit stamp.
+          { path: "doctorId", select: "name profileImageUrl" },
+          { path: "checkedInBy", select: "name" },
+        ];
 
   if (role === "doctor") {
     query.doctorId = req.user.id;
@@ -619,19 +615,21 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
       .json({ success: false, message: "Appointment not found", data: null });
   }
   // 2. Role-Based Permission Logic
+  //
+  // The front desk (staff/admin) owns the queue and may move a booking to any
+  // status, including reopening a cancelled/terminal one. Doctors no longer
+  // change appointment status; patients may only cancel their own booking.
   const isDoctor = req.user.role === "doctor";
   const isPatient = req.user.role === "patient";
   const isOwner = await canActForPatient(
     req.user.id,
     appointment.patientId.toString(),
   );
-  const isAssignedDoctor = appointment.doctorId.toString() === req.user.id;
 
-  /**
-   * PERMISSION RULES:
-   * - Patients can ONLY 'cancel' their own appointments.
-   * - Doctors can move status to 'arrived', 'completed', or 'cancelled'.
-   */
+  if (isDoctor) {
+    return res.status(403).json(forbiddenResponse);
+  }
+
   if (isPatient) {
     if (!isOwner) {
       return res.status(403).json(forbiddenResponse);
@@ -641,23 +639,24 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
     }
   }
 
-  if (isDoctor && !isAssignedDoctor) {
-    return res.status(403).json(forbiddenResponse);
-  }
-
-  // 3. Enforce the status workflow (e.g., no cancelling a completed appointment)
-  const allowedTargets = ALLOWED_TRANSITIONS[appointment.status] ?? [];
-  if (!allowedTargets.includes(status)) {
-    return res.status(400).json({ success: false, message: `Cannot move a ${appointment.status} appointment to ${status}`, data: null });
-  }
-
-  // 4. Update the fields
+  // 3. Update the fields
   appointment.status = status;
 
-  // A cancelled/completed booking no longer needs rescheduling
-  if (status === "cancelled" || status === "completed") {
+  // A cancelled/completed/no-show booking no longer needs rescheduling
+  if (status === "cancelled" || status === "completed" || status === "no-show") {
     appointment.needsReschedule = false;
     appointment.rescheduleSuggestions = [];
+  }
+
+  // Check-in audit: stamp who/when the patient arrived. Reopening to "pending"
+  // wipes the stamp (and any stale cancellation reason).
+  if (status === "arrived") {
+    appointment.checkedInAt = new Date();
+    appointment.checkedInBy = req.user.id;
+  } else if (status === "pending") {
+    appointment.checkedInAt = null;
+    appointment.checkedInBy = null;
+    appointment.cancellationReason = "";
   }
 
   if (status === "cancelled") {
@@ -687,7 +686,24 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
       cancellationReason && cancellationReason.length > 0 ? cancellationReason : "No reason provided";
   }
 
-  await appointment.save();
+  // Any-status editing can reopen a cancelled booking into a slot (or a
+  // patient) that has since been rebooked. Surface the unique-index collision
+  // as a friendly 409 instead of a 500.
+  await appointment.save().catch((error: any) => {
+    if (error?.code === 11000) {
+      if (error?.keyPattern?.patientId) {
+        throw new ApiError(
+          409,
+          "This patient already has a live booking; close it before reopening this appointment",
+        );
+      }
+      throw new ApiError(
+        409,
+        "That slot has since been taken; choose another status or reschedule the appointment",
+      );
+    }
+    throw error;
+  });
 
   // Transactional email: notify the patient (or guardian) when the booking is cancelled.
   if (status === "cancelled") {
