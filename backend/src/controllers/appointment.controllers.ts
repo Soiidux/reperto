@@ -8,9 +8,10 @@ import {
   isClinicToday,
   getClinicNowMinutes,
   parseDateAnchor,
+  formatDateLabel,
 } from "../utils/clinicDate";
 import { canActForPatient, resolvePatientScope } from "../utils/patientScope";
-import { createInAppNotification, notifyPatient } from "../utils/notifications";
+import { createInAppNotification, notifyPatient, notifyPatientArrived } from "../utils/notifications";
 import {
   resolveRecipientEmail,
   sendEmail,
@@ -39,13 +40,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Escapes user input before embedding it in a $regex filter
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const formatDateLabel = (date: Date) =>
-  new Date(date).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+// Date label lives in utils/clinicDate; re-exported for existing importers
+// (e.g. hold.controllers) that still pull it from this controller.
+export { formatDateLabel } from "../utils/clinicDate";
 
 export const getPatientName = async (patientId: string | mongoose.Types.ObjectId) => {
   const patient = await User.findById(patientId).select("name").lean();
@@ -717,16 +714,12 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
         link: `/doctor/appointments/${appointment._id}`,
         appointmentId: appointment._id,
       });
+    } else if (status === "arrived") {
+      await notifyPatientArrived(appointment);
     } else {
       const doctor = await User.findById(appointment.doctorId).select("name").lean();
       const doctorLabel = doctor?.name || "Your doctor";
       const statusMessages: Record<string, { title: string; body: string }> = {
-        arrived: {
-          title: "You've checked in",
-          body: `You have been marked as arrived for your appointment with ${doctorLabel} on ${formatDateLabel(
-            appointment.appointmentDate,
-          )} at ${appointment.timeSlot}.`,
-        },
         completed: {
           title: "Appointment completed",
           body: `Your appointment with ${doctorLabel} on ${formatDateLabel(

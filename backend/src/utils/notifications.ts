@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../db/models/user.model";
 import Notification, { NotificationType } from "../db/models/notification.model";
+import { formatDateLabel } from "./clinicDate";
 
 type NotificationInput = {
   type: NotificationType;
@@ -48,4 +49,29 @@ export const notifyPatient = async (
 ) => {
   const recipientId = await resolveNotificationRecipient(patientId);
   return createInAppNotification(recipientId, input);
+};
+
+/**
+ * "You've checked in" fan-out for an appointment that just moved to arrived.
+ * Shared by the staff manual Mark-Arrived flow and the reception QR check-in
+ * so a scanned check-in produces exactly the same notice as a manual one.
+ */
+export const notifyPatientArrived = async (appointment: {
+  _id: mongoose.Types.ObjectId;
+  patientId: mongoose.Types.ObjectId;
+  doctorId: mongoose.Types.ObjectId;
+  appointmentDate: Date;
+  timeSlot: string;
+}) => {
+  const doctor = await User.findById(appointment.doctorId).select("name").lean();
+  const doctorLabel = doctor?.name || "Your doctor";
+  await notifyPatient(appointment.patientId, {
+    type: "appointment-status",
+    title: "You've checked in",
+    body: `You have been marked as arrived for your appointment with ${doctorLabel} on ${formatDateLabel(
+      appointment.appointmentDate,
+    )} at ${appointment.timeSlot}.`,
+    link: `/patient/appointments/${appointment._id}`,
+    appointmentId: appointment._id,
+  });
 };

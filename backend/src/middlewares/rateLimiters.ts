@@ -40,3 +40,11 @@ export const bookingLimiter = rateLimit({
   limit: 30,
   message: tooManyRequests("Too many requests, please slow down"),
 });
+
+// Generous per-minute budget for a busy reception desk scanning tickets.
+export const checkInLimiter = rateLimit({
+  ...standardOptions,
+  windowMs: 60 * 1000,
+  limit: 120,
+  message: tooManyRequests("Too many check-in attempts, please slow down"),
+});

@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import QRCode from "qrcode";
 import Appointment from "../db/models/appointment.model";
 import { canActForPatient } from "../utils/patientScope";
+import { getClinicTodayAnchor, formatDateLabel } from "../utils/clinicDate";
+import { notifyPatientArrived } from "../utils/notifications";
+import { parseTicketReference, ticketRef, verifyTicket } from "../utils/ticket";
 
 /**
  * Patient-facing ticket for a booking: a machine-verifiable QR reference
@@ -13,13 +16,6 @@ const toId = (value: unknown): string => {
   const asDoc = value as { _id?: unknown } | null;
   if (asDoc && typeof asDoc === "object" && "_id" in asDoc) return String(asDoc._id);
   return String(value);
-};
-
-const ticketRef = (appointment: any) => {
-  const date = new Date(appointment.appointmentDate)
-    .toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
-    .replace(/\s+/g, "-");
-  return `REPERTO_TICKET:${appointment._id}:${date}:${appointment.timeSlot}`;
 };
 
 // Loads the appointment (populated for display) or sends an error and returns null.
@@ -67,3 +63,94 @@ export const getAppointmentTicketQr = async (req: Request, res: Response) => {
   res.send(png);
 };
 
+/**
+ * Reception check-in: verify a scanned/typed ticket code and move the patient
+ * to "arrived". Idempotent — a second scan of the same ticket reports the
+ * patient was already checked in.
+ */
+export const checkInByTicket = async (req: Request, res: Response) => {
+  const { code } = (req.body ?? {}) as { code?: string };
+
+  const parsed = parseTicketReference(code ?? "");
+  if (!parsed) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "That doesn't look like a valid ticket. Scan the QR from the booking confirmation, or enter the full code.",
+      data: null,
+    });
+  }
+
+  const appointment = await Appointment.findById(parsed.appointmentId)
+    .populate("patientId", "name")
+    .populate("doctorId", "name");
+
+  if (!appointment) {
+    return res.status(404).json({
+      success: false,
+      message: "No appointment matches this ticket.",
+      data: null,
+    });
+  }
+
+  // Doctors scan only their own patients' tickets (staff/admin cover the desk).
+  if (req.user.role === "doctor" && toId(appointment.doctorId) !== req.user.id) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not authorized to check in this patient.",
+      data: null,
+    });
+  }
+
+  // The desk checks patients in on the appointment's clinic day.
+  const todayAnchor = getClinicTodayAnchor();
+  if (appointment.appointmentDate.getTime() !== todayAnchor.getTime()) {
+    return res.status(400).json({
+      success: false,
+      message: `This ticket is for ${formatDateLabel(appointment.appointmentDate)}, which isn't today.`,
+      data: null,
+    });
+  }
+
+  if (appointment.status !== "pending" && appointment.status !== "arrived") {
+    return res.status(409).json({
+      success: false,
+      message: `This appointment is ${appointment.status} and can no longer be checked in.`,
+      data: null,
+    });
+  }
+
+  const justCheckedIn = appointment.status === "pending";
+  if (justCheckedIn) {
+    appointment.status = "arrived";
+    await appointment.save();
+    try {
+      await notifyPatientArrived(appointment);
+    } catch (error) {
+      console.error("Failed to send arrival notification:", error);
+    }
+  }
+
+  const verification = verifyTicket(appointment, parsed);
+  const patient = appointment.patientId as { _id?: unknown; name?: string } | null;
+  const doctor = appointment.doctorId as { _id?: unknown; name?: string } | null;
+
+  res.status(200).json({
+    success: true,
+    message: justCheckedIn ? "Patient checked in" : "Patient was already checked in",
+    data: {
+      appointment: {
+        _id: appointment._id,
+        appointmentDate: appointment.appointmentDate,
+        timeSlot: appointment.timeSlot,
+        consultationType: appointment.consultationType,
+        status: appointment.status,
+        patient: { _id: patient?._id ?? appointment.patientId, name: patient?.name ?? "Patient" },
+        doctor: { _id: doctor?._id ?? appointment.doctorId, name: doctor?.name ?? "Doctor" },
+      },
+      alreadyCheckedIn: !justCheckedIn,
+      staleDate: verification.staleDate ?? false,
+      slotMismatch: verification.slotMismatch ?? false,
+    },
+  });
+};

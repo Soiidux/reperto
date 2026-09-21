@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import StatCard from "@/components/StatCard";
+import TicketScanner from "@/components/TicketScanner";
 import { getTodaysAppointments, updateAppointmentStatus } from "@/api/appointment";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -92,6 +93,14 @@ export default function StaffDashboard() {
           </>
         )}
       </div>
+
+      {/* Reception check-in: scan or type the ticket QR. Refreshes the queue
+          below so scanned patients drop out of "Scheduled Today". */}
+      <TicketScanner
+        onCheckedIn={() => {
+          void loadToday();
+        }}
+      />
 
       <Card>
         <CardHeader>

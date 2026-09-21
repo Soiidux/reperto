@@ -25,8 +25,10 @@ export default defineConfig({
     },
     testTimeout: 30000,
     hookTimeout: 30000,
-    // The API file depends on a real MongoDB connection. Running files with
-    // isolated pools prevents cross-file connection races.
+    // The API files share one dedicated database (reperto_test); run them
+    // sequentially so one file's beforeEach/afterAll never clobbers another's
+    // fixtures while its tests are mid-flight.
+    fileParallelism: false,
     pool: "threads",
   },
 });

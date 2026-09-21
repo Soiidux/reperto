@@ -105,3 +105,12 @@ export const getAppointmentTicketQrUrl = async (appointmentId: string) => {
   });
   return URL.createObjectURL(response.data as Blob);
 };
+
+/**
+ * Reception check-in: verify a scanned/typed ticket code and move the
+ * patient to "arrived". Idempotent — a second scan reports the patient was
+ * already checked in.
+ */
+export const checkInByTicket = async (code: string) => {
+  return await API.post("/appointment/check-in", { code });
+};

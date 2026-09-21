@@ -147,6 +147,12 @@ export const updateAppointmentStatusSchema = z.object({
   cancellationReason: z.string().optional(),
 });
 
+// Reception check-in: the ticket reference from the booking confirmation QR,
+// typed or scanned at the front desk.
+export const checkInTicketSchema = z.object({
+  code: z.string().trim().min(1, "Enter or scan the ticket code"),
+});
+
 export const rescheduleSchema = z.object({
   appointmentDate: z.string().min(1, "Select an appointment date"),
   timeSlot: z.string().min(1, "Select a time slot"),

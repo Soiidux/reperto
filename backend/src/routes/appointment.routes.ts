@@ -1,11 +1,11 @@
 import express from 'express';
 import { bookAppointment, getActiveAppointments, getAppointment, getAppointments, getTodaysAppointments, updateAppointmentStatus, rescheduleAppointment, getAvailableSlots, getArrivedPatients, getSlotStates } from '../controllers/appointment.controllers';
 import { createHold, bookFromHold, releaseHold } from '../controllers/hold.controllers';
-import { getAppointmentTicketQr } from '../controllers/ticket.controllers';
+import { getAppointmentTicketQr, checkInByTicket } from '../controllers/ticket.controllers';
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
-import { bookingSchema, updateAppointmentStatusSchema, rescheduleSchema, holdSchema, bookFromHoldSchema } from '../zodSchemas';
-import { bookingLimiter } from '../middlewares/rateLimiters';
+import { bookingSchema, updateAppointmentStatusSchema, rescheduleSchema, holdSchema, bookFromHoldSchema, checkInTicketSchema } from '../zodSchemas';
+import { bookingLimiter, checkInLimiter } from '../middlewares/rateLimiters';
 
 const router = express.Router();
 
@@ -27,6 +27,11 @@ router.get('/active', protect, getActiveAppointments);
 router.get('/arrived', protect, getArrivedPatients);
 router.get('/today', protect, getTodaysAppointments);
 router.get('/available-slots', protect, getAvailableSlots);
+
+// Reception check-in from the e-ticket QR: scan or type the code. Registered
+// before /:id so the static segment never reads as an appointment id.
+router.post('/check-in', checkInLimiter, protect, authorize('staff', 'admin', 'doctor'), validate(checkInTicketSchema), checkInByTicket);
+
 router.get('/:id', protect, getAppointment);
 router.patch('/:id/status', bookingLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);
 router.patch('/:id/reschedule', bookingLimiter, protect, validate(rescheduleSchema), rescheduleAppointment);

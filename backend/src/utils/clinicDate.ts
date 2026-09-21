@@ -2,6 +2,18 @@ import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TIMEZONE } from "../constants/clinic";
 
 /**
+ * "20 Sep 2026" — friendly clinic-facing date label. Appointment dates are
+ * stored as UTC midnight, so the label renders in UTC to match.
+ */
+export const formatDateLabel = (date: Date): string =>
+  new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+/**
  * UTC-midnight anchor of "today" in the clinic's timezone.
  * Appointment dates are stored as UTC midnight, so comparisons
  * must use the same shape.
