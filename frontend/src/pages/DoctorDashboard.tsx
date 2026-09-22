@@ -58,7 +58,7 @@ export default function DoctorDashboard() {
   }, []);
 
   const arrivedCount = today.filter((a) => a.status === "arrived").length;
-  const notArrivedCount = today.filter((a) => a.status === "pending" || a.status === "confirmed").length;
+  const notArrivedCount = today.filter((a) => a.status === "pending").length;
 
   const resolveFollowUp = async (id: string, status: "done" | "skipped") => {
     setSubmitting(id);

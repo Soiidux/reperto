@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import StatCard from "@/components/StatCard";
 import CreateUserDialog from "@/components/CreateUserDialog";
+import { TodayQueue } from "@/components/TodayQueue";
 import { BarChart, HBarChart, DonutChart, statusColor } from "@/components/charts/Charts";
 import { getAdminStats, getAdminAnalytics, getAllUsers, toggleUserActive, exportAppointmentsCsv, exportPatientsCsv, type AdminStats, type UserSummary, type AdminAnalytics } from "@/api/admin";
 import { getErrorMessage } from "@/lib/utils";
@@ -205,6 +206,11 @@ export default function AdminDashboard() {
           ))
         )}
       </div>
+
+      {/* Front-desk tools: admins can check patients in and run the queue. */}
+      <section className="flex flex-col gap-6">
+        <TodayQueue heading="Reception queue" />
+      </section>
 
       <Card>
         <CardHeader>
