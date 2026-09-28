@@ -640,6 +640,7 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
   }
 
   // 3. Update the fields
+  const previousStatus = appointment.status;
   appointment.status = status;
 
   // A cancelled/completed/no-show booking no longer needs rescheduling
@@ -730,7 +731,12 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
         link: `/doctor/appointments/${appointment._id}`,
         appointmentId: appointment._id,
       });
-    } else if (status === "arrived") {
+    } else if (status === "arrived" && previousStatus !== "arrived") {
+      // Nudge the patient only on a real transition into arrived. Idempotent
+      // re-edits (pending → arrived → arrived) shouldn't re-send the
+      // "You've checked in" notice; the dedupe guard in
+      // createInAppNotification additionally stops reopen cycles from piling
+      // up unread twins.
       await notifyPatientArrived(appointment);
     } else {
       const doctor = await User.findById(appointment.doctorId).select("name").lean();

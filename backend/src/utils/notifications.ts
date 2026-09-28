@@ -36,6 +36,23 @@ export const createInAppNotification = async (
 ) => {
   if (!recipientId) return;
   try {
+    // Collapse repeats: an identical, still-unread notification for the same
+    // recipient+event is a no-op. Front-desk reopen cycles and double-submitted
+    // requests would otherwise pile up duplicate rows that stay visible until
+    // each one is individually marked read. Legitimate repeats (e.g. a
+    // reschedule, which changes the body/dates) still produce fresh rows.
+    const duplicateQuery = {
+      recipientId,
+      readAt: null,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      ...(input.appointmentId
+        ? { appointmentId: input.appointmentId }
+        : { appointmentId: { $exists: false } }),
+    };
+    const existing = await Notification.exists(duplicateQuery);
+    if (existing) return;
     await Notification.create({ recipientId, ...input });
   } catch (error) {
     console.error("Failed to save notification:", error);

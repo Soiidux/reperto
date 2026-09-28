@@ -48,3 +48,14 @@ export const checkInLimiter = rateLimit({
   limit: 120,
   message: tooManyRequests("Too many check-in attempts, please slow down"),
 });
+
+// Front-desk status edits (staff/admin may move a booking to any status).
+// Generous enough for a fast-moving queue (1 edit/sec), but still bounds
+// runaway loops and double-clicked controls. Role fencing stays in the route
+// via protect/authorize.
+export const statusLimiter = rateLimit({
+  ...standardOptions,
+  windowMs: 60 * 1000,
+  limit: 60,
+  message: tooManyRequests("Too many status changes, please slow down"),
+});

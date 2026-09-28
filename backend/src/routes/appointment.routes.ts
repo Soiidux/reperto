@@ -5,7 +5,7 @@ import { getAppointmentTicketQr, checkInByTicket } from '../controllers/ticket.c
 import { protect, authorize } from '../middlewares/auth.middlewares';
 import { validate } from '../middlewares/validate';
 import { bookingSchema, updateAppointmentStatusSchema, rescheduleSchema, holdSchema, bookFromHoldSchema, checkInTicketSchema } from '../zodSchemas';
-import { bookingLimiter, checkInLimiter } from '../middlewares/rateLimiters';
+import { bookingLimiter, checkInLimiter, statusLimiter } from '../middlewares/rateLimiters';
 
 const router = express.Router();
 
@@ -34,7 +34,7 @@ router.get('/available-slots', protect, getAvailableSlots);
 router.post('/check-in', checkInLimiter, protect, authorize('staff', 'admin'), validate(checkInTicketSchema), checkInByTicket);
 
 router.get('/:id', protect, getAppointment);
-router.patch('/:id/status', bookingLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);
+router.patch('/:id/status', statusLimiter, protect, validate(updateAppointmentStatusSchema), updateAppointmentStatus);
 router.patch('/:id/reschedule', bookingLimiter, protect, validate(rescheduleSchema), rescheduleAppointment);
 router.get('/:id/ticket/qr', protect, getAppointmentTicketQr);
 export default router;

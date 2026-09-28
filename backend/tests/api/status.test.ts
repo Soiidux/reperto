@@ -201,3 +201,67 @@ describe("front-desk status editing", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("today queue population", () => {
+  it("populates doctor and check-in auditor names for staff/admin", async () => {
+    const appointment = await makeAppointment();
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+
+    for (const token of [tokens.staff, tokens.admin]) {
+      const res = await request(app)
+        .get("/api/appointment/today")
+        .set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(200);
+
+      const listed = res.body.data.appointments.find(
+        (a: any) => a._id.toString() === appointment._id.toString(),
+      );
+      expect(listed).toBeDefined();
+      expect(listed.doctorId.name).toBe("Test doctor");
+      expect(listed.checkedInBy.name).toBe("Test staff");
+    }
+  });
+});
+
+describe("check-in notification dedupe", () => {
+  const arrivedTitles = () =>
+    Notification.countDocuments({
+      recipientId: userIds.patient,
+      title: "You've checked in",
+    });
+
+  it("does not repeat the check-in notice for idempotent or reopen cycles", async () => {
+    const appointment = await makeAppointment();
+
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+    expect(await arrivedTitles()).toBe(1);
+
+    // Idempotent re-edit while already arrived → no extra notice.
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+    expect(await arrivedTitles()).toBe(1);
+
+    // Reopen → arrive again while the twin is still unread → still deduped.
+    await updateStatus(appointment._id, "pending", tokens.staff);
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+    expect(await arrivedTitles()).toBe(1);
+  });
+
+  it("sends a fresh check-in notice once the previous one has been read", async () => {
+    const appointment = await makeAppointment();
+
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+    const prior = await Notification.findOne({
+      recipientId: userIds.patient,
+      title: "You've checked in",
+    });
+    await Notification.updateOne(
+      { _id: prior!._id },
+      { $set: { readAt: new Date() } },
+    );
+
+    await updateStatus(appointment._id, "pending", tokens.staff);
+    await updateStatus(appointment._id, "arrived", tokens.staff);
+
+    expect(await arrivedTitles()).toBe(2);
+  });
+});
