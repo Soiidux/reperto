@@ -22,6 +22,12 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       ...(testUri ? { MONGODB_URI: testUri } : {}),
+      // Never let the suite send real mail: blank providers force the dev
+      // console transport, keeping tests offline and deterministic.
+      RESEND_API_KEY: "",
+      SMTP_HOST: "",
+      SMTP_USER: "",
+      SMTP_PASS: "",
     },
     testTimeout: 30000,
     hookTimeout: 30000,

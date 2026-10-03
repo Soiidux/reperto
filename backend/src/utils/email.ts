@@ -9,23 +9,66 @@ type MailOptions = {
   html: string;
 };
 
-// SMTP transport when credentials are configured; otherwise a development
-// console transport so email-verification flows stay testable pre-deploy.
-const configured = Boolean(config.smtp.host && config.smtp.user);
+/**
+ * Email delivery picks the first available provider:
+ * 1. Resend (HTTP API on 443 — works on networks where outbound SMTP is
+ *    blocked) when RESEND_API_KEY is set.
+ * 2. SMTP (nodemailer) when SMTP_HOST + SMTP_USER are configured.
+ * 3. A development console transport, so email-verification flows stay
+ *    testable pre-deploy with no provider configured.
+ */
+const RESEND_API_URL = "https://api.resend.com/emails";
 
-const transporter = configured
-  ? nodemailer.createTransport({
-      host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.port === 465,
-      auth: {
-        user: config.smtp.user,
-        pass: config.smtp.pass,
-      },
-    })
-  : null;
+const smtpConfigured = Boolean(config.smtp.host && config.smtp.user);
+const provider: "resend" | "smtp" | "dev" = config.resend.apiKey
+  ? "resend"
+  : smtpConfigured
+    ? "smtp"
+    : "dev";
 
-export const emailTransportConfigured = configured;
+const transporter =
+  provider === "smtp"
+    ? nodemailer.createTransport({
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.port === 465,
+        auth: {
+          user: config.smtp.user,
+          pass: config.smtp.pass,
+        },
+        // Fail fast: on a network that blocks outbound SMTP these default to
+        // a two-minute hang on every send, which stalls the request that
+        // triggered the mail.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
+      })
+    : null;
+
+export const emailTransportConfigured = provider !== "dev";
+
+const sendViaResend = async ({ to, subject, html }: MailOptions) => {
+  const res = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.resend.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: config.resend.from,
+      to: [to],
+      subject,
+      html,
+    }),
+    // Same reasoning as the SMTP timeouts: never let a mail send outlive the
+    // request that triggered it.
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Resend API request failed (${res.status}): ${detail}`);
+  }
+};
 
 /**
  * The address that should get emailed notices about a patient: their own
@@ -49,22 +92,26 @@ export const resolveRecipientEmail = async (
 };
 
 export const sendEmail = async ({ to, subject, html }: MailOptions) => {
-  if (!transporter) {
-    console.log(
-      "[dev-mail] SMTP not configured — email delivered to console instead.",
-    );
-    console.log(`[dev-mail] To: ${to}`);
-    console.log(`[dev-mail] Subject: ${subject}`);
-    console.log(`[dev-mail] Body:\n${html}`);
-    console.log("[dev-mail] --- end ---");
+  if (provider === "resend") {
+    await sendViaResend({ to, subject, html });
     return;
   }
-  await transporter.sendMail({
-    from: config.smtp.from,
-    to,
-    subject,
-    html,
-  });
+  if (transporter) {
+    await transporter.sendMail({
+      from: config.smtp.from,
+      to,
+      subject,
+      html,
+    });
+    return;
+  }
+  console.log(
+    "[dev-mail] No email provider configured — email delivered to console instead.",
+  );
+  console.log(`[dev-mail] To: ${to}`);
+  console.log(`[dev-mail] Subject: ${subject}`);
+  console.log(`[dev-mail] Body:\n${html}`);
+  console.log("[dev-mail] --- end ---");
 };
 
 const layout = (body: string) => `

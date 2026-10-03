@@ -23,6 +23,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(""),
   SMTP_PASS: z.string().default(""),
   SMTP_FROM: z.string().default("Reperto <reperto@example.com>"),
+  RESEND_API_KEY: z.string().default(""),
+  RESEND_FROM: z.string().default("Reperto <onboarding@resend.dev>"),
   SMS_PROVIDER: z.string().default(""),
   SMS_API_KEY: z.string().default(""),
   SMS_URL: z.string().default(""),
@@ -61,6 +63,11 @@ type SmtpConfig = {
   from: string;
 };
 
+type ResendConfig = {
+  apiKey: string;
+  from: string;
+};
+
 type ClinicConfig = {
   phone: string;
   email: string;
@@ -81,6 +88,7 @@ type Config = {
   jwt: JwtConfig;
   cloudinary: CloudinaryConfig;
   smtp: SmtpConfig;
+  resend: ResendConfig;
   sms: SmsConfig;
   clinic: ClinicConfig;
 };
@@ -107,6 +115,10 @@ const config: Config = {
     pass: env.SMTP_PASS,
     from: env.SMTP_FROM,
   },
+  resend: {
+    apiKey: env.RESEND_API_KEY,
+    from: env.RESEND_FROM,
+  },
   sms: {
     provider: env.SMS_PROVIDER,
     apiKey: env.SMS_API_KEY,
@@ -118,12 +130,12 @@ const config: Config = {
   },
 };
 
-// In production an SMTP host must be configured so password-reset and
-// verification emails actually reach users; the console transport is a
-// development/testing convenience only.
-if (config.isProd && !config.smtp.host) {
+// In production a real email provider (Resend API or SMTP) must be configured
+// so password-reset and verification emails actually reach users; the console
+// transport is a development/testing convenience only.
+if (config.isProd && !config.resend.apiKey && !config.smtp.host) {
   console.error(
-    "SMTP_HOST is required in production so email features can deliver mail.",
+    "RESEND_API_KEY (or SMTP_HOST) is required in production so email features can deliver mail.",
   );
   process.exit(1);
 }

@@ -24,6 +24,22 @@ Doctor's clinic management system: booking (direct + movie-style holds), e-ticke
 - Cancelling via the status control opens the existing reason dialog; reopening to `pending` clears `cancellationReason` and the check-in stamp.
 - Reopening a `cancelled` booking re-adds the live-booking unique indexes; if the slot or patient was rebooked meanwhile, the API returns a friendly 409 instead of a 500.
 
+## Email delivery
+
+All email goes through one function, `sendEmail()` in `backend/src/utils/email.ts`, which picks the first available provider:
+
+1. **Resend HTTP API** — used when `RESEND_API_KEY` is set. Sends over HTTPS (port 443), so it works on networks that block outbound SMTP. This is the current setup.
+2. **SMTP (nodemailer)** — used when `RESEND_API_KEY` is empty and `SMTP_HOST` + `SMTP_USER` are set.
+3. **Dev console** — with no provider configured, emails are printed as `[dev-mail]` blocks in the backend log instead of sent.
+
+```env
+# backend/.env
+RESEND_API_KEY=re_xxxxxxxx
+RESEND_FROM=Reperto <onboarding@resend.dev>
+```
+
+`RESEND_FROM` may use the shared `onboarding@resend.dev` sender domain in development; add and verify your own domain for production. Both providers fail fast (10–20s timeouts) so a blocked network can never stall the request that triggered the mail. Tests always run on the console transport — `vitest.config.ts` blanks the provider credentials.
+
 ## Verification scripts
 
 Live smoke tests against a running backend (self-seeding, use the dev database):
