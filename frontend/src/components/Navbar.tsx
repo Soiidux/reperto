@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useActiveSection } from '../hooks/use-active-section';
 import { ArrowRight, LogOut, LayoutDashboard } from 'lucide-react';
 
 const NAV_LINKS = [
@@ -9,32 +10,46 @@ const NAV_LINKS = [
   { label: 'Contact', to: '/', hash: 'contact' },
 ] as const;
 
+// Stable module-level array: the scroll-spy effect keys off this identity, so
+// it must not be rebuilt on every render.
+const SECTION_IDS = NAV_LINKS.map((link) => link.hash).filter(Boolean);
+
 const Navbar = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { pathname, hash: currentHash } = useLocation();
+  const { pathname } = useLocation();
+  const isHome = pathname === '/';
+
+  // The highlight follows the section actually on screen, so it tracks manual
+  // scrolling as well as clicks. null means "above the first section" = Home.
+  const activeSection = useActiveSection(SECTION_IDS, isHome);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // Home is one page, so nav items scroll to a section. Already on the home
-  // page means scrolling directly (a same-hash link wouldn't re-render);
-  // otherwise navigate to "/#section" and let Home scroll on arrival.
+  // Home is one page, so nav items scroll to a section. Scrolling happens
+  // either way (clicking the section you're already in re-scrolls), and the
+  // hash is only rewritten when we actually have to navigate.
   const goToSection = (hash: string) => {
     if (!hash) {
-      if (pathname === '/') window.scrollTo({ top: 0, behavior: 'smooth' });
-      else navigate('/');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (!isHome) navigate('/');
       return;
     }
+
     const target = document.getElementById(hash);
-    if (pathname === '/' && target) {
+    if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
     }
-    navigate(`/#${hash}`);
+    if (!isHome) {
+      navigate(`/#${hash}`);
+    }
   };
+
+  const isLinkActive = (hash: string) =>
+    isHome && (hash ? activeSection === hash : activeSection === null);
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
@@ -50,20 +65,28 @@ const Navbar = () => {
         {/* Dynamic Navigation Links — single-page sections on Home */}
         <div className="hidden md:flex items-center gap-1">
           {NAV_LINKS.map(({ label, hash }) => {
-            const isActive =
-              pathname === '/' && currentHash === (hash ? `#${hash}` : '');
+            const isActive = isLinkActive(hash);
             return (
               <button
                 key={label}
                 type="button"
                 onClick={() => goToSection(hash)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                aria-current={isActive ? 'true' : undefined}
+                className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   isActive
-                    ? 'bg-primary/10 text-primary'
+                    ? 'text-primary'
                     : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
                 }`}
               >
                 {label}
+                {/* Underline bar doubles as the active indicator, so the
+                    highlight stays visible even against a busy background. */}
+                <span
+                  aria-hidden
+                  className={`absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-primary transition-transform duration-300 origin-left ${
+                    isActive ? 'scale-x-100' : 'scale-x-0'
+                  }`}
+                />
               </button>
             );
           })}

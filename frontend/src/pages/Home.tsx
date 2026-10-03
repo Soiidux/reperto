@@ -18,11 +18,21 @@ export default function Home() {
   const user = useAuthStore((state) => state.user);
   const { hash } = useLocation();
 
+  // Deep links ("/#contact") jump to the right section. Scrolling happens
+  // twice — immediately, and once more after the page settles — because the
+  // clinic/doctor data loads async and would otherwise leave the target
+  // offset by however much content arrived in the meantime.
   useEffect(() => {
     if (!hash || hash === "#") return;
-    const id = hash.slice(1);
-    const target = document.getElementById(id);
-    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const scrollToHash = () => {
+      const target = document.getElementById(hash.slice(1));
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    scrollToHash();
+    const settleTimer = window.setTimeout(scrollToHash, 350);
+    return () => window.clearTimeout(settleTimer);
   }, [hash]);
 
   return (
