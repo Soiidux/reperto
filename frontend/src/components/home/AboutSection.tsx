@@ -1,5 +1,7 @@
-import { HeartPulse, Leaf, ShieldCheck, Stethoscope } from "lucide-react";
+import { HeartPulse, Leaf, ShieldCheck, Sparkles, Stethoscope } from "lucide-react";
 import type { ClinicSettings } from "@/api/clinic";
+import { Reveal } from "@/components/home/Reveal";
+import { WaveDivider } from "@/components/home/WaveDivider";
 
 type AboutSectionProps = {
   clinic: ClinicSettings | null;
@@ -30,38 +32,54 @@ const HIGHLIGHTS = [
 
 export function AboutSection({ clinic }: AboutSectionProps) {
   return (
-    <section id="about" className="scroll-mt-24 w-full bg-white">
-      <div className="mx-auto max-w-6xl px-4 md:px-6 py-16 md:py-20">
-        <div className="grid gap-10 md:grid-cols-[1.1fr_1fr] md:gap-16">
-          <div className="space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary/70">
-              About the clinic
-            </p>
-            <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
-              {clinic?.clinicName || "Reperto Homeopathic Clinic"}
-            </h2>
-            <p className="text-neutral-600 leading-relaxed">
-              {clinic?.about?.trim() ||
-                "Reperto is a homeopathic clinic where patients book, attend and follow up on their care without paperwork. Every visit is tracked end to end, from the booking request to the follow-up reminder."}
-            </p>
-          </div>
+    <>
+      <section id="about" className="scroll-mt-24 relative overflow-hidden bg-card">
+        {/* Soft tint so the section separates from the hero */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 top-10 h-96 w-96 rounded-full opacity-25 blur-3xl"
+          style={{
+            background:
+              "radial-gradient(circle, color-mix(in oklab, var(--secondary) 70%, transparent), transparent 70%)",
+          }}
+        />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {HIGHLIGHTS.map(({ icon: Icon, title, body }) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-neutral-100 bg-neutral-50 p-5"
-              >
-                <div className="mb-3 inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Icon size={20} />
-                </div>
-                <h3 className="font-semibold text-neutral-900">{title}</h3>
-                <p className="mt-1 text-sm text-neutral-500">{body}</p>
-              </div>
-            ))}
+        <div className="relative mx-auto max-w-6xl px-4 md:px-6 py-16 md:py-24">
+          <div className="grid gap-12 md:grid-cols-[1.05fr_1fr] md:gap-16">
+            <Reveal className="space-y-5">
+              <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-primary">
+                <Sparkles size={14} />
+                About the clinic
+              </p>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                {clinic?.clinicName || "Reperto Homeopathic Clinic"}
+              </h2>
+              <p className="text-muted-foreground leading-relaxed">
+                {clinic?.about?.trim() ||
+                  "Reperto is a homeopathic clinic where patients book, attend and follow up on their care without paperwork. Every visit is tracked end to end, from the booking request to the follow-up reminder."}
+              </p>
+            </Reveal>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {HIGHLIGHTS.map(({ icon: Icon, title, body }, index) => (
+                <Reveal key={title} delay={index * 90}>
+                  <div className="h-full rounded-2xl border border-border bg-background/70 p-5 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+                    <div className="mb-3 inline-flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon size={20} />
+                    </div>
+                    <h3 className="font-semibold text-foreground">{title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      {body}
+                    </p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <WaveDivider fillClass="text-background" />
+    </>
   );
 }

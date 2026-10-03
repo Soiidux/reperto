@@ -160,3 +160,126 @@
     @apply font-sans;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Landing page motion + decoration.
+   Everything here is deliberately slow and low-contrast so the page reads as
+   calm rather than busy, and all of it is switched off for visitors who ask
+   for reduced motion (see the media query at the bottom).
+   --------------------------------------------------------------------------- */
+
+@keyframes rp-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.06);
+  }
+  100% {
+    transform: translate3d(-3%, 3%, 0) scale(0.98);
+  }
+}
+
+@keyframes rp-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+@keyframes rp-drift-slow {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  100% {
+    transform: translate3d(0, -26px, 0) rotate(6deg);
+  }
+}
+
+@keyframes rp-pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rp-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.rp-drift {
+  animation: rp-drift 24s ease-in-out infinite alternate;
+}
+
+.rp-drift-slow {
+  animation: rp-drift-slow 18s ease-in-out infinite alternate;
+}
+
+.rp-float {
+  animation: rp-float 6s ease-in-out infinite;
+}
+
+.rp-float-delayed {
+  animation: rp-float 7.5s ease-in-out 1.2s infinite;
+}
+
+.rp-pulse-soft {
+  animation: rp-pulse-soft 3.2s ease-in-out infinite;
+}
+
+/* Soft grain so large flat areas don't band on big screens. */
+.rp-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Faint dotted lattice, used behind sections that need a bit of texture. */
+.rp-dots {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--primary) 22%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 26px 26px;
+}
+
+/* Scroll reveal: elements start slightly low and fade up once observed. */
+.rp-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.rp-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-drift,
+  .rp-drift-slow,
+  .rp-float,
+  .rp-float-delayed,
+  .rp-pulse-soft {
+    animation: none !important;
+  }
+
+  .rp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

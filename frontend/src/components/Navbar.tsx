@@ -37,32 +37,36 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-white border-b border-neutral-100 sticky top-0 z-50 shadow-sm backdrop-blur-md">
-      <div className="mx-auto px-32 h-16 flex justify-between items-center">
+    <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+      <div className="mx-auto max-w-7xl px-4 md:px-8 h-16 flex justify-between items-center">
         
         {/* Logo */}
         <div className="flex items-center">
-          <Link to="/">
-            <img src="/logo.svg" alt="logo" className="w-15 h-12 object-contain" />
+          <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <img src="/logo.svg" alt="Reperto" className="h-11 w-auto object-contain" />
           </Link>
         </div>
 
         {/* Dynamic Navigation Links — single-page sections on Home */}
-        <div className="hidden md:flex items-center space-x-10">
-          {NAV_LINKS.map(({ label, hash }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => goToSection(hash)}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                pathname === '/' && currentHash === (hash ? `#${hash}` : '')
-                  ? 'bg-primary text-white'
-                  : 'text-neutral-600 hover:bg-primary hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="hidden md:flex items-center gap-1">
+          {NAV_LINKS.map(({ label, hash }) => {
+            const isActive =
+              pathname === '/' && currentHash === (hash ? `#${hash}` : '');
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => goToSection(hash)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Auth / Action Button CTA */}
@@ -80,7 +84,7 @@ const Navbar = () => {
               
               <button 
                 onClick={handleLogout} 
-                className="text-neutral-500 hover:text-danger p-2 hover:bg-danger/5 rounded-lg transition-colors"
+                className="text-muted-foreground hover:text-destructive p-2 hover:bg-destructive/5 rounded-lg transition-colors"
                 title="Logout"
               >
                 <LogOut size={20} />
@@ -89,7 +93,7 @@ const Navbar = () => {
           ) : (
             <Link 
               to="/login" 
-              className="text-white bg-primary px-5 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 hover:opacity-90 shadow-sm"
+              className="text-primary-foreground bg-primary px-5 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 hover:opacity-90 shadow-sm"
             >
               <span>Book Now</span>
               <ArrowRight size={18} />

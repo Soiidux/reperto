@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useClinicSettings } from "@/hooks/use-clinic-settings";
 import { useAuthStore } from "@/store/authStore";
+import { AuroraBackdrop } from "@/components/home/AuroraBackdrop";
 import { HeroSection } from "@/components/home/HeroSection";
 import { AboutSection } from "@/components/home/AboutSection";
 import { DoctorsSection } from "@/components/home/DoctorsSection";
@@ -25,7 +26,8 @@ export default function Home() {
   }, [hash]);
 
   return (
-    <div className="w-full">
+    <div className="relative w-full">
+      <AuroraBackdrop />
       <HeroSection clinic={clinic} isLoggedIn={Boolean(user)} />
       <AboutSection clinic={clinic} />
       <DoctorsSection />
