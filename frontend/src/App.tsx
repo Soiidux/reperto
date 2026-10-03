@@ -10,6 +10,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import FindDoctors from './pages/FindDoctors';
+import Home from './pages/Home';
 import BookAppointment from './pages/BookAppointment';
 import Appointments from './pages/Appointments';
 import AllAppointments from './pages/AllAppointments';
@@ -65,6 +66,8 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
           </Route>
           <Route path="/doctors" element={<FindDoctors/>}/>
+          {/* Single-page public landing: about + doctors + contact */}
+          <Route path="/" element={<Home />} />
         </Route>
 
         {/* ================= SECURE DESKTOP APPLICATION SHELL (DashboardLayout) ================= */}
@@ -125,10 +128,8 @@ function App() {
           </Route>
         </Route>
 
-        {/* Root redirects to the doctors directory for guests */}
-        <Route path="/" element={<Navigate to="/doctors" replace />} />
-        {/* Catch-all Absolute Fallback for unexpected URLs */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Unknown URLs fall back to the public landing page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>
     </BrowserRouter>

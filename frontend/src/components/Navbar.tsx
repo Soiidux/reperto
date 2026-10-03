@@ -1,14 +1,39 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { ArrowRight, LogOut, LayoutDashboard } from 'lucide-react';
+
+const NAV_LINKS = [
+  { label: 'Home', to: '/', hash: '' },
+  { label: 'About', to: '/', hash: 'about' },
+  { label: 'Doctors', to: '/', hash: 'doctors' },
+  { label: 'Contact', to: '/', hash: 'contact' },
+] as const;
 
 const Navbar = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { pathname, hash: currentHash } = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  // Home is one page, so nav items scroll to a section. Already on the home
+  // page means scrolling directly (a same-hash link wouldn't re-render);
+  // otherwise navigate to "/#section" and let Home scroll on arrival.
+  const goToSection = (hash: string) => {
+    if (!hash) {
+      if (pathname === '/') window.scrollTo({ top: 0, behavior: 'smooth' });
+      else navigate('/');
+      return;
+    }
+    const target = document.getElementById(hash);
+    if (pathname === '/' && target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    navigate(`/#${hash}`);
   };
 
   return (
@@ -22,20 +47,22 @@ const Navbar = () => {
           </Link>
         </div>
 
-        {/* Dynamic Navigation Links */}
+        {/* Dynamic Navigation Links — single-page sections on Home */}
         <div className="hidden md:flex items-center space-x-10">
-          <Link to="/" className="text-neutral-600 hover:bg-primary hover:text-white px-4 py-2 rounded-lg font-semibold transition-all">
-            Home
-          </Link>
-          <Link to="/about" className="text-neutral-600 hover:bg-primary hover:text-white px-4 py-2 rounded-lg font-semibold transition-all">
-            About
-          </Link>
-          <Link to="/doctors" className="text-neutral-600 hover:bg-primary hover:text-white px-4 py-2 rounded-lg font-semibold transition-all">
-            Doctors
-          </Link> 
-          <Link to="/contact" className="text-neutral-600 hover:bg-primary hover:text-white px-4 py-2 rounded-lg font-semibold transition-all">
-            Contact
-          </Link> 
+          {NAV_LINKS.map(({ label, hash }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => goToSection(hash)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                pathname === '/' && currentHash === (hash ? `#${hash}` : '')
+                  ? 'bg-primary text-white'
+                  : 'text-neutral-600 hover:bg-primary hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Auth / Action Button CTA */}

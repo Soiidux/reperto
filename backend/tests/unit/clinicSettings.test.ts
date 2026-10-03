@@ -3,6 +3,7 @@ import {
   DEFAULT_DAY_SLOTS,
   buildDefaultSettings,
   formatWindow,
+  getClinicLiveStatus,
   getClinicWeekday,
 } from "../../src/utils/clinicSettings";
 import { parseDateAnchor } from "../../src/utils/clinicDate";
@@ -104,5 +105,58 @@ describe("getClinicWeekday", () => {
     expect(getClinicWeekday(new Date("2026-09-21T04:00:00.000Z"))).toBe(1); // Monday
     // Late UTC evening that is already the next day in Asia/Kolkata.
     expect(getClinicWeekday(new Date("2026-09-20T20:00:00.000Z"))).toBe(1);
+  });
+});
+
+describe("getClinicLiveStatus", () => {
+  const openDay = { day: 1, isOpen: true, slots: DEFAULT_DAY_SLOTS };
+  const closedDay = { day: 0, isOpen: false, slots: [] };
+  const at = (time: string) => timeToMinutes(time);
+
+  it("is open inside a session and closed outside clinic hours", () => {
+    expect(getClinicLiveStatus(openDay, at("10:00")).isOpenNow).toBe(true);
+    expect(getClinicLiveStatus(openDay, at("15:00")).isOpenNow).toBe(true);
+    // 3 AM, a minute before opening, the closing minute, and the evening.
+    expect(getClinicLiveStatus(openDay, at("03:00")).isOpenNow).toBe(false);
+    expect(getClinicLiveStatus(openDay, at("08:45")).isOpenNow).toBe(false);
+    expect(getClinicLiveStatus(openDay, at("16:00")).isOpenNow).toBe(false);
+    expect(getClinicLiveStatus(openDay, at("23:30")).isOpenNow).toBe(false);
+  });
+
+  it("treats the gaps between sessions (lunch) as closed", () => {
+    const lunch = getClinicLiveStatus(openDay, at("13:15"));
+    expect(lunch.isOpenNow).toBe(false);
+    // Closed for lunch, and it says when it reopens.
+    expect(lunch.nextChangeAt).toBe("14:00");
+  });
+
+  it("reports when the current session ends", () => {
+    expect(getClinicLiveStatus(openDay, at("10:07")).nextChangeAt).toBe("10:15");
+    // Past the last session there is nothing left to flip to.
+    expect(getClinicLiveStatus(openDay, at("18:00")).nextChangeAt).toBeNull();
+  });
+
+  it("exposes the day's first open and last close times", () => {
+    const status = getClinicLiveStatus(openDay, at("10:00"));
+    expect(status.opensAt).toBe("09:00");
+    expect(status.closesAt).toBe("16:00");
+  });
+
+  it("is closed all day when the day has no slots", () => {
+    expect(getClinicLiveStatus(closedDay, at("10:00"))).toEqual({
+      isOpenNow: false,
+      opensAt: null,
+      closesAt: null,
+      nextChangeAt: null,
+    });
+  });
+
+  it("ignores unsorted slot data", () => {
+    const scrambled = { day: 1, isOpen: true, slots: ["15:45", "09:00", "14:00"] };
+    const afternoon = getClinicLiveStatus(scrambled, at("14:07"));
+    expect(afternoon.isOpenNow).toBe(true);
+    expect(afternoon.nextChangeAt).toBe("14:15");
+    expect(afternoon.opensAt).toBe("09:00");
+    expect(afternoon.closesAt).toBe("16:00");
   });
 });

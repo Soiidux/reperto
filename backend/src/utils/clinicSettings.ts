@@ -1,6 +1,7 @@
 import ClinicSettings from "../db/models/clinicSettings.model";
 import { formatInTimeZone } from "date-fns-tz";
 import { CLINIC_TIMEZONE } from "../constants/clinic";
+import { getClinicNowMinutes } from "./clinicDate";
 import type { ClinicDayHours } from "../db/models/clinicSettings.model";
 
 // Every visit occupies one 15-minute slot. The slot grid is built from the
@@ -112,6 +113,68 @@ export const getDayEntry = (
       slots: [],
     }
   );
+};
+
+export type ClinicLiveStatus = {
+  /** Open at this very moment, in clinic time. */
+  isOpenNow: boolean;
+  /** First slot of the day ("HH:mm"), null when shut all day. */
+  opensAt: string | null;
+  /** End of the day's last slot ("HH:mm"), null when shut all day. */
+  closesAt: string | null;
+  /** When the open/closed state next flips today (end of the current
+   *  session while open, the next session's start while shut). */
+  nextChangeAt: string | null;
+};
+
+const slotToMinutes = (slot: string): number => {
+  const [hours, minutes] = slot.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+/** Minutes-since-midnight back to a "HH:mm" slot string. */
+const minutesToSlot = (minutes: number): string => {
+  const wrapped = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(
+    wrapped % 60,
+  ).padStart(2, "0")}`;
+};
+
+/**
+ * Live open/closed state for a clinic day.
+ *
+ * A day's `isOpen` flag only says "we are scheduled today" — it stays true
+ * at 3 AM and across the lunch break. This resolves whether the current
+ * clinic-time falls inside an actual session, plus when that flips, so the
+ * public site can honestly say "Open now" or "Closed right now".
+ */
+export const getClinicLiveStatus = (
+  day: ClinicDayHours,
+  nowMinutes: number = getClinicNowMinutes(),
+): ClinicLiveStatus => {
+  const slots = day?.isOpen ? [...(day.slots ?? [])].sort() : [];
+  if (slots.length === 0) {
+    return { isOpenNow: false, opensAt: null, closesAt: null, nextChangeAt: null };
+  }
+
+  // Each slot covers [start, start + step); the gaps between sessions (the
+  // 1-2 PM lunch pause, say) are therefore genuinely closed time.
+  const currentSession = slots.find((slot) => {
+    const start = slotToMinutes(slot);
+    return nowMinutes >= start && nowMinutes < start + SLOT_STEP_MINUTES;
+  });
+  const nextSession = slots.find((slot) => slotToMinutes(slot) > nowMinutes);
+
+  return {
+    isOpenNow: Boolean(currentSession),
+    opensAt: slots[0],
+    closesAt: minutesToSlot(slotToMinutes(slots[slots.length - 1]) + SLOT_STEP_MINUTES),
+    nextChangeAt: currentSession
+      ? minutesToSlot(slotToMinutes(currentSession) + SLOT_STEP_MINUTES)
+      : nextSession
+        ? nextSession
+        : null,
+  };
 };
 
 /** Human copy for the cancellation window, e.g. 4320 -> "3 days". */
