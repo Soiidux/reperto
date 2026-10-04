@@ -3,6 +3,7 @@ import {
   uploadReport,
   listReports,
   deleteReport,
+  getReportFile,
 } from "../controllers/report.controllers";
 import { protect, authorize } from "../middlewares/auth.middlewares";
 import { reportUpload } from "../utils/reportMulter";
@@ -19,6 +20,9 @@ router.post(
   uploadReport,
 );
 router.get("/", protect, listReports);
+// Streams/redirects a single file. Registered before "/:id" so the static
+// segment isn't read as a report id.
+router.get("/:id/file/:index", protect, getReportFile);
 router.delete("/:id", protect, authorize("patient", "staff", "admin"), deleteReport);
 
 export default router;

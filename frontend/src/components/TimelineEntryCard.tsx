@@ -18,7 +18,9 @@ import { Button } from "@/components/ui/button";
 
 import { useAuthStore } from "@/store/authStore";
 
-import { type Report } from "@/api/report";
+import { type Report, openReportFile } from "@/api/report";
+import { getErrorMessage } from "@/lib/utils";
+import { toast } from "sonner";
 
 import { type TimelineEntry } from "@/api/timeline";
 
@@ -233,16 +235,28 @@ export default function TimelineEntryCard({
 
         {/* Files */}
         <div className="flex flex-wrap gap-2">
-          {report.files.map((file) => {
+          {report.files.map((file, fileIndex) => {
             const isPdf = file.mimeType === "application/pdf";
+            // PDFs are served from our API (they need the auth token), so
+            // they open through a handler rather than an href.
+            const needsFetch = !file.url;
             return (
-              <a
-                key={file.publicId}
-                href={file.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs text-neutral-700 hover:border-primary/40 hover:bg-neutral-100"
+              <button
+                key={file.publicId ?? file.storageId ?? `${file.name}-${fileIndex}`}
+                type="button"
                 title={file.name}
+                onClick={() => {
+                  if (!needsFetch && file.url) {
+                    window.open(file.url, "_blank", "noopener,noreferrer");
+                    return;
+                  }
+                  openReportFile(report._id, fileIndex).catch((err) =>
+                    toast.error(
+                      getErrorMessage(err, "Could not open this file"),
+                    ),
+                  );
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs text-neutral-700 hover:border-primary/40 hover:bg-neutral-100 text-left"
               >
                 {isPdf ? (
                   <FileText className="size-3.5 text-rose-500" />
@@ -253,7 +267,7 @@ export default function TimelineEntryCard({
                 <span className="text-neutral-400">
                   ({formatBytes(file.size)})
                 </span>
-              </a>
+              </button>
             );
           })}
         </div>

@@ -3,8 +3,14 @@ import mongoose, { Schema, Document } from "mongoose";
 export type ReportCategory = "lab" | "imaging" | "test" | "other";
 
 export interface IReportFile {
-  url: string;
-  publicId: string;
+  /** Direct CDN link, set for Cloudinary-hosted files (images). */
+  url?: string;
+  /** Cloudinary public id, when the asset lives in Cloudinary. */
+  publicId?: string;
+  /** GridFS id, when the bytes are stored in MongoDB (PDFs). */
+  storageId?: string;
+  /** "cloudinary" | "gridfs" — decides which of the above is populated. */
+  storage?: "cloudinary" | "gridfs";
   name: string;
   mimeType: string;
   size: number;
@@ -23,8 +29,11 @@ export interface IReport extends Document {
 
 const reportFileSchema = new Schema(
   {
-    url: { type: String, required: true },
-    publicId: { type: String, required: true },
+    // Either a Cloudinary CDN url + publicId, or a GridFS storageId.
+    url: { type: String },
+    publicId: { type: String },
+    storageId: { type: String },
+    storage: { type: String, enum: ["cloudinary", "gridfs"], default: "cloudinary" },
     name: { type: String, required: true },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true },
@@ -32,6 +41,10 @@ const reportFileSchema = new Schema(
   },
   { _id: false },
 );
+
+// Downloads resolve a file by its report + index, so index lookups on the
+// embedded files array need to be fast.
+reportFileSchema.index({ storageId: 1 });
 
 const ReportSchema = new Schema(
   {

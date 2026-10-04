@@ -34,6 +34,8 @@ import {
   type Report,
   deleteReport,
   getPatientReports,
+  openReportFile,
+  rememberReportFiles,
   uploadReport,
 } from "@/api/report";
 
@@ -74,12 +76,18 @@ export default function ReportsPage({
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const applyReports = (list: Report[]) => {
+    setReports(list);
+    // Let openReportFile resolve a file's mime type by (reportId, index).
+    list.forEach((report) => rememberReportFiles(report._id, report.files ?? []));
+  };
+
   const refresh = useCallback(async () => {
     if (!patientId) return;
     try {
       setLoading(true);
       const response = await getPatientReports(patientId);
-      setReports(response.data?.data?.reports ?? []);
+      applyReports(response.data?.data?.reports ?? []);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to load reports"));
     } finally {
@@ -92,7 +100,7 @@ export default function ReportsPage({
     getPatientReports(patientId)
       .then((response) => {
         if (!active) return;
-        setReports(response.data?.data?.reports ?? []);
+        applyReports(response.data?.data?.reports ?? []);
       })
       .catch((err: unknown) => {
         if (!active) return;
@@ -179,16 +187,28 @@ export default function ReportsPage({
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
-                  {report.files.map((file) => {
+                  {report.files.map((file, fileIndex) => {
                     const isPdf = file.mimeType === "application/pdf";
+                    // PDFs are served from our API (they need the auth token),
+                    // so they open through a handler rather than an href.
+                    const needsFetch = !file.url;
                     return (
-                      <a
-                        key={file.publicId}
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs text-neutral-700 hover:border-primary/40 hover:bg-neutral-100"
+                      <button
+                        key={file.publicId ?? file.storageId ?? `${file.name}-${fileIndex}`}
+                        type="button"
                         title={file.name}
+                        onClick={() => {
+                          if (!needsFetch && file.url) {
+                            window.open(file.url, "_blank", "noopener,noreferrer");
+                            return;
+                          }
+                          openReportFile(report._id, fileIndex).catch((err) =>
+                            toast.error(
+                              getErrorMessage(err, "Could not open this file"),
+                            ),
+                          );
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs text-neutral-700 hover:border-primary/40 hover:bg-neutral-100 text-left"
                       >
                         {isPdf ? (
                           <FileText className="size-3.5 text-rose-500" />
@@ -199,7 +219,7 @@ export default function ReportsPage({
                         <span className="text-neutral-400">
                           ({formatBytes(file.size)})
                         </span>
-                      </a>
+                      </button>
                     );
                   })}
                 </div>
