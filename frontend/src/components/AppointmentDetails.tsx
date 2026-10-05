@@ -11,7 +11,7 @@ import {
   FieldLegend,
   FieldSeparator,
 } from "./ui/field";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
 import { useParams ,Link} from "react-router-dom";
 import { getAppointmentById } from "@/api/appointment";
@@ -56,25 +56,38 @@ interface Appointment {
 
 export default function AppointmentDetails() {
   const { user } = useAuthStore();
+  // Guards the `role`-prefixed links below: `user!.role` renders
+  // "/undefined/..." before the store has hydrated.
+  const role = user?.role ?? "patient";
   const [appointmentData, setAppointmentData] = useState<Appointment | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { id } = useParams<{ id: string }>();
-  useEffect(() => {
+
+  const fetchAppointment = useCallback(async () => {
     if (!id) return;
+    try {
+      const response = await getAppointmentById(id);
+      setAppointmentData(response.data.data);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(getErrorMessage(error, "Failed to load appointment details"));
+    }
+  }, [id]);
+
+  useEffect(() => {
     let cancelled = false;
-    const fetchAppointment = async () => {
-      try {
-        const response = await getAppointmentById(id);
-        if (!cancelled) setAppointmentData(response.data.data);
-      } catch (error) {
-        if (!cancelled) setLoadError(getErrorMessage(error, "Failed to load appointment details"));
-      }
-    };
-    fetchAppointment();
+    (async () => {
+      if (cancelled) return;
+      await fetchAppointment();
+    })();
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [fetchAppointment]);
+
+  // Lets child actions (e.g. accepting a reschedule suggestion) re-read the
+  // appointment in place rather than reloading the page.
+  const onRefresh = fetchAppointment;
   const { _id, patientId : patient, doctorId : doctor, appointmentDate, timeSlot, durationInMinutes, status, needsReschedule, rescheduleSuggestions } = appointmentData || {};
   if (!appointmentData) {
     return (
@@ -116,7 +129,12 @@ export default function AppointmentDetails() {
                 {rescheduleSuggestions && rescheduleSuggestions.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {rescheduleSuggestions.map((suggestion, index) => (
-                      <AcceptSuggestionButton key={index} appointmentId={_id!} suggestion={suggestion} />
+                      <AcceptSuggestionButton
+                        key={index}
+                        appointmentId={_id!}
+                        suggestion={suggestion}
+                        onRescheduled={onRefresh}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -132,12 +150,22 @@ export default function AppointmentDetails() {
                 Patient Information
             </FieldLegend>
             <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center justify-center w-56 h-56 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/50 text-neutral-600 dark:text-neutral-300">
-                  <img
-                    src={patient?.profileImageUrl}
-                    alt="Patient Profile"
-                    className="w-full h-full object-cover rounded-lg"
-                  />
+              <div className="flex items-center justify-center w-56 h-56 overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/50 text-neutral-600 dark:text-neutral-300">
+                  {/* Guarded: an undefined src rendered a broken-image glyph
+                      for every patient without a photo. */}
+                  {patient?.profileImageUrl ? (
+                    <img
+                      src={patient.profileImageUrl}
+                      alt="Patient Profile"
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  ) : (
+                    <span className="text-6xl font-bold text-neutral-400">
+                      {typeof patient === "object" && patient?.name
+                        ? patient.name.replace(/^Dr\.?\s+/i, "").charAt(0).toUpperCase()
+                        : "P"}
+                    </span>
+                  )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                   {/* Name */}
@@ -367,7 +395,7 @@ export default function AppointmentDetails() {
             
           </CardContent>
           <CardFooter className="flex justify-center items-center gap-2">
-          {status === "pending" && user!.role === "patient" && <CancellationButton appointmentId={_id!} />}
+          {status === "pending" && role === "patient" && <CancellationButton appointmentId={_id!} />}
           {status === "pending" && (
             <RescheduleDialog
               appointmentId={_id!}
@@ -377,7 +405,7 @@ export default function AppointmentDetails() {
               currentTimeSlot={timeSlot!}
             />
           )}
-          {status === "arrived" && user!.role === "doctor" && (
+          {status === "arrived" && role === "doctor" && (
             <Button variant="default" size="lg" asChild className="px-4 font-medium">
               <Link to={`/doctor/start-consultation/${_id}`}>Start Consultation</Link>
             </Button>
@@ -386,12 +414,12 @@ export default function AppointmentDetails() {
             <>
               {(user?.role === "patient" || user?.role === "staff" || user?.role === "admin") && (
                 <Button variant="outline">
-                  <Link to={`/${user!.role}/book-appointment?type=Follow-up&doctorId=${typeof doctor === "object" ? doctor._id : ""}${user?.role !== "patient" && typeof patient === "object" ? `&patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}` : ""}`}>
+                  <Link to={`/${role}/book-appointment?type=Follow-up&doctorId=${typeof doctor === "object" ? doctor._id : ""}${role !== "patient" && typeof patient === "object" ? `&patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}` : ""}`}>
                     <CalendarPlus /> Book Follow-up
                   </Link>
                 </Button>
               )}
-              <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+              <Button variant="default"><Link to={`/${role}/consultation/${_id}`}>View Consultation</Link></Button>
             </>
           )}
           </CardFooter>

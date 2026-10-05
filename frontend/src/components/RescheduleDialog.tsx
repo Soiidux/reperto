@@ -45,6 +45,7 @@ export function RescheduleDialog({
   const fetchToken = useRef(0);
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const role = user?.role ?? "patient";
 
   const loadSlots = (selectedDate: string) => {
     const token = ++fetchToken.current;
@@ -91,7 +92,11 @@ export function RescheduleDialog({
       if (response.data.success) {
         toast.success("Appointment rescheduled");
         setOpen(false);
-        navigate(`/${user!.role}/dashboard`);
+        navigate(`/${role}/dashboard`);
+      } else {
+        // A falsy success used to fall through silently: no toast, the sheet
+        // stayed open with no explanation.
+        toast.error(response.data.message || "Could not reschedule appointment");
       }
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to reschedule appointment"));

@@ -1,6 +1,6 @@
 import ConsultationForm from "@/components/ConsultationForm";
 
-export default function BookAppointment() {
+export default function TakeConsultation() {
   return (
     <div>
       <ConsultationForm />

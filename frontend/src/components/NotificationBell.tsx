@@ -26,6 +26,7 @@ const NotificationBell = () => {
   const [unread, setUnread] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshUnread = async () => {
     try {
@@ -45,6 +46,11 @@ const NotificationBell = () => {
       ]);
       setNotifications(listRes.data.data ?? []);
       setUnread(unreadRes.data.data?.unread ?? 0);
+      setError(null);
+    } catch {
+      // Previously unhandled: the popover stayed on its spinner forever and
+      // the rejection escaped handleOpenChange.
+      setError("Could not load notifications.");
     } finally {
       setLoading(false);
     }
@@ -125,6 +131,17 @@ const NotificationBell = () => {
         <div className="max-h-96 overflow-y-auto">
           {loading && notifications.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-neutral-400">Loading…</p>
+          ) : error ? (
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-neutral-500">{error}</p>
+              <button
+                type="button"
+                onClick={loadNotifications}
+                className="mt-2 text-sm font-semibold text-primary hover:underline"
+              >
+                Try again
+              </button>
+            </div>
           ) : notifications.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-neutral-400">
               No notifications yet

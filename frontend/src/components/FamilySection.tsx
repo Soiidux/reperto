@@ -366,6 +366,8 @@ function AddMemberSheet({ onCreated }: { onCreated: () => void }) {
     <button
       type="button"
       onClick={() => setMode(value)}
+      // Reads as a toggle group, so expose the pressed state.
+      aria-pressed={mode === value}
       className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
         mode === value
           ? "bg-white text-neutral-900 shadow-sm"
@@ -373,9 +375,7 @@ function AddMemberSheet({ onCreated }: { onCreated: () => void }) {
       }`}
     >
       <span className="block">{label}</span>
-      <span className={`block font-normal ${mode === value ? "text-neutral-400" : "text-neutral-400"}`}>
-        {hint}
-      </span>
+      <span className="block font-normal text-neutral-400">{hint}</span>
     </button>
   );
 

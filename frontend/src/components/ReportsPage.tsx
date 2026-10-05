@@ -128,7 +128,9 @@ export default function ReportsPage({
   const canDelete = user?.role !== "doctor";
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    // No p-6 here: every page shell (PatientReports/StaffReports/...) already
+    // owns the padding, and duplicating it made this the narrowest page.
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-neutral-900">

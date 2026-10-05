@@ -219,6 +219,9 @@ export default function TimelineEntryCard({
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                // Icon-only button: needs an accessible name.
+                aria-label={`Delete report ${report.title}`}
+                title={`Delete report ${report.title}`}
                 onClick={() => onDeleteReport?.(report)}
               >
                 <Trash2 className="size-3" />

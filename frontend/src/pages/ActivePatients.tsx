@@ -24,7 +24,7 @@ interface Appointment {
   consultationType: 'Initial' | 'Follow-up' | 'Acute';
 }
 
-export default function Appointments() {
+export default function ActivePatients() {
   const [count, setCount] = useState(0);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   useEffect(() => {
@@ -38,9 +38,14 @@ export default function Appointments() {
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <span className="text-sm text-gray-500">{count} Upcoming Appointments</span>
-        <span className="text-sm text-gray-500 hover:text-gray-800 hover:underline hover:cursor-pointer"><Link to={`/doctor/appointments/all`}>View All</Link></span>
+        <Link
+          to={`/doctor/appointments/all`}
+          className="text-sm text-gray-500 hover:text-gray-800 hover:underline"
+        >
+          View All
+        </Link>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {count !== 0 ? appointments?.map((appointment) => (
@@ -48,7 +53,11 @@ export default function Appointments() {
             key={appointment._id} 
             {...appointment} 
           />
-        )) : <p>No appointments found.</p>}
+        )) : (
+          <p className="col-span-full py-8 text-center text-neutral-400">
+            No appointments found.
+          </p>
+        )}
       </div>
     </div>
   );

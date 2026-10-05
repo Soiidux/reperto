@@ -9,6 +9,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getAllAppointments } from "@/api/appointment";
 import { getErrorMessage } from "@/lib/utils";
+import {
+  STATUS_BADGE_CLASS,
+  STATUS_LABELS,
+  type AppointmentStatus,
+} from "@/lib/appointmentStatus";
 
 interface AgendaAppointment {
   _id: string;
@@ -145,7 +150,12 @@ export default function DoctorAgenda() {
               </p>
               {Object.entries(statusCounts).map(([status, count]) => (
                 <div key={status} className="flex items-center justify-between text-neutral-500">
-                  <Badge variant={statusVariant(status)} className="capitalize">{status}</Badge>
+                  <Badge
+                    variant={statusVariant(status)}
+                    className={STATUS_BADGE_CLASS[status as AppointmentStatus]}
+                  >
+                    {STATUS_LABELS[status as AppointmentStatus] ?? status}
+                  </Badge>
                   <span className="font-medium">{count}</span>
                 </div>
               ))}
@@ -188,7 +198,12 @@ export default function DoctorAgenda() {
                       <p className="truncate text-xs text-neutral-400">{appt.consultationType}</p>
                     </div>
                   </div>
-                  <Badge variant={statusVariant(appt.status)} className="capitalize">{appt.status}</Badge>
+                  <Badge
+                    variant={statusVariant(appt.status)}
+                    className={STATUS_BADGE_CLASS[appt.status as AppointmentStatus]}
+                  >
+                    {STATUS_LABELS[appt.status as AppointmentStatus] ?? appt.status}
+                  </Badge>
                 </Link>
               ))}
             </div>

@@ -157,7 +157,11 @@ export default function ClinicSettings() {
         hours: settings.hours.map((h) => ({ day: h.day, isOpen: h.isOpen, slots: sortSlots(h.slots) })),
       });
       toast.success("Clinic settings saved");
-      load().catch(() => {});
+      // Swallowed before: a failed re-read left stale hours on screen with no
+      // indication anything had gone wrong.
+      load().catch((err: unknown) =>
+        toast.error(getErrorMessage(err, "Saved, but the page could not refresh")),
+      );
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not save clinic settings"));
     } finally {
@@ -209,7 +213,9 @@ export default function ClinicSettings() {
       setBlSlots([]);
       setBlReason("");
       setBlockouts([]);
-      load().catch(() => {});
+      load().catch((err: unknown) =>
+        toast.error(getErrorMessage(err, "Saved, but the page could not refresh")),
+      );
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not save the blockout"));
     } finally {
@@ -366,6 +372,7 @@ export default function ClinicSettings() {
                   <div className="flex rounded-full border border-neutral-200 p-0.5">
                     <button
                       type="button"
+                      aria-pressed={day.isOpen}
                       onClick={() => toggleDay(day.day)}
                       className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
                         day.isOpen
@@ -377,6 +384,7 @@ export default function ClinicSettings() {
                     </button>
                     <button
                       type="button"
+                      aria-pressed={!day.isOpen}
                       onClick={() => toggleDay(day.day)}
                       className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
                         !day.isOpen

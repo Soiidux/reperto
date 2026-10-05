@@ -8,13 +8,9 @@ import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
 import { RescheduleDialog } from "./RescheduleDialog";
 import { AcceptSuggestionButton } from "./AcceptSuggestionButton";
-const statusStyles: Record<string, { label: string; variantClass: string }> = {
-  pending: { label: "Pending", variantClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50" },
-  arrived: { label: "Arrived", variantClass: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50" },
-  completed: { label: "Completed", variantClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50" },
-  cancelled: { label: "Cancelled", variantClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50" },
-  'no-show': { label: "No Show", variantClass: "bg-neutral-100 text-neutral-600 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700" },
-};
+import { STATUS_BADGE_CLASS, STATUS_LABELS } from "@/lib/appointmentStatus";
+// Labels/classes now come from lib/appointmentStatus so every screen agrees on
+// spelling ("No-show") and colour.
 
 interface AppointmentCardProps {
   _id: string;
@@ -39,8 +35,14 @@ interface AppointmentCardProps {
   rescheduleSuggestions?: { date: string; timeSlot: string }[];
 }
 export default function AppointmentCard({ _id, patientId, doctorId, appointmentDate, timeSlot, durationInMinutes, status, consultationType, needsReschedule, rescheduleSuggestions }: AppointmentCardProps) {
-  const currentStatus = statusStyles[status] || statusStyles.pending;
+  const currentStatus = {
+    label: STATUS_LABELS[status] ?? STATUS_LABELS.pending,
+    variantClass: STATUS_BADGE_CLASS[status] ?? STATUS_BADGE_CLASS.pending,
+  };
   const { user } = useAuthStore();
+  // `user!.role` in a template literal renders "/undefined/appointments/..."
+  // whenever the store hasn't hydrated yet.
+  const role = user?.role ?? "patient";
   const canBookFollowUp = user?.role === "patient" || user?.role === "staff" || user?.role === "admin";
   // Populated docs carry _id/name; raw fields are plain strings
   const doctorRef = typeof doctorId === "string" ? null : doctorId;
@@ -52,7 +54,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
     followUpParams.set("patientId", patientRef._id);
     followUpParams.set("patientName", patientRef.name);
   }
-  const followUpHref = `/${user!.role}/book-appointment?${followUpParams.toString()}`;
+  const followUpHref = `/${role}/book-appointment?${followUpParams.toString()}`;
   // Clean string formatter for human-readable Indian local timeline presentation
   const formattedDate = new Date(appointmentDate).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -211,7 +213,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
         </div>
       </CardContent>
       <CardFooter className="flex gap-2 justify-between items-center">
-        <Button variant="default"><Link to={`/${user!.role}/appointments/${_id}`}>View Details</Link></Button>
+        <Button variant="default"><Link to={`/${role}/appointments/${_id}`}>View Details</Link></Button>
         {/* Card Footer: Contextual Patient Cancellation Actions */}
         {status === "pending" && user?.role === "patient" && (
           <div className="flex gap-2">
@@ -243,7 +245,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
                 <Link to={followUpHref}><CalendarPlus /> Book Follow-up</Link>
               </Button>
             )}
-            <Button variant="default"><Link to={`/${user!.role}/consultation/${_id}`}>View Consultation</Link></Button>
+            <Button variant="default"><Link to={`/${role}/consultation/${_id}`}>View Consultation</Link></Button>
           </div>
         )}
 

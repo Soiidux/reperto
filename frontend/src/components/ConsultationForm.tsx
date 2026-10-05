@@ -61,7 +61,9 @@ interface Appointment {
 
 export default function ConsultationForm() {
   const { user } = useAuthStore();
-  
+  // `user!.role` renders "/undefined/medical-history/..." before hydration.
+  const role = user?.role ?? "doctor";
+
   const {
     control,
     handleSubmit,
@@ -113,9 +115,10 @@ export default function ConsultationForm() {
       if (response.data.success) {
         toast.success("Consultation saved. Appointment marked as completed.");
         navigate(`/doctor/appointments`);
+      } else {
+        toast.error(response.data.message || "Could not save the consultation");
       }
     } catch (err: unknown) {
-      console.log("Raw submission rejection payload:", err); // 🚀 Add this!
       const serverErrorMessage =
         getErrorMessage(err, "Internal Server Error");
       toast.error(serverErrorMessage);
@@ -171,7 +174,7 @@ export default function ConsultationForm() {
                 Patient Information
                 {appointmentData && typeof appointmentData.patientId !== "string" && (
                   <Link
-                    to={`/${user!.role}/medical-history/${appointmentData.patientId._id}`}
+                    to={`/${role}/medical-history/${appointmentData.patientId._id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="

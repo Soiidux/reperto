@@ -121,7 +121,10 @@ export default function PatientDirectory() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-neutral-900">{patient.name}</p>
                     <p className="text-sm text-neutral-500">
-                      {patient.phone} · {patient.email} · {patient.dateOfBirth ? getAge(patient.dateOfBirth) : "—"}y ·{" "}
+                      {patient.phone} · {patient.email} ·{" "}
+                      {/* The "y" belongs inside the ternary: outside it, a
+                          patient with no DOB rendered as the literal "—y". */}
+                      {patient.dateOfBirth ? `${getAge(patient.dateOfBirth)}y` : "—"} ·{" "}
                       {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : "\u2014"}
                     </p>
                   </div>

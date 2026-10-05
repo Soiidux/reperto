@@ -8,6 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAllAppointments } from "@/api/appointment";
 import { getErrorMessage } from "@/lib/utils";
+import {
+  STATUS_BADGE_CLASS,
+  STATUS_LABELS,
+  type AppointmentStatus,
+} from "@/lib/appointmentStatus";
 
 interface PastAppointment {
   _id: string;
@@ -85,7 +90,13 @@ export default function PastAppointments() {
                       {new Date(appt.appointmentDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })} · {appt.timeSlot} · {appt.consultationType}
                     </p>
                   </div>
-                  <Badge variant={statusVariant[appt.status] || "outline"} className="capitalize">{appt.status}</Badge>
+                  <Badge
+                    variant={statusVariant[appt.status] || "outline"}
+                    // Label from the shared map: the raw key rendered "no-show".
+                    className={STATUS_BADGE_CLASS[appt.status as AppointmentStatus]}
+                  >
+                    {STATUS_LABELS[appt.status as AppointmentStatus] ?? appt.status}
+                  </Badge>
                   <Link to={`/doctor/appointments/${appt._id}`}>
                     <Button variant="outline" size="sm">View</Button>
                   </Link>

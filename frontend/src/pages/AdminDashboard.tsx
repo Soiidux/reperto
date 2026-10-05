@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Users, UserPlus, CalendarDays, CalendarCheck, ClipboardCheck, Stethoscope, Clock3, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +42,10 @@ export default function AdminDashboard() {
     setTotalItems(response.data.pagination.totalItems);
   };
 
-  const loadUsers = async () => {
+  // Single loader, shared by every trigger. This previously existed as three
+  // near-identical copies, so a change to the search box fired two
+  // getAllUsers requests per keystroke.
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await getAllUsers({
@@ -57,49 +60,26 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const response = await getAllUsers({
-          search: search || undefined,
-          role: roleFilter,
-          page,
-          limit: 10,
-        });
-        applyUsers(response);
-      } catch (err: unknown) {
-        toast.error(getErrorMessage(err, "Failed to load users"));
-      } finally {
-        setLoading(false);
-      }
-    })();
   }, [page, roleFilter, search]);
 
   useEffect(() => {
+    let active = true;
+    (async () => {
+      if (active) await loadUsers();
+    })();
+    return () => {
+      active = false;
+    };
+  }, [loadUsers]);
+
+  // Typing resets to page 1, but only after the user stops, so a search fires
+  // one request rather than one per keystroke.
+  useEffect(() => {
     const delay = setTimeout(() => {
       setPage(1);
-      (async () => {
-        setLoading(true);
-        try {
-          const response = await getAllUsers({
-            search: search || undefined,
-            role: roleFilter,
-            page: 1,
-            limit: 10,
-          });
-          applyUsers(response);
-        } catch (err: unknown) {
-          toast.error(getErrorMessage(err, "Failed to load users"));
-        } finally {
-          setLoading(false);
-        }
-      })();
     }, 400);
     return () => clearTimeout(delay);
-  }, [search, roleFilter]);
+  }, [search]);
 
   useEffect(() => {
     (async () => {
@@ -181,7 +161,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Admin Dashboard</h1>
           <p className="text-sm text-neutral-500">System overview and user management.</p>
@@ -296,6 +276,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-lg">User Directory</CardTitle>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
+              aria-label="Search users by name, email, or phone"
               placeholder="Search by name, email, or phone"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

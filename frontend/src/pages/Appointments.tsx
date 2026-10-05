@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Appointment {
   _id: string;
@@ -32,12 +33,14 @@ interface Appointment {
 export default function Appointments() {
   const [count, setCount] = useState(0);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuthStore();
   // Doctors only plan today's scheduled visits here; arrived patients move
   // to the Waiting Queue. Patients/staff still see every upcoming booking.
   const isDoctor = user?.role === "doctor";
 
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
         if (isDoctor) {
@@ -46,34 +49,57 @@ export default function Appointments() {
             (response.data.data.appointments as Appointment[])?.filter(
               (appointment) => appointment.status === "pending",
             ) ?? [];
+          if (!active) return;
           setAppointments(todaysScheduled);
           setCount(todaysScheduled.length);
         } else {
           const response = await getActiveAppointments();
-          setAppointments(response.data.data.appointments);
-          setCount(response.data.data.count);
+          if (!active) return;
+          setAppointments(response.data.data.appointments ?? []);
+          setCount(response.data.data.count ?? 0);
         }
       } catch (err: unknown) {
-        toast.error(getErrorMessage(err, "Failed to load appointments"));
+        if (active) toast.error(getErrorMessage(err, "Failed to load appointments"));
+      } finally {
+        if (active) setLoading(false);
       }
     })();
+    return () => {
+      active = false;
+    };
   }, [isDoctor]);
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <span className="text-sm text-gray-500">
-          {isDoctor ? `${count} Scheduled Today` : `${count} Upcoming Appointments`}
+          {loading
+            ? "Loading…"
+            : `${count} ${isDoctor ? "Scheduled Today" : "Upcoming Appointments"}`}
         </span>
-        <span className="text-sm text-gray-500 hover:text-gray-800 hover:underline hover:cursor-pointer"><Link to={`/${user?.role}/appointments/all`}>View All</Link></span>
+        <Link
+          to={`/${user?.role}/appointments/all`}
+          className="text-sm text-gray-500 hover:text-gray-800 hover:underline"
+        >
+          View All
+        </Link>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {count !== 0 ? appointments?.map((appointment) => (
-          <AppointmentCard
-            key={appointment._id}
-            {...appointment}
-          />
-        )) : <p>{isDoctor ? "No appointments scheduled for today." : "No appointments found."}</p>}
+        {loading ? (
+          // Without this the empty state flashed "No appointments found."
+          // on every visit before the response landed.
+          Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 rounded-2xl" />
+          ))
+        ) : appointments.length > 0 ? (
+          appointments.map((appointment) => (
+            <AppointmentCard key={appointment._id} {...appointment} />
+          ))
+        ) : (
+          <p className="col-span-full py-8 text-center text-neutral-400">
+            {isDoctor ? "No appointments scheduled for today." : "No appointments found."}
+          </p>
+        )}
       </div>
     </div>
   );

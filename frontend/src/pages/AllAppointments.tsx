@@ -118,13 +118,19 @@ export default function AllAppointments() {
         <span className="text-sm text-gray-500">
           Showing {showingRange} appointments
         </span>
-        <span className="text-sm text-gray-500 hover:text-gray-800 hover:underline hover:cursor-pointer"><Link to={`/${user?.role}/appointments`}>View Upcoming</Link></span>
+        <Link
+          to={`/${user?.role}/appointments`}
+          className="text-sm text-gray-500 hover:text-gray-800 hover:underline"
+        >
+          View Upcoming
+        </Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
           <Input
+            aria-label="Search appointments by patient or doctor name"
             placeholder="Search by patient or doctor name"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}

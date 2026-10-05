@@ -34,7 +34,9 @@ export function DoctorCard({ doctor }: { doctor: Doctor }) {
             className="h-20 w-20 rounded-xl object-cover border border-neutral-200 shrink-0"
           />
         ) : (
-          <div className="h-50 w-50 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-7xl border border-primary/20 shrink-0">
+          // Same footprint as the photo above, so a missing avatar doesn't
+          // blow the card grid out to a 200px letter tile.
+          <div className="h-20 w-20 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-3xl border border-primary/20 shrink-0">
             {fallbackLetter}
           </div>
         )}

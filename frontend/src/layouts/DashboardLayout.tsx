@@ -26,10 +26,15 @@ const DashboardLayout = () => {
           {/* Action Control Header Strip */}
           <header className="h-16 flex items-center justify-between px-6 border-b border-neutral-100 bg-white shrink-0">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="text-neutral-500 hover:text-primary transition-colors" />
+              <SidebarTrigger
+                aria-label="Toggle navigation sidebar"
+                className="text-neutral-500 hover:text-primary transition-colors"
+              />
               <div className="h-4 w-px bg-neutral-200" />
               <div className="flex items-center justify-center rounded-xl gap-2 bg-primary/10 p-2.5 text-primary transition-all duration-200 hover:scale-105">
-                <span className="text-sm font-semibold text-neutral-500 capitalize">
+                {/* Was text-neutral-500, overriding the brand colour its own
+                    wrapper was styled for. */}
+                <span className="text-sm font-semibold capitalize">
                   {user.role} Workspace
                 </span>
                 <Activity size={24} className="animate-pulse" />
@@ -40,7 +45,8 @@ const DashboardLayout = () => {
             <div className="flex items-center gap-4">
               <NotificationBell />
               <div className="text-xs font-medium text-neutral-400">
-                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                {/* en-IN to match every other date in the app. */}
+                {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
               </div>
             </div>
           </header>

@@ -7,6 +7,8 @@ import { getErrorMessage } from "@/lib/utils";
 interface AcceptSuggestionButtonProps {
   appointmentId: string;
   suggestion: { date: string; timeSlot: string };
+  /** Called after a successful reschedule so the list can refresh in place. */
+  onRescheduled?: () => void;
 }
 
 const formatLabel = (suggestion: { date: string; timeSlot: string }) =>
@@ -18,6 +20,7 @@ const formatLabel = (suggestion: { date: string; timeSlot: string }) =>
 export function AcceptSuggestionButton({
   appointmentId,
   suggestion,
+  onRescheduled,
 }: AcceptSuggestionButtonProps) {
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +34,14 @@ export function AcceptSuggestionButton({
       });
       if (response.data.success) {
         toast.success("Appointment rescheduled");
-        window.location.reload();
+        // Refetch in place instead of reloading the page: a full reload threw
+        // away scroll position and all client state.
+        onRescheduled?.();
+      } else {
+        // Previously a falsy success fell through with no feedback at all.
+        toast.error(
+          response.data.message || "Could not reschedule to that slot",
+        );
       }
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "That slot is no longer free — pick another."));
