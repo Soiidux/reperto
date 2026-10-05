@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Stethoscope, GraduationCap, User, Briefcase, Star } from "lucide-react";
 import { RatingStars } from "@/components/RatingStars";
+import { RateDoctorDialog } from "@/components/RateDoctorDialog";
 import type { Doctor } from "@/store/doctorStore"; 
 
 export function DoctorCard({ doctor }: { doctor: Doctor }) {
@@ -63,6 +64,16 @@ export function DoctorCard({ doctor }: { doctor: Doctor }) {
             </strong>
             {"(" + doctor.totalReviews + " review" + (doctor.totalReviews === 1 ? "" : "s") + ")"}
           </span>
+        </div>
+        {/* Makes rating reachable from the directory instead of only from
+            deep inside a consultation record. */}
+        <div className="pt-1">
+          <RateDoctorDialog
+            doctorId={doctor._id}
+            doctorName={doctor.name}
+            variant="ghost"
+            className="w-full justify-start px-1 text-primary hover:bg-primary/10"
+          />
         </div>
         <div className="flex items-center gap-2.5">
           <Briefcase size={16} className="text-xs font-semibold flex items-center gap-1 mt-0.5 truncate" />

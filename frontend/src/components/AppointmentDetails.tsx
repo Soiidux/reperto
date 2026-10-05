@@ -21,6 +21,7 @@ import { useAuthStore } from "@/store/authStore";
 import { CancellationButton } from "./CancellationButton";
 import { RescheduleDialog } from "./RescheduleDialog";
 import { AcceptSuggestionButton } from "./AcceptSuggestionButton";
+import { RateDoctorDialog } from "./RateDoctorDialog";
 import { getErrorMessage } from "@/lib/utils";
 
 
@@ -418,6 +419,15 @@ export default function AppointmentDetails() {
                     <CalendarPlus /> Book Follow-up
                   </Link>
                 </Button>
+              )}
+              {/* Ask for the rating right where the visit finished — this used
+                  to require opening the consultation record to find it. */}
+              {status === "completed" && role === "patient" && typeof doctor === "object" && (
+                <RateDoctorDialog
+                  doctorId={doctor._id}
+                  doctorName={doctor.name}
+                  triggerLabel="Rate this visit"
+                />
               )}
               <Button variant="default"><Link to={`/${role}/consultation/${_id}`}>View Consultation</Link></Button>
             </>

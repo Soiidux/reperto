@@ -12,7 +12,7 @@ import {
   FieldSet,
 } from "./ui/field";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { useParams } from "react-router-dom";
 
@@ -44,13 +44,10 @@ import {
 
 import { getAppointmentById } from "@/api/appointment";
 import { getConsultation } from "@/api/consultation";
-import { getReviewList, saveReview, deleteReview, type Review } from "@/api/review";
 import { useAuthStore } from "@/store/authStore";
 import { getErrorMessage } from "@/lib/utils";
-import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
-import { RatingStars } from "./RatingStars";
+import { DoctorReviews } from "./DoctorReviews";
 import { Link } from "react-router-dom";
 
 import getAge from "@/utils/getAge";
@@ -199,12 +196,6 @@ export default function ConsultationDetails() {
 
 const { user } = useAuthStore();
 
-const [reviews, setReviews] = useState<Review[]>([]);
-const [rating, setRating] = useState(0);
-const [comment, setComment] = useState("");
-const [saving, setSaving] = useState(false);
-const [deleting, setDeleting] = useState(false);
-
 
   useEffect(() => {
     if (!id) return;
@@ -247,69 +238,17 @@ const [deleting, setDeleting] = useState(false);
     };
   }, [id]);
 
-  // Doctor reviews: fetch once the doctor is known and prefill the
-  // patient's own rating so they can edit/remove it.
-  const doctorId = appointmentData?.doctorId?._id;
-  useEffect(() => {
-    if (!doctorId) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const resp = await getReviewList(doctorId);
-        const list: Review[] = resp.data.data || [];
-        if (cancelled) return;
-        setReviews(list);
-        const mine = user?.id
-          ? list.find((r) => r.patientId._id === user.id)
-          : undefined;
-        if (mine) {
-          setRating(mine.rating);
-          setComment(mine.comment || "");
-        }
-      } catch {
-        // Reviews are secondary to the consultation view.
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [doctorId, user?.id]);
-
-  const handleSaveReview = async () => {
-    if (!appointmentData || rating < 1) return;
-    setSaving(true);
+  // Re-read the consultation after a child action changes it (e.g. saving a
+  // review no longer does, but rescheduling/accepting a suggestion does).
+  const onRefresh = useCallback(async () => {
+    if (!id) return;
     try {
-      const resp = await saveReview({
-        doctorId: appointmentData.doctorId._id,
-        rating,
-        comment,
-      });
-      toast.success(resp.data.message || "Review saved");
-      const listResp = await getReviewList(appointmentData.doctorId._id);
-      setReviews(listResp.data.data || []);
+      const appointmentResponse = await getAppointmentById(id);
+      setAppointmentData(appointmentResponse.data.data);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not save the review."));
-    } finally {
-      setSaving(false);
+      setLoadError(getErrorMessage(error, "Failed to load appointment details"));
     }
-  };
-
-  const handleDeleteReview = async () => {
-    if (!appointmentData) return;
-    setDeleting(true);
-    try {
-      await deleteReview(appointmentData.doctorId._id);
-      setReviews((rs) => rs.filter((r) => r.patientId._id !== user?.id));
-      setRating(0);
-      setComment("");
-      toast.success("Review removed");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Could not remove the review."));
-    } finally {
-      setDeleting(false);
-    }
-  };
+  }, [id]);
 
   if (loadError) {
     return (
@@ -745,91 +684,20 @@ const [deleting, setDeleting] = useState(false);
             />
           </FieldSet>
 
-          {/* Doctor Reviews */}
-
-          <FieldSet className="space-y-4">
-            <FieldLegend className="text-lg font-bold border-b pb-2 w-full">
-              Doctor Reviews
-            </FieldLegend>
-
-            {user?.role === "patient" && (
-              <div className="border rounded-lg p-5 space-y-3">
-                <p className="font-semibold text-sm">
-                  Your rating for {doctor.name}
-                </p>
-                <RatingStars value={rating} onChange={setRating} size={22} />
-                <Textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Share your experience (optional)"
-                  maxLength={1000}
-                  className="min-h-20"
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    disabled={saving || rating < 1}
-                    onClick={handleSaveReview}
-                  >
-                    {saving
-                      ? "Saving…"
-                      : rating > 0
-                        ? "Save review"
-                        : "Select a rating"}
-                  </Button>
-                  {reviews.some((r) => r.patientId._id === user?.id) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleDeleteReview}
-                      disabled={deleting}
-                    >
-                      Remove my review
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {reviews.length === 0 && (
-                <p className="text-sm text-muted-foreground">No reviews yet.</p>
-              )}
-              {reviews.map((r) => (
-                <div key={r._id} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {r.patientId.profileImageUrl ? (
-                        <img
-                          src={r.patientId.profileImageUrl}
-                          alt={r.patientId.name}
-                          className="h-8 w-8 rounded-full object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
-                          {r.patientId.name.charAt(0)}
-                        </div>
-                      )}
-                      <span className="font-semibold text-sm truncate">
-                        {r.patientId.name}
-                      </span>
-                    </div>
-                    <RatingStars value={r.rating} size={14} />
-                  </div>
-                  {r.comment && (
-                    <p className="text-sm text-neutral-600">{r.comment}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </FieldSet>
+          {/* Replaced by the shared DoctorReviews component, which owns the
+              eligibility messaging and summary that this block lacked. */}
+          {typeof doctor === "object" && (
+            <FieldSet className="space-y-4">
+              <FieldLegend className="text-lg font-bold border-b pb-2 w-full">
+                Doctor Reviews
+              </FieldLegend>
+              <DoctorReviews
+                doctorId={doctor._id}
+                doctorName={doctor.name}
+                onChanged={onRefresh}
+              />
+            </FieldSet>
+          )}
         </CardContent>
       </Card>
     </div>

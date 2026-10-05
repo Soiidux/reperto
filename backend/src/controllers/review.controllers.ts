@@ -80,9 +80,45 @@ export const listReviews = async (req: Request, res: Response) => {
     .sort({ createdAt: -1 })
     .populate("patientId", "name profileImageUrl");
 
+  // Aggregate here so a doctor's reviews view is self-sufficient — the UI
+  // shouldn't have to join this against the doctors endpoint for the totals.
+  const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let ratingSum = 0;
+  for (const review of reviews) {
+    distribution[review.rating] = (distribution[review.rating] ?? 0) + 1;
+    ratingSum += review.rating;
+  }
+  const summary = {
+    avgRating:
+      reviews.length > 0
+        ? Math.round((ratingSum / reviews.length) * 10) / 10
+        : 0,
+    totalReviews: reviews.length,
+    distribution,
+  };
+
+  // Rating is gated on a completed visit (the same rule upsertReview
+  // enforces). Reporting it up front lets the UI explain why the form is
+  // unavailable, instead of letting a patient fill it in only to hit a 403.
+  let canReview = false;
+  let myReview: (typeof reviews)[number] | null = null;
+  if (req.user.role === "patient") {
+    myReview =
+      reviews.find((r) => r.patientId._id.toString() === req.user.id) ?? null;
+    canReview =
+      Boolean(myReview) ||
+      Boolean(
+        await Appointment.exists({
+          patientId: req.user.id,
+          doctorId: String(doctorId),
+          status: "completed",
+        }),
+      );
+  }
+
   return res.status(200).json({
     success: true,
     message: "Reviews fetched successfully",
-    data: reviews,
+    data: { reviews, summary, canReview, myReview },
   });
 };
