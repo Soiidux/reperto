@@ -9,6 +9,10 @@ import { CLINIC_TIMEZONE } from "../constants/clinic";
 import { toCsv } from "../utils/csv";
 import ClinicBlockout from "../db/models/clinicBlockout.model";
 import ClinicSettings from "../db/models/clinicSettings.model";
+import {
+  buildUserSearchFilter,
+  USER_SEARCH_COLLATION,
+} from "../utils/userSearch";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -125,20 +129,20 @@ export const getAllUsers = async (req: Request, res: Response) => {
   if (isActive !== undefined && isActive !== "all") query.isActive = isActive === "true";
 
   if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { phone: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
-    ];
+    // Escaped, prefix-anchored and collation-aware so the directory search
+    // uses an index instead of scanning every user on each keystroke.
+    const searchFilter = buildUserSearchFilter(search);
+    if (searchFilter) query.$or = searchFilter.$or as Record<string, unknown>[];
   }
 
   const [totalItems, users] = await Promise.all([
-    User.countDocuments(query),
+    User.countDocuments(query).collation(USER_SEARCH_COLLATION),
     User.find(query)
       .select("name email phone role gender dateOfBirth bloodGroup profileImageUrl isActive doctorProfile")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .collation(USER_SEARCH_COLLATION)
       .lean(),
   ]);
 

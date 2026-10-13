@@ -131,11 +131,41 @@ const UserSchema: Schema = new Schema({
 
 
 UserSchema.index({ role: 1, name: 1 });
+// Case-insensitive prefix search for the directory search boxes.
+//
+// MongoDB will not use an index for a `$regex` predicate, so the search is
+// expressed as a lexicographic range instead (see utils/userSearch.ts). For
+// that range to be indexable the collation must be declared here *and*
+// passed on the query.
+//
+const USER_SEARCH_COLLATION = { locale: 'en', strength: 2 as const };
+// All three searchable fields need this: an `$or` is only indexable when every
+// branch is, so a missing index on one field collapses the whole query back to
+// a collection scan.
+//
+// Explicit names, because three indexes below share the `email` key and
+// MongoDB's generated names would collide (`email_1` twice).
+UserSchema.index(
+  { name: 1 },
+  { collation: USER_SEARCH_COLLATION, name: 'name_search_collation' },
+);
+UserSchema.index(
+  { email: 1 },
+  { collation: USER_SEARCH_COLLATION, name: 'email_search_collation' },
+);
+UserSchema.index(
+  { phone: 1 },
+  { collation: USER_SEARCH_COLLATION, name: 'phone_search_collation' },
+);
 // Email uniqueness applies to real accounts only; dependents share none.
 // Replaces the former inline `unique: true` (full-collection index).
 UserSchema.index(
   { email: 1 },
-  { unique: true, partialFilterExpression: { accountType: 'self' } },
+  {
+    unique: true,
+    name: 'email_unique_self_accounts',
+    partialFilterExpression: { accountType: 'self' },
+  },
 );
 // Join codes are unique among dependents; self accounts have none.
 UserSchema.index(

@@ -9,6 +9,10 @@ import Notification from "../db/models/notification.model";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import { ApiError } from "../errors";
 import {
+  buildUserSearchFilter,
+  USER_SEARCH_COLLATION,
+} from "../utils/userSearch";
+import {
   MAX_DEPENDENTS_PER_GUARDIAN,
   MAX_GUARDIANS_PER_DEPENDENT,
 } from "../utils/patientScope";
@@ -137,24 +141,23 @@ export const getPatients = async (req: Request, res: Response) => {
   const { search } = req.query;
   const query: any = { role: 'patient', isActive: true };
 
-  // 2. Multi-field Search Logic
+  // 2. Multi-field Search Logic. Escaped + prefix-anchored + collation-aware,
+  // so this uses the User indexes instead of scanning every patient.
   if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { phone: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } }
-    ];
+    const searchFilter = buildUserSearchFilter(search);
+    if (searchFilter) query.$or = searchFilter.$or as Record<string, unknown>[];
   }
 
   // 3. Parallel Execution (Performance Trick)
   // We run the count and the data fetch simultaneously to save time
   const [totalPatients, patients] = await Promise.all([
-    User.countDocuments(query),
+    User.countDocuments(query).collation(USER_SEARCH_COLLATION),
     User.find(query)
       .select('name email phone gender bloodGroup profileImageUrl dateOfBirth accountType')
       .sort({ name: 1 }) // Sorting patients alphabetically is usually better for doctors
       .skip(skip)
       .limit(limit)
+      .collation(USER_SEARCH_COLLATION)
       .lean()
   ]);
 
