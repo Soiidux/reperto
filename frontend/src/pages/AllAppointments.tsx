@@ -113,7 +113,7 @@ export default function AllAppointments() {
       : "0";
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-gray-500">
           Showing {showingRange} appointments

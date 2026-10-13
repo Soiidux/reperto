@@ -43,7 +43,7 @@ const VerifyEmail = () => {
   }, [token]);
 
   return (
-    <div className="w-[400px] sm:w-[450px] mx-auto p-4 shrink-0">
+    <div className="w-full max-w-[400px] sm:max-w-[450px] mx-auto p-4 shrink-0">
       <Card className="w-full shadow-md border border-neutral-100">
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold tracking-tight text-neutral-900">

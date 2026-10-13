@@ -48,7 +48,7 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="w-[400px] sm:w-[450px] mx-auto p-4 shrink-0">
+    <div className="w-full max-w-[400px] sm:max-w-[450px] mx-auto p-4 shrink-0">
       <Card className="w-full shadow-md border border-neutral-100">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <CardHeader>

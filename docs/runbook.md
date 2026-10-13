@@ -99,6 +99,44 @@ rather than queues.
 The test database is dropped **once**, in `tests/globalSetup.ts`, rather than in
 each suite's `afterAll` — which used to race with other suites' fixtures.
 
+## Mobile support
+
+The app is usable on phones, but it is **desktop-first**: the dashboards were
+built for wide screens and were retrofitted rather than redesigned. What that
+means in practice:
+
+**Working on mobile**
+
+- Auth flows (login, register, forgot/reset password, verify email) — these
+  were the worst offenders: each card was a fixed `w-[400px]`, which forced
+  horizontal scrolling on a 375px viewport. They are now fluid
+  (`w-full max-w-[400px]`).
+- The public site has a full mobile menu. Without it the landing page had *no*
+  navigation below `md`, because the section links are `hidden md:flex`.
+- Dashboard navigation works: `ui/sidebar.tsx` already switches to a Sheet
+  drawer below 768px, so the sidebar becomes a hamburger drawer.
+- Page padding steps down (`p-4 md:p-*`) and grids collapse to one column.
+
+**Known rough edges**
+
+- Dense tables (`AdminDashboard`, `DoctorDashboard`) scroll horizontally rather
+  than reflowing into cards.
+- The consultation form is long and label-heavy; it scrolls, but it was designed
+  for a desktop form column.
+- `Appointments`/`AllAppointments` cards are dense. They fit, but they are not
+  thumb-friendly the way a native card list would be.
+
+**Regression guard:** `frontend/tests/mobile.test.ts` asserts the specific
+breakages that are invisible to unit tests — an element can exist and still be
+off-screen. It checks the built class names for: a mobile nav trigger, each
+section present in the mobile menu, auth routes reachable from the sheet, no
+fixed-px form widths, and the dashboard shell scaling down. If you add a
+fixed-width element or drop the mobile menu, that suite fails.
+
+If mobile ever becomes a first-class requirement rather than "must not be
+broken", the honest work is a separate pass: card-style list rows instead of
+tables, and a bottom nav instead of the drawer.
+
 ## Restoring the environment from scratch
 
 ```bash

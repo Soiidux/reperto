@@ -79,7 +79,7 @@ export default function DoctorDashboard() {
   const pendingFollowUps = followUps.filter((f) => f.followUpStatus !== "done");
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Doctor Slate</h1>
         <p className="text-sm text-neutral-500">Good day, {user?.name?.split(" ")[0]}. Here's today's plan.</p>

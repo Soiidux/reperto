@@ -127,7 +127,7 @@ export default function AppSidebar() {
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-neutral-100 bg-white">
         <div className="flex items-center justify-center transition-all duration-200 hover:scale-105">
             <Link to="/">
-              <img src="/logo.svg" alt="logo" className="w-15 h-12 object-contain" />
+              <img src="/logo.svg" alt="Reperto" className="h-11 w-auto object-contain" />
             </Link>
         </div>
       </SidebarHeader>

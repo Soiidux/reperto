@@ -211,7 +211,7 @@ export default function PatientTimeline() {
     isPatient && selectedId !== "" && selectedId !== user?.id;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

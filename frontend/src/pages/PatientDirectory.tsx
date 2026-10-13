@@ -82,7 +82,7 @@ export default function PatientDirectory() {
   }, [search, page]);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Patient Directory</h1>
         <p className="text-sm text-neutral-500">Browse registered patients and open their case history.</p>
@@ -114,34 +114,49 @@ export default function PatientDirectory() {
           ) : (
             <ul className="divide-y divide-neutral-100">
               {patients.map((patient) => (
-                <li key={patient._id} className="flex items-center gap-4 py-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
-                    {patient.name.charAt(0).toUpperCase()}
+                // Stacks on phones: avatar + name + two buttons cannot share
+                // one 375px row without the text being crushed.
+                <li
+                  key={patient._id}
+                  className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:gap-4"
+                >
+                  <div className="flex min-w-0 items-center gap-4 sm:contents">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                      {patient.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-neutral-900">{patient.name}</p>
+                      <p className="text-sm text-neutral-500 break-words">
+                        {patient.phone} · {patient.email} ·{" "}
+                        {/* The "y" belongs inside the ternary: outside it, a
+                            patient with no DOB rendered as the literal "—y". */}
+                        {patient.dateOfBirth ? `${getAge(patient.dateOfBirth)}y` : "—"} ·{" "}
+                        {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : "\u2014"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-neutral-900">{patient.name}</p>
-                    <p className="text-sm text-neutral-500">
-                      {patient.phone} · {patient.email} ·{" "}
-                      {/* The "y" belongs inside the ternary: outside it, a
-                          patient with no DOB rendered as the literal "—y". */}
-                      {patient.dateOfBirth ? `${getAge(patient.dateOfBirth)}y` : "—"} ·{" "}
-                      {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : "\u2014"}
-                    </p>
-                  </div>
-                  {canBook && (
-                    <Link
-                      to={`/${user?.role}/book-appointment?patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}`}
+                  {/* Actions drop below on phones and share the full width, so
+                      both stay comfortably tappable. */}
+                  <div className="flex shrink-0 gap-2 pl-14 sm:pl-0">
+                    {canBook && (
+                      <Link
+                        className="flex-1 sm:flex-none"
+                        to={`/${user?.role}/book-appointment?patientId=${patient._id}&patientName=${encodeURIComponent(patient.name)}`}
+                      >
+                        <Button variant="outline" size="sm" className="w-full">
+                          <CalendarPlus className="size-4" /> Book
+                        </Button>
+                      </Link>
+                    )}
+                  <Link
+                      className="flex-1 sm:flex-none"
+                      to={`/doctor/medical-history/${patient._id}`}
                     >
-                      <Button variant="outline" size="sm">
-                        <CalendarPlus className="size-4" /> Book
+                      <Button variant="outline" size="sm" className="w-full">
+                        <History className="size-4" /> View History
                       </Button>
                     </Link>
-                  )}
-                  <Link to={`/doctor/medical-history/${patient._id}`}>
-                    <Button variant="outline" size="sm">
-                      <History className="size-4" /> View History
-                    </Button>
-                  </Link>
+                  </div>
                 </li>
               ))}
             </ul>

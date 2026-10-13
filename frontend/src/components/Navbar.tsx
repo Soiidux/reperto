@@ -1,7 +1,15 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useActiveSection } from '../hooks/use-active-section';
-import { ArrowRight, LogOut, LayoutDashboard } from 'lucide-react';
+import { ArrowRight, LogOut, LayoutDashboard, Menu } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 const NAV_LINKS = [
   { label: 'Home', to: '/', hash: '' },
@@ -19,6 +27,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const isHome = pathname === '/';
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // The highlight follows the section actually on screen, so it tracks manual
   // scrolling as well as clicks. null means "above the first section" = Home.
@@ -53,7 +62,7 @@ const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto max-w-7xl px-4 md:px-8 h-16 flex justify-between items-center">
+      <div className="mx-auto max-w-7xl px-4 md:px-8 h-16 flex justify-between items-center gap-3">
         
         {/* Logo */}
         <div className="flex items-center">
@@ -92,8 +101,89 @@ const Navbar = () => {
           })}
         </div>
 
+        {/* Mobile menu: without this the section links are unreachable below
+            md, leaving the landing page with no navigation on a phone. */}
+        <div className="md:hidden">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                aria-label="Open menu"
+                className="inline-flex size-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+              >
+                <Menu size={22} />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-64">
+              <SheetHeader>
+                <SheetTitle className="text-base">Menu</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4 pb-6">
+                {NAV_LINKS.map(({ label, hash }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      // Close first so the sheet doesn't animate over the
+                      // section the user just asked to scroll to.
+                      setMenuOpen(false);
+                      goToSection(hash);
+                    }}
+                    className={`rounded-lg px-3 py-3 text-left text-base font-semibold transition-colors ${
+                      isLinkActive(hash)
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <div className="my-3 h-px bg-border" />
+                {user ? (
+                  <>
+                    <Link
+                      to={`/${user.role}/dashboard`}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-3 text-base font-semibold text-primary transition-colors hover:bg-primary/10"
+                    >
+                      <LayoutDashboard size={18} /> Dashboard
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-3 text-left text-base font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                    >
+                      <LogOut size={18} /> Log out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-lg px-3 py-3 text-base font-semibold text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-lg bg-primary px-3 py-3 text-center text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                    >
+                      Create account
+                    </Link>
+                  </>
+                )}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
+
         {/* Auth / Action Button CTA */}
-        <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-4">
           {user ? (
             <div className="flex items-center gap-3">
               {/* Contextual Link to direct them straight to their specific role view */}

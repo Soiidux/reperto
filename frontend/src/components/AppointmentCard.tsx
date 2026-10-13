@@ -121,7 +121,7 @@ export default function AppointmentCard({ _id, patientId, doctorId, appointmentD
           </div>
           <Badge
             variant="outline"
-            className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border tracking-wide shadow-2xs ${currentStatus.variantClass}`}
+            className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border tracking-wide shadow-xs ${currentStatus.variantClass}`}
           >
             {currentStatus.label}
           </Badge>

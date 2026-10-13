@@ -6,7 +6,7 @@ export default function StaffReports() {
   const [patientId, setPatientId] = useState("");
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       <div className="max-w-md">
         <h1 className="text-xl font-bold tracking-tight text-neutral-900">
           Patient Reports
