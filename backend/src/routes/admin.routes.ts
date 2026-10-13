@@ -17,7 +17,7 @@ import {
   getAccessActivity,
   getPatientAccessByStaff,
 } from "../controllers/accessLog.controllers";
-import { protect, authorize } from "../middlewares/auth.middlewares";
+import { protect, requirePermission } from "../middlewares/auth.middlewares";
 import { validate } from "../middlewares/validate";
 import {
   createTeamMemberSchema,
@@ -27,7 +27,7 @@ import {
 
 const router = Router();
 
-router.use(protect, authorize("admin"));
+router.use(protect, requirePermission("admin:manage"));
 
 router.get("/stats", getStats);
 router.get("/analytics", getAnalytics);

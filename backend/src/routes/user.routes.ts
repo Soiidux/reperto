@@ -15,7 +15,7 @@ import {
   getMyShareCode,
   exportMyData,
 } from "../controllers/user.controllers";
-import { protect, authorize } from "../middlewares/auth.middlewares";
+import { protect, requirePermission } from "../middlewares/auth.middlewares";
 import { upload } from "../utils/multer";
 
 const router = Router();
@@ -46,5 +46,5 @@ router.delete("/me/family/:id/guardians/:guardianId", protect, removeGuardian);
 router.post("/me/family/:id/leave", protect, leaveFamilyMember);
 
 router.get("/doctors", getDoctors);
-router.get("/patients", protect, authorize("doctor", "staff", "admin"), getPatients);
+router.get("/patients", protect, requirePermission("patients:list"), getPatients);
 export default router;

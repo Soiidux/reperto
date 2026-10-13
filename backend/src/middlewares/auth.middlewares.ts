@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import User from '../db/models/user.model';
 import { getBearerToken, validateAccessToken } from '../utils/token';
+import { can, type Permission } from '../utils/permissions';
 
 // Short-lived in-memory cache for the account check on `protect`.
 //
@@ -72,6 +73,32 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 }
 
 
+/**
+ * Route guard by *capability* rather than a raw role list.
+ *
+ * The role list lives once, in PERMISSIONS (utils/permissions.ts). Prefer this
+ * over `authorize("a", "b")` so a route states what it does and the matrix
+ * answers who may do it.
+ *
+ * Kept the same 403 shape as before so existing clients are unaffected.
+ */
+export const requirePermission = (permission: Permission) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!can(req.user?.role, permission)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+        data: null,
+      });
+    }
+    next();
+  };
+};
+
+/**
+ * @deprecated Retained only for the deprecated raw-role guard below. Prefer
+ * requirePermission.
+ */
 export const authorize = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!roles.includes(req.user?.role)) {
