@@ -13,6 +13,7 @@ import {
   putReportFile,
 } from "../utils/reportStore";
 import { reportUploadSchema } from "../zodSchemas";
+import { recordAccess } from "../db/models/accessLog.model";
 
 const forbiddenResponse: ApiResponse<null> = {
   success: false,
@@ -194,6 +195,19 @@ export const listReports = async (req: Request, res: Response) => {
     .populate("patientId", "name profileImageUrl")
     .sort({ createdAt: -1 });
 
+  // Audit the *read* of a patient's report vault, not just the check-in.
+  // Awaited deliberately: recordAccess can never throw, and an audit entry
+  // that lands after the response is not much of an audit trail.
+  await recordAccess({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    patientId,
+    resource: "report",
+    action: "read",
+    route: "GET /api/report",
+    ip: req.ip,
+  });
+
   return res.status(200).json({
     success: true,
     message: "Reports retrieved successfully",
@@ -230,6 +244,19 @@ export const getReportFile = async (req: Request, res: Response) => {
       throw new ApiError(403, forbiddenResponse.message);
     }
   }
+
+  // Opening the actual document is the most sensitive read in the app, so it
+  // is logged separately from listing the vault.
+  await recordAccess({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    patientId: String(report.patientId),
+    resource: "report",
+    resourceId: report._id.toString(),
+    action: "read",
+    route: "GET /api/report/:id/file/:index",
+    ip: req.ip,
+  });
 
   const file = report.files[fileIndex];
   if (!file) {

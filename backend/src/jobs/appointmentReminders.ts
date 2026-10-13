@@ -7,6 +7,8 @@ import {
   appointmentReminderEmailHtml,
 } from "../utils/email";
 import { resolveRecipientPhone, sendSms } from "../utils/sms";
+import { runIfLeader } from "../utils/jobLock";
+import logger from "../utils/logger";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -93,14 +95,17 @@ export const startAppointmentRemindersJob = (
   intervalMs = 60 * 60 * 1000,
   initialDelayMs = 60 * 1000,
 ) => {
-  setTimeout(() => {
-    sendAppointmentReminders().catch((error) => {
-      console.error("Appointment reminders job failed:", error);
-    });
-  }, initialDelayMs);
-  return setInterval(() => {
-    sendAppointmentReminders().catch((error) => {
-      console.error("Appointment reminders job failed:", error);
-    });
-  }, intervalMs);
+  // Guarded by a cross-instance lock: without it, a second replica would send
+  // every patient a duplicate reminder on the same tick.
+  const run = () =>
+    runIfLeader("appointment-reminders", sendAppointmentReminders).catch(
+      (error: unknown) => {
+        logger.error("Appointment reminders job failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    );
+
+  setTimeout(run, initialDelayMs);
+  return setInterval(run, intervalMs);
 };

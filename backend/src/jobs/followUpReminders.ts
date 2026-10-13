@@ -8,6 +8,8 @@ import {
 } from "../utils/email";
 import { createInAppNotification } from "../utils/notifications";
 import { resolveRecipientPhone, sendSms } from "../utils/sms";
+import { runIfLeader } from "../utils/jobLock";
+import logger from "../utils/logger";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -114,14 +116,17 @@ export const startFollowUpRemindersJob = (
   intervalMs = 24 * 60 * 60 * 1000,
   initialDelayMs = 2 * 60 * 1000,
 ) => {
-  setTimeout(() => {
-    sendFollowUpReminders().catch((error) => {
-      console.error("Follow-up reminders job failed:", error);
-    });
-  }, initialDelayMs);
-  return setInterval(() => {
-    sendFollowUpReminders().catch((error) => {
-      console.error("Follow-up reminders job failed:", error);
-    });
-  }, intervalMs);
+  // Lock-guarded: a second replica would otherwise send every due patient a
+  // duplicate follow-up reminder on the same tick.
+  const run = () =>
+    runIfLeader("follow-up-reminders", sendFollowUpReminders).catch(
+      (error: unknown) => {
+        logger.error("Follow-up reminders job failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    );
+
+  setTimeout(run, initialDelayMs);
+  return setInterval(run, intervalMs);
 };

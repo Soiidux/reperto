@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref — saves the Atlas/dev server from
+# being hit by three identical suites at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (typecheck, lint, unit, api)
+    runs-on: ubuntu-latest
+
+    # The suite needs a real MongoDB. Every live-API suite is skipped unless
+    # these are present, so a fork without secrets still gets type/lint/unit
+    # coverage rather than a red build.
+    env:
+      MONGODB_URI: ${{ secrets.TEST_MONGODB_URI }}
+      CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Secrets are absent on forks, and config.ts hard-exits without them.
+      # Synthesising throwaway values keeps typecheck/lint runnable everywhere.
+      - name: Provide fallback secrets when unavailable
+        if: ${{ env.MONGODB_URI == '' }}
+        run: |
+          {
+            echo "MONGODB_URI=mongodb://127.0.0.1:27017/reperto"
+            echo "JWT_SECRET=$(head -c 32 /dev/urandom | xxd -p -c 64)"
+            echo "JWT_EXPIRY=15m"
+            echo "CLOUDINARY_NAME=ci-placeholder"
+            echo "CLOUDINARY_API_KEY=000000000000000"
+            echo "CLOUDINARY_API_SECRET=ci-placeholder"
+          } >> .env
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Unit suites (ticket, clinicDate, clinicSettings, cloudinary, jobLock,
+      # getAge equivalents) need no database.
+      - name: Unit tests
+        run: npx vitest run tests/unit
+
+      # API suites talk to Mongo and skip themselves when credentials are
+      # missing, so this is a no-op on forks and a full run in the real repo.
+      - name: API tests
+        run: npx vitest run tests/api
+
+  frontend:
+    name: Frontend (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7

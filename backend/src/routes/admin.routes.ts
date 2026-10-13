@@ -12,6 +12,11 @@ import {
   saveClinicBlockout,
   deleteClinicBlockout,
 } from "../controllers/admin.controllers";
+import {
+  getPatientAccessLog,
+  getAccessActivity,
+  getPatientAccessByStaff,
+} from "../controllers/accessLog.controllers";
 import { protect, authorize } from "../middlewares/auth.middlewares";
 import { validate } from "../middlewares/validate";
 import {
@@ -31,6 +36,12 @@ router.patch("/users/:id/activate", toggleUserActive);
 router.post("/team", validate(createTeamMemberSchema), createTeamMember);
 router.get("/export/appointments", exportAppointmentsCsv);
 router.get("/export/patients", exportPatientsCsv);
+
+// Access audit trail — who read a patient's protected health information.
+// Registered under the same admin-only guard as the rest of this router.
+router.get("/audit/activity", getAccessActivity);
+router.get("/audit/patient/:patientId", getPatientAccessLog);
+router.get("/audit/patient/:patientId/by-staff", getPatientAccessByStaff);
 
 // Clinic settings (page shown to patients) + one-off date blockouts
 router.put("/clinic-settings", validate(clinicSettingsSchema), updateClinicSettings);

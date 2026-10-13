@@ -81,7 +81,8 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await mongoose.connection.dropDatabase();
+  // The test database is dropped once in tests/globalSetup.ts; each file only
+  // disconnects. Dropping here raced with other suites' fixtures.
   await mongoose.disconnect();
 });
 

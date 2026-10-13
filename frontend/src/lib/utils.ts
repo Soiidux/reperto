@@ -49,6 +49,47 @@ export function formatSlotLabel(time: string): string {
   return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+/**
+ * Render a **UTC-midnight calendar date** (appointmentDate, leave dates) as an
+ * en-IN date.
+ *
+ * The backend stores calendar dates as UTC midnight on purpose (see
+ * `getClinicTodayAnchor`), so reading one back through local getters renders
+ * the *previous day* for any user in a negative-UTC offset — a booking on
+ * 1 Jan shows as "31 Dec" in New York. Pinning UTC makes the rendered date
+ * identical for every reader.
+ *
+ * Use this for calendar dates only. For real instants (`createdAt`,
+ * `followUpDate`) use plain `toLocaleDateString`, where local time is what the
+ * reader expects.
+ */
+export function formatClinicDate(
+  value: string | Date,
+  options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  },
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-IN", { ...options, timeZone: "UTC" });
+}
+
+/** A "YYYY-MM-DD" key rendered as a clinic date, without Date round-tripping. */
+export function formatClinicDateKey(
+  key: string,
+  options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  },
+): string {
+  // Parse as UTC explicitly: `new Date("2026-01-01")` is already UTC, but the
+  // explicit form documents the intent and survives a refactor.
+  return formatClinicDate(new Date(`${key}T00:00:00Z`), options);
+}
+
 // 120 -> "2 hours"; 4320 -> "3 days"; 45 -> "45 minutes". Matches the
 // backend's copy so the booking screen and the admin page tell the same story.
 export function formatWindowLabel(minutes: number): string {

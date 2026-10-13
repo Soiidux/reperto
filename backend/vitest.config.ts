@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const baseUri = process.env.MONGODB_URI ?? "";
+
 // Append a dedicated test database to the same MongoDB server so tests can
 // create/destroy data freely without touching the development data.
 const queryIndex = baseUri.indexOf("?");
@@ -14,6 +15,47 @@ const query = queryIndex === -1 ? "" : baseUri.slice(queryIndex);
 const testUri = head
   ? `${head.replace(/\/+$/, "")}/reperto_test${query}`
   : "";
+
+// The database name is the only thing standing between a typo in MONGODB_URI
+// and a real clinic's records, because the suite drops databases. Fail loudly
+// and early if the URI doesn't describe a clean, server-only connection.
+const TEST_DB_MARKER = "reperto_test";
+
+/** The database segment of a mongodb URI, or "" when it points at the server. */
+const dbSegmentOf = (uri: string): string => {
+  const withoutQuery = uri.split("?")[0] ?? "";
+  // Drop scheme://[user:pass@]host[:port]
+  const afterScheme = withoutQuery.replace(/^mongodb(\+srv)?:\/\//, "");
+  const afterCreds = afterScheme.includes("@")
+    ? afterScheme.slice(afterScheme.indexOf("@") + 1)
+    : afterScheme;
+  const slash = afterCreds.indexOf("/");
+  return slash === -1 ? "" : afterCreds.slice(slash + 1);
+};
+
+const baseDb = dbSegmentOf(baseUri);
+if (baseDb) {
+  throw new Error(
+    [
+      `MONGODB_URI already names a database ("${baseDb}").`,
+      `The test URI is built by appending "/${TEST_DB_MARKER}", which would produce`,
+      `the nonsense path "${baseDb}/${TEST_DB_MARKER}".`,
+      "Point MONGODB_URI at the server only (no database segment) so the suite",
+      "can choose its own test database.",
+    ].join("\n"),
+  );
+}
+
+const dbName = dbSegmentOf(testUri);
+if (testUri && dbName !== TEST_DB_MARKER) {
+  throw new Error(
+    [
+      `Refusing to run tests against "${dbName || "<no database>"}".`,
+      `The test suite is allowed to DROP databases, so it must use "${TEST_DB_MARKER}".`,
+      `Resolved test URI: ${testUri.replace(/\/\/([^:]+):[^@]+@/, "//$1:****@")}`,
+    ].join("\n"),
+  );
+}
 
 export default defineConfig({
   test: {
@@ -31,6 +73,9 @@ export default defineConfig({
     },
     testTimeout: 30000,
     hookTimeout: 30000,
+    // Drop the test database once, up front, instead of in each file's
+    // afterAll (which raced with other suites' fixtures).
+    globalSetup: ["tests/globalSetup.ts"],
     // The API files share one dedicated database (reperto_test); run them
     // sequentially so one file's beforeEach/afterAll never clobbers another's
     // fixtures while its tests are mid-flight.

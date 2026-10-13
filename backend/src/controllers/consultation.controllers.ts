@@ -6,6 +6,7 @@ import User from '../db/models/user.model';
 import { ApiError } from '../errors';
 import { canActForPatient } from '../utils/patientScope';
 import { computeFollowUpDate } from '../utils/followUps';
+import { recordAccess } from '../db/models/accessLog.model';
 
 const unauthorizedResponse: ApiResponse<null> = {
   success: false,
@@ -158,6 +159,18 @@ export const getPatientHistory = async (req: Request, res: Response) => {
     )
     .sort({ createdAt: -1 });
 
+  // The medical-history view is the broadest read of a patient's record
+  // (every consultation with diagnoses and prescriptions), so it is audited.
+  await recordAccess({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    patientId: String(patientId),
+    resource: 'medical-history',
+    action: 'read',
+    route: 'GET /api/consultation/history/:patientId',
+    ip: req.ip,
+  });
+
   const response: ApiResponse<{ count: number; history: typeof history }> = {
     success: true,
     message: 'Patient history retrieved successfully',
@@ -223,6 +236,19 @@ export const getConsultation = async (req: Request, res: Response) => {
       data: null
     });
   }
+
+  // Reading a consultation means reading the patient's diagnosis and
+  // prescriptions: log it. Awaited so the entry exists before we respond.
+  await recordAccess({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    patientId: String(patientId),
+    resource: 'consultation',
+    resourceId: consultation._id.toString(),
+    action: 'read',
+    route: 'GET /api/consultation',
+    ip: req.ip,
+  });
   
   const response: ApiResponse<typeof consultation> = {
     success: true,

@@ -59,7 +59,47 @@ app.use("/api/review", reviewRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/clinic", clinicRoutes);
 
-//Health check
+// ── Health checks ────────────────────────────────────────────────────────────
+// Two distinct questions, deliberately kept apart:
+//   /health/live  — is the process up? No dependencies, so a database outage
+//                   never makes an orchestrator kill an otherwise healthy process.
+//   /health/ready — can it actually serve traffic? Pings Mongo, because
+//                   connection.readyState alone still reads "connected" after
+//                   the socket has gone away.
+app.get("/health/live", (_req, res) => {
+  res.json({ success: true, message: "OK", data: { status: "alive" } });
+});
+
+app.get("/health/ready", async (_req, res) => {
+  const startedAt = Date.now();
+  try {
+    // A real round-trip, so a dead socket fails instead of reporting healthy.
+    await mongoose.connection.db?.admin().ping();
+    res.json({
+      success: true,
+      message: "OK",
+      data: {
+        status: "ready",
+        db: "up",
+        latencyMs: Date.now() - startedAt,
+        uptimeSeconds: Math.round(process.uptime()),
+      },
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      message: "Database unavailable",
+      data: {
+        status: "degraded",
+        db: "down",
+        latencyMs: Date.now() - startedAt,
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+});
+
+// Backwards-compatible alias for the original single endpoint.
 app.get("/health", (_req, res) => {
   const dbUp = mongoose.connection.readyState === 1;
   if (!dbUp) {
