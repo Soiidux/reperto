@@ -1,0 +1,25 @@
+# Dependencies are installed inside the image; copying a host node_modules
+# would bring native binaries built for the wrong platform.
+**/node_modules
+**/dist
+**/build
+
+# Secrets and local config. .env is gitignored and must never enter the image.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Not needed to run the app.
+**/tests
+**/scripts
+**/*.test.ts
+**/coverage
+**/.git
+**/.github
+**/docs
+**/README.md
+**/.DS_Store
+**/temp
+**/backups
+.vscode
+.idea

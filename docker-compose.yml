@@ -1,0 +1,96 @@
+# The whole stack in one command:  docker compose up --build
+#
+# Architecture note: there is deliberately no separate frontend service. The API
+# server serves the built SPA from the same origin, so the browser only ever
+# talks to one host — no CORS, no second process, and one container to run.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      # Creates the root user that the api service authenticates as. Without
+      # these, Mongo runs with auth disabled and the URI below is rejected.
+      # Local-only credentials: never reuse these anywhere real.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_APP_USER:-app}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_APP_PASSWORD:-appdevpassword}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # The API waits on this before starting, so it never races the database.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Not published to the host: only the API needs it. Remove this line if you
+    # want to inspect the database with a GUI client.
+    expose:
+      - "27017"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: "5000"
+      NODE_ENV: development
+      # No /reperto suffix here: this is a development database, and the
+      # test-only suffix logic is enforced by backend/vitest.config.ts, which
+      # refuses to run against anything not named "...reperto_test".
+      # authSource=admin is required because mongo:7 creates the root user in
+      # the admin database; without it the driver looks for it in "reperto".
+      MONGODB_URI: mongodb://app:appdevpassword@mongo:27017/reperto?authSource=admin
+      # Generate your own: openssl rand -hex 32
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-0000000}
+      JWT_EXPIRY: 15m
+      # Same-origin SPA, so no CORS origin needed for the bundled app.
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5000}
+      # config.ts requires these to be non-empty, but only image uploads
+      # actually need them — booting the stack must not. Placeholders let the
+      # app start; profile/report images fail only if you try to upload one.
+      # Put real values in a .env beside this file to enable them.
+      CLOUDINARY_NAME: ${CLOUDINARY_NAME:-local-dev-placeholder}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-000000000000000}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-local-dev-placeholder}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${PORT:-5000}:5000"
+    volumes:
+      # Report uploads are staged here by multer before Cloudinary/GridFS.
+      # multer uses path.join(process.cwd(), "temp"), and the container's
+      # working directory is /app/backend.
+      - uploads-temp:/app/backend/temp
+
+  # One-shot: seed demo accounts, then exit.  docker compose run --rm seed
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles: ["tools"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      # The image sets NODE_ENV=production, which correctly refuses to boot
+      # without a real mail provider. Seeding is a local dev task, so dev mode.
+      NODE_ENV: development
+      MONGODB_URI: mongodb://app:appdevpassword@mongo:27017/reperto?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-0000000}
+      JWT_EXPIRY: 15m
+      CLOUDINARY_NAME: ${CLOUDINARY_NAME:-local-dev-placeholder}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-000000000000000}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-local-dev-placeholder}
+    # The seed script is excluded from the runtime image, so it is mounted in.
+    volumes:
+      - ./backend/src:/app/backend/src:ro
+      - ./backend/scripts:/app/backend/scripts:ro
+    command: ["node", "--import", "tsx", "src/seed.ts"]
+
+volumes:
+  mongo-data:
+  uploads-temp:

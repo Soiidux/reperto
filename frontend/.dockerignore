@@ -1,0 +1,17 @@
+# Only the source is needed: the image installs its own dependencies and
+# builds the app itself. Excluding node_modules matters most — host binaries
+# would not match the container's platform.
+node_modules
+dist
+build
+
+# Secrets and local config must never enter the build context.
+.env
+.env.local
+.env.*.local
+
+coverage
+.vscode
+.idea
+.DS_Store
+*.log
