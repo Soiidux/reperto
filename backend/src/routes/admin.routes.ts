@@ -39,9 +39,13 @@ router.get("/export/patients", exportPatientsCsv);
 
 // Access audit trail — who read a patient's protected health information.
 // Registered under the same admin-only guard as the rest of this router.
-router.get("/audit/activity", getAccessActivity);
-router.get("/audit/patient/:patientId", getPatientAccessLog);
-router.get("/audit/patient/:patientId/by-staff", getPatientAccessByStaff);
+router.get("/audit/activity", requirePermission("audit:read"), getAccessActivity);
+router.get("/audit/patient/:patientId", requirePermission("audit:read"), getPatientAccessLog);
+router.get(
+  "/audit/patient/:patientId/by-staff",
+  requirePermission("audit:read"),
+  getPatientAccessByStaff,
+);
 
 // Clinic settings (page shown to patients) + one-off date blockouts
 router.put("/clinic-settings", validate(clinicSettingsSchema), updateClinicSettings);

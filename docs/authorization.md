@@ -5,6 +5,13 @@ Routes declare a *capability* and the matrix decides which roles hold it, so
 "what can a staff member do?" is answered by reading one file rather than
 grepping every controller.
 
+Every one of the 19 capabilities in the matrix is enforced by at least one
+route, and a test asserts it — a capability that no route uses would make the
+matrix a wish list rather than a map of the API. That test exists because the
+matrix *was* briefly wrong on this point: seven capabilities, including
+`appointments:edit-status`, were documented but enforced nowhere, and
+`PATCH /appointment/:id/status` had no route guard at all.
+
 ## Using it
 
 ```ts
@@ -72,11 +79,35 @@ Capabilities that also depend on **ownership** stay in the controller:
 - "am I the *assigned* doctor?" → `doctorId === user.id`
 - "have I *completed a visit* with this doctor?" (required to rate) → checked in
   `upsertReview`
+- "may this patient choose *this* status?" → in `updateAppointmentStatus`
 
-A role matrix answers *what kind of action*; it cannot answer *whose data*.
-Mixing the two tends to produce roles like `doctor_or_owner`, which is where
-authorization bugs live. When a rule needs both, do the capability check and
-the ownership check separately.
+A role matrix answers *what kind of action*; it cannot answer *whose data* or
+*which value*. Mixing the two tends to produce roles like `doctor_or_owner`,
+which is where authorization bugs live. When a rule needs both, do the
+capability check on the route and the ownership check in the controller.
+
+`PATCH /appointment/:id/status` shows the split cleanly. The route carries
+`requirePermission("appointments:edit-status")` — patient, staff, admin, **not**
+doctor. The controller then keeps only what the matrix cannot express: whether
+*this* patient owns *this* booking, and whether they may pick that particular
+status (cancel only).
+
+## Two kinds of authenticated route
+
+Not every endpoint that requires a session declares a capability. Your own
+account is yours regardless of role: `/user/me`, family management,
+`/auth/logout`, notifications. A matrix entry for those would exclude nobody and
+say nothing.
+
+A test keeps the two sets separate, so a newly added route that quietly
+differentiates on role without declaring a capability fails the suite instead of
+inheriting whatever the controller happened to check.
+
+The five all-role capabilities — `appointments:read`, `appointments:reschedule`,
+`consultations:read`, `reports:read`, `reviews:read` — are declared anyway.
+They restrict nothing, but they record a deliberate decision ("open to every
+authenticated user") somewhere that is actually verified, and they make the
+matrix a complete description of the API rather than a partial one.
 
 ## Changing a permission
 

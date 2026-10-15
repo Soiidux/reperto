@@ -614,27 +614,25 @@ export const updateAppointmentStatus = async (req: any, res: Response) => {
       .status(404)
       .json({ success: false, message: "Appointment not found", data: null });
   }
-  // 2. Role-Based Permission Logic
+  // 2. Ownership and value restrictions
   //
-  // The front desk (staff/admin) owns the queue and may move a booking to any
-  // status, including reopening a cancelled/terminal one. Doctors no longer
-  // change appointment status; patients may only cancel their own booking.
-  const isDoctor = req.user.role === "doctor";
+  // "Which roles may change a status at all" is no longer decided here: the
+  // route guards this with requirePermission("appointments:edit-status"), whose
+  // matrix entry excludes doctors. What remains is the half a role matrix
+  // cannot express — whether *this* patient owns *this* booking, and whether
+  // they may pick that particular status.
+  //
+  // Front desk (staff/admin) may move a booking to any status, including
+  // reopening a cancelled or terminal one. A patient may only cancel, and only
+  // their own booking.
   const isPatient = req.user.role === "patient";
-  const isOwner = await canActForPatient(
-    req.user.id,
-    appointment.patientId.toString(),
-  );
-
-  if (isDoctor) {
-    return res.status(403).json(forbiddenResponse);
-  }
 
   if (isPatient) {
-    if (!isOwner) {
-      return res.status(403).json(forbiddenResponse);
-    }
-    if (status !== "cancelled") {
+    const isOwner = await canActForPatient(
+      req.user.id,
+      appointment.patientId.toString(),
+    );
+    if (!isOwner || status !== "cancelled") {
       return res.status(403).json(forbiddenResponse);
     }
   }

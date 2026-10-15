@@ -80,12 +80,65 @@ describe("authentication is read off the real guard", () => {
 
     for (const { op, path } of adminOps) {
       expect(op.security, `${path} should require auth`).toEqual([{ bearerAuth: [] }]);
-      expect(op["x-required-permission"], `${path} should require admin:manage`).toBe(
-        "admin:manage",
-      );
       expect(op.responses["401"], `${path} should document 401`).toBeDefined();
       expect(op.responses["403"], `${path} should document 403`).toBeDefined();
     }
+  });
+
+  it("prefers a route's own capability over the router's broader one", async () => {
+    // Every admin route inherits admin:manage from the router, but the audit
+    // endpoints declare audit:read — the capability that actually explains
+    // them. The spec should say the specific thing.
+    const auditOps = ops().filter((o) => o.path.includes("/admin/audit"));
+    expect(auditOps.length).toBeGreaterThanOrEqual(3);
+    for (const { op, path } of auditOps) {
+      expect(op["x-required-permission"], path).toBe("audit:read");
+      expect(op["x-permitted-roles"], path).toEqual(["admin"]);
+    }
+
+    const otherAdminOps = ops().filter(
+      (o) => o.path.startsWith("/api/v1/admin/") && !o.path.includes("/audit"),
+    );
+    for (const { op, path } of otherAdminOps) {
+      expect(op["x-required-permission"], path).toBe("admin:manage");
+    }
+  });
+
+  it("gives every declared capability at least one route that enforces it", async () => {
+    // The invariant that was missing: a capability can exist in the matrix
+    // without any route using it, which makes the matrix a wish list rather
+    // than a map of the API. That happened with seven capabilities, including
+    // `appointments:edit-status` — the matrix stated a rule that the controller
+    // independently reimplemented on an unguarded route.
+    const enforced = new Set(
+      ops()
+        .map((o) => o.op["x-required-permission"])
+        .filter(Boolean) as string[],
+    );
+    const declared = Object.keys(PERMISSIONS);
+    const orphans = declared.filter((permission) => !enforced.has(permission));
+    expect(
+      orphans,
+      `capabilities no route enforces: ${orphans.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("keeps self-service routes separate from role-differentiated ones", async () => {
+    // Not every authenticated endpoint needs a capability. Acting on your own
+    // account (/user/me, /auth/logout, family management) is available to every
+    // role, so a matrix entry would say nothing. What matters is that these are
+    // a known, deliberate set rather than routes that quietly differentiated on
+    // role with no declaration.
+    const selfService = ops()
+      .filter((o) => o.op.security && !o.op["x-required-permission"])
+      .map((o) => `${o.method} ${o.path}`)
+      .sort();
+
+    expect(selfService.every((entry) =>
+      /\/(auth\/(email|phone|password|logout)|user\/me|notification)/.test(entry),
+    ), `undocumented role-less authenticated routes: ${selfService.join(", ")}`)
+      .toBe(true);
+    expect(selfService.length).toBeGreaterThan(0);
   });
 
   it("applies router-level authentication to every route in the router", () => {

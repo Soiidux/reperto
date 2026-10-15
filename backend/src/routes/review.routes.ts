@@ -8,6 +8,6 @@ const router = Router();
 
 router.post("/", protect, requirePermission("reviews:write"), validate(reviewSchema), upsertReview);
 router.delete("/:doctorId", protect, requirePermission("reviews:delete"), deleteReview);
-router.get("/", protect, listReviews);
+router.get("/", protect, requirePermission("reviews:read"), listReviews);
 
 export default router;

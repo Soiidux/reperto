@@ -135,6 +135,31 @@ describe("permission matrix", () => {
   });
 });
 
+describe("the matrix describes the API, not an intention", () => {
+  it("marks which capabilities are open to every authenticated role", () => {
+    // These read the weakest in the matrix: they exclude nobody, so they exist
+    // to document that an endpoint is deliberately open to all roles rather
+    // than to restrict anything. Worth naming, because they are the entries
+    // most likely to be quietly dropped from the matrix as "pointless" — and
+    // dropping them is what makes a matrix incomplete.
+    const allRoles = Object.entries(PERMISSIONS)
+      .filter(([, roles]) => roles.length === ROLES.length)
+      .map(([permission]) => permission)
+      .sort();
+
+    expect(allRoles).toEqual([
+      "appointments:read",
+      "appointments:reschedule",
+      "consultations:read",
+      "reports:read",
+      "reviews:read",
+    ]);
+
+    // The invariant that actually matters — that each of these is enforced by at
+    // least one route — is checked against the live routes in openapi.test.ts.
+  });
+});
+
 describe("can / permissionsFor", () => {
   it("answers per role", () => {
     expect(can("staff", "appointments:check-in")).toBe(true);

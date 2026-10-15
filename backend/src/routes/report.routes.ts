@@ -19,10 +19,10 @@ router.post(
   reportUpload.array("files", 5),
   uploadReport,
 );
-router.get("/", protect, listReports);
+router.get("/", protect, requirePermission("reports:read"), listReports);
 // Streams/redirects a single file. Registered before "/:id" so the static
 // segment isn't read as a report id.
-router.get("/:id/file/:index", protect, getReportFile);
+router.get("/:id/file/:index", protect, requirePermission("reports:read"), getReportFile);
 router.delete("/:id", protect, requirePermission("reports:delete"), deleteReport);
 
 export default router;

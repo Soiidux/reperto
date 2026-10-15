@@ -17,11 +17,11 @@ const router = express.Router();
 router.post('/', protect, requirePermission("consultations:create"), validate(consultationSchema), createConsultation);
 
 // Doctors can see any history; Patients can see their own (handled in controller)
-router.get('/history/:patientId', protect, getPatientHistory);
+router.get('/history/:patientId', protect, requirePermission("consultations:read"), getPatientHistory);
 
-router.get('/', protect, getConsultation);
+router.get('/', protect, requirePermission("consultations:read"), getConsultation);
 // Quick access to the last record for follow-ups
-router.get('/latest/:patientId', protect, getLatestConsultation);
+router.get('/latest/:patientId', protect, requirePermission("consultations:read"), getLatestConsultation);
 
 // Follow-up tracker: doctors see upcoming/overdue follow-ups and can mark them
 router.get('/follow-ups', protect, requirePermission("consultations:manage-follow-up"), getFollowUps);
