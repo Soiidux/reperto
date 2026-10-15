@@ -439,18 +439,27 @@ export const getAppointments = async (req: Request, res: Response) => {
         : [{ patientId: { $in: [null] } }];
   }
 
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 0;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  // Defaulted and capped like every other list endpoint.
+  //
+  // This used to be `Number(req.query.limit) || 0`, where 0 meant "apply no
+  // limit at all". Any caller that omitted ?limit — including
+  // DoctorAgenda, which passes only a date range — got the entire collection
+  // in one response. It also made totalPages nonsense: with limit 0 the divisor
+  // fell back to 1, so 15 rows reported as "15 pages". A clinic's appointment
+  // history is the largest table in the app, so this was the one endpoint where
+  // an unbounded default actually hurt.
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const skip = (page - 1) * limit;
 
   let appointmentQuery = applyPopulates(Appointment.find(query), populates)
     .sort({ appointmentDate: -1, createdAt: -1, timeSlot: 1 });
 
   const totalItems = await Appointment.countDocuments(query);
-  if (limit > 0) appointmentQuery = appointmentQuery.skip(skip).limit(limit);
+  appointmentQuery = appointmentQuery.skip(skip).limit(limit);
 
   const appointments = await appointmentQuery;
-  const totalPages = Math.ceil(totalItems / Math.max(limit, 1));
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
   res.status(200).json({
     success: true,
@@ -462,8 +471,9 @@ export const getAppointments = async (req: Request, res: Response) => {
         totalItems,
         currentPage: page,
         totalPages,
-        hasNextPage: limit > 0 && page < totalPages,
-        hasPrevPage: limit > 0 && page > 1,
+        // `limit` is now always positive, so these are plain page comparisons.
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
     },
   });
