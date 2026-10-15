@@ -8,6 +8,17 @@ const baseURL =
   (import.meta.env?.VITE_API_URL as string | undefined) ??
   "/api/v1";
 
+/**
+ * Exported so anything that must build a URL *outside* axios — a plain <a href>
+ * for a file download, a shareable link — uses the same prefix.
+ *
+ * This exists because a hardcoded `/api/report/...` survived the move to
+ * /api/v1 and still worked by accident, via the server's deprecated-path shim.
+ * A compatibility shim is exactly the sort of thing that gets deleted the
+ * moment it stops being convenient, so the prefix is derived from one place.
+ */
+export const API_BASE_URL = baseURL;
+
 // Separate clean instance for token refreshing: no response interceptor,
 // so a failing refresh can never recurse into itself.
 const refreshInstance = axios.create({

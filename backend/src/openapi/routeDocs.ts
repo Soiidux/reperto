@@ -1,4 +1,16 @@
 import { z } from "zod";
+import {
+  clinicBlockoutSchema,
+  publicClinicSettingsSchema,
+  familyMemberSchema,
+  leaveRecordSchema,
+  notificationListSchema,
+  reportSchema,
+  reviewListResponseSchema,
+  reviewSchema,
+  patientDirectoryEntrySchema,
+  userSummarySchema,
+} from "./responseSchemas";
 
 /**
  * Documentation the route itself cannot declare.
@@ -29,7 +41,17 @@ export type RouteDoc = {
   multipart?: z.ZodTypeAny;
   /** Per-method response descriptions, e.g. { POST: "201 + tokens". } */
   responses?: Partial<Record<"GET" | "POST" | "PATCH" | "PUT" | "DELETE", string>>;
-  /** Prose description of the success payload; omit when not yet described. */
+  /**
+   * Schema for the success payload.
+   *
+   * Where this is present the published document carries a real response schema
+   * and the frontend's types are generated from it. Where it is absent the
+   * generator falls back to prose and flags the operation
+   * `x-response-schema-pending`, so the gap stays visible instead of being papered
+   * over with an `any`.
+   */
+  response?: z.ZodTypeAny;
+  /** Prose description of the success payload; omit when `response` is given. */
   dataShape?: string;
   deprecated?: boolean;
 };
@@ -129,12 +151,14 @@ const ROUTES = {
   },
   "GET /api/v1/user/me/family": {
     summary: "List dependents the user may act for",
+    response: z.array(familyMemberSchema),
     description:
       "Returns family members this account is a guardian of. This is the scope that `canActForPatient` checks, so it defines who a parent can book for.",
     dataShape: "Dependent user documents.",
   },
   "POST /api/v1/user/me/family": {
     summary: "Create a dependent",
+    response: familyMemberSchema,
     description: "Dependents have no login of their own and no email address.",
     dataShape: "The created dependent.",
   },
@@ -152,6 +176,7 @@ const ROUTES = {
   },
   "GET /api/v1/user/patients": {
     summary: "List the patient directory",
+    response: patientDirectoryEntrySchema.array(),
     description:
       "Paginated and searchable by prefix on name, email or phone. Served from a collation index, so it does not scan the collection.",
     query: z.object({
@@ -307,6 +332,7 @@ const ROUTES = {
   // ── Reports ───────────────────────────────────────────────────────────────
   "POST /api/v1/report": {
     summary: "Upload a report document",
+    response: reportSchema,
     description:
       "Multipart upload (PDF or image). PDFs are stored in GridFS rather than Cloudinary, which rejects them on this account; images go to Cloudinary. Both paths write an access-log row.",
     multipart: z.object({
@@ -322,6 +348,7 @@ const ROUTES = {
   },
   "GET /api/v1/report": {
     summary: "List reports",
+    response: z.array(reportSchema),
     query: z.object({
       patientId: z.string().optional().describe("Filter to one patient."),
     }),
@@ -337,6 +364,7 @@ const ROUTES = {
   // ── Reviews ───────────────────────────────────────────────────────────────
   "POST /api/v1/review": {
     summary: "Rate a doctor, or update your rating",
+    response: reviewSchema,
     description:
       "Upsert, one review per patient per doctor. Eligibility requires a completed consultation, so reviews track real visits rather than anyone who can reach the endpoint.",
     dataShape: "The saved review.",
@@ -347,6 +375,7 @@ const ROUTES = {
   },
   "GET /api/v1/review": {
     summary: "List reviews",
+    response: reviewListResponseSchema,
     query: z.object({
       doctorId: z.string().optional().describe("Filter to one doctor."),
     }),
@@ -361,6 +390,7 @@ const ROUTES = {
   },
   "GET /api/v1/leave/my": {
     summary: "List your own leave requests",
+    response: z.array(leaveRecordSchema),
     dataShape: "Leave records for the signed-in doctor.",
   },
   "DELETE /api/v1/leave/remove/{leaveId}": {
@@ -371,6 +401,7 @@ const ROUTES = {
   // ── Notifications ─────────────────────────────────────────────────────────
   "GET /api/v1/notification": {
     summary: "List your notifications",
+    response: notificationListSchema,
     query: z.object({
       limit: z.coerce
         .number()
@@ -379,11 +410,14 @@ const ROUTES = {
         .default(30)
         .describe("Page size, capped server-side."),
     }),
-    dataShape: "{ notifications, unreadCount }",
+    dataShape: "An array of notifications.",
   },
   "GET /api/v1/notification/unread-count": {
     summary: "Get the unread notification count",
-    dataShape: "{ count }",
+    description:
+      "Returns `{ unread }`. The field is named `unread`, not `count` — the response schema pins it so a client cannot guess.",
+    response: z.object({ unread: z.number().int().nonnegative() }),
+    dataShape: "{ unread }",
   },
   "PATCH /api/v1/notification/read-all": {
     summary: "Mark every notification read",
@@ -405,6 +439,7 @@ const ROUTES = {
   },
   "GET /api/v1/admin/users": {
     summary: "List all users of every role",
+    response: z.array(userSummarySchema),
     query: z.object({
       ...pagination,
       search: z
@@ -477,6 +512,7 @@ const ROUTES = {
   },
   "GET /api/v1/admin/clinic-blockouts": {
     summary: "List clinic-wide blackout dates",
+    response: z.array(clinicBlockoutSchema),
     query: z.object({
       from: isoDate.optional(),
       to: isoDate.optional(),
@@ -496,6 +532,7 @@ const ROUTES = {
   // ── Clinic ────────────────────────────────────────────────────────────────
   "GET /api/v1/clinic/settings": {
     summary: "Get public clinic settings",
+    response: publicClinicSettingsSchema,
     description:
       "Unauthenticated: the booking screen needs the slot list and opening hours before anyone can log in.",
     dataShape: "Clinic name, slots, durations and working hours.",

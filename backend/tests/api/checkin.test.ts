@@ -60,7 +60,15 @@ beforeAll(async () => {
           gender: "other",
           dateOfBirth: new Date("1990-01-01"),
           bloodGroup: "O+",
-          role: role === "doctor1" || role === "doctor2" ? "doctor" : role,
+          // Map the fixture key onto a real role. Falling through with the key
+          // itself wrote the literal string "patient2" into `role`, which is not
+          // a valid role: it leaked into the shared test database and broke any
+          // other suite that asserted on the user directory.
+          role: role.startsWith("doctor")
+            ? "doctor"
+            : role.startsWith("patient")
+              ? "patient"
+              : role,
           accountType: "self",
           isActive: true,
           emailVerified: true,

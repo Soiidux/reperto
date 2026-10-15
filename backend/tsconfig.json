@@ -1,9 +1,23 @@
 {
   "compilerOptions": {
+    // The backend is ESM ("type": "module") and runs on Node 22, so ES2022 is
+    // the honest target. Without an explicit target TypeScript assumes ES5,
+    // which silently forbids iterating a Set/Map — an error that reads like a
+    // code bug rather than a configuration gap, and one that has now appeared
+    // three times in unrelated files.
+    "target": "es2022",
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
-    "module": "esnext"
-  }
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  // Tests are intentionally excluded: several pre-existing test files use looser
+  // types than production code, and vitest does not typecheck. Widening the
+  // project scope here would surface a backlog of unrelated errors rather than
+  // keeping `npm run typecheck` a fast, trustworthy signal about src/.
+  "include": ["src/**/*.ts"]
 }

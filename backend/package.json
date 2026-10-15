@@ -6,7 +6,9 @@
   "scripts": {
     "test": "vitest run",
     "dev": "tsx src/index.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "generate:types": "tsx src/openapi/generateTypes.ts --write"
   },
   "keywords": [],
   "author": "",

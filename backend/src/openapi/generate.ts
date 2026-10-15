@@ -312,12 +312,16 @@ export const buildOpenApiDocument = ({ mounts, version }: OpenApiOptions) => {
           }
         : undefined;
 
+    const dataSchema = doc?.response
+      ? zodToJsonSchema(doc.response, "output")
+      : { description: doc?.dataShape ?? "Endpoint-specific payload." };
+
     const responses: Record<string, unknown> = {
       "200": {
         description: doc?.responses?.[method] ?? "Successful response.",
         content: {
           "application/json": {
-            schema: responseEnvelope({ description: doc?.dataShape ?? "Endpoint-specific payload." }),
+            schema: responseEnvelope(dataSchema),
           },
         },
       },
@@ -371,7 +375,7 @@ export const buildOpenApiDocument = ({ mounts, version }: OpenApiOptions) => {
       operation["x-permitted-roles"] = PERMISSIONS[permission];
     }
     if (doc?.query && !schemas.query) operation["x-query-params-documented-only"] = true;
-    if (!doc?.dataShape) operation["x-response-schema-pending"] = true;
+    if (!doc?.response) operation["x-response-schema-pending"] = true;
 
     paths[openApiPath] = paths[openApiPath] ?? {};
     paths[openApiPath][method.toLowerCase()] = operation;
@@ -433,7 +437,7 @@ export const buildOpenApiDocument = ({ mounts, version }: OpenApiOptions) => {
     "x-documentation": {
       totalOperations: routes.length,
       withHumanSummary: documented,
-      withResponseSchema: routes.filter((r) => r.doc?.dataShape).length,
+      withResponseSchema: routes.filter((r) => r.doc?.response).length,
       generatedFrom: "live Express route stack",
     },
   };

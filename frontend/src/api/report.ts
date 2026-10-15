@@ -1,38 +1,17 @@
-import API from "./axios";
+import API, { API_BASE_URL } from "./axios";
+import type { PostReport } from "@/types/api.generated";
 
-export interface ReportFile {
-  /** Direct CDN link for Cloudinary-hosted files (images). */
-  url?: string;
-  /** Cloudinary public id, when stored in Cloudinary. */
-  publicId?: string;
-  /** GridFS id, when the bytes live in MongoDB (PDFs). */
-  storageId?: string;
-  storage?: "cloudinary" | "gridfs";
-  name: string;
-  mimeType: string;
-  size: number;
-  resourceType: string;
-}
-
-export interface Report {
-  _id: string;
-  patientId: {
-    _id: string;
-    name: string;
-    profileImageUrl?: string;
-  };
-  uploadedBy: {
-    _id: string;
-    name: string;
-    profileImageUrl?: string;
-    role: string;
-  };
-  title: string;
-  category: "lab" | "imaging" | "test" | "other";
-  description?: string;
-  files: ReportFile[];
-  createdAt: string;
-}
+/**
+ * Report types derive from the server's response schema.
+ *
+ * `ReportFile` in particular is not something to guess at: its storage fields
+ * are optional *and* mutually exclusive, because an image carries
+ * `url`/`publicId` (Cloudinary) while a PDF carries `storageId` (GridFS) and is
+ * reachable only through an authenticated endpoint. A plausible-looking single
+ * required `url` would typecheck and then break every PDF download.
+ */
+export type Report = PostReport;
+export type ReportFile = Report["files"][number];
 
 export const uploadReport = async (formData: FormData) => {
   const response = await API.post("/report", formData);
@@ -99,4 +78,4 @@ const getStoredReportFile = (
 
 /** Direct API path for a report file (still requires the auth token). */
 export const getReportFileUrl = (reportId: string, index: number): string =>
-  `/api/report/${reportId}/file/${index}`;
+  `${API_BASE_URL}/report/${reportId}/file/${index}`;

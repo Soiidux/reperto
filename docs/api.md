@@ -53,17 +53,61 @@ generated document declares its limits in two ways:
   `req.body`; it now supports `query` and `params` sources, but most routes have
   not opted in yet.
 - **`x-response-schema-pending`** — the success payload is described in prose
-  rather than as a schema. No response is currently schema-validated.
+  rather than as a schema. 13 of 75 operations have a real response schema
+  today; the rest are marked.
 
 `x-validated-request-parts` lists the parts a Zod schema genuinely guards, and
 `x-documentation` at the document root reports total operations, how many have
-a written summary, and how many have a described response — so coverage is
-visible at a glance instead of having to be diffed by hand.
+a written summary, and how many have a *schema* response — so coverage is
+visible at a glance instead of having to be diffed by hand. A test asserts the
+per-operation markers agree with that headline number, so neither can drift
+into decoration.
 
 Every route also carries `x-required-permission` and `x-permitted-roles`, read
 from the same `PERMISSIONS` matrix the server enforces. They cannot disagree.
 See [authorization.md](./authorization.md) for what the matrix deliberately
 cannot express.
+
+## Response schemas, and why they are verified
+
+`backend/src/openapi/responseSchemas.ts` describes what the API returns for the
+core entities. These are **verified against live responses** in
+`tests/api/responseSchemas.test.ts`, and that is not ceremony.
+
+The first draft of that file described notifications with `userId`, `message` and
+`read`, and a nine-value type enum. It looked entirely plausible and typechecked
+cleanly. The real model has always used `recipientId`, `body` and `readAt` with
+four types — so the schema would have rejected every genuine notification. Three
+more of the same kind turned up while writing the rest:
+
+- the public clinic settings endpoint was described as the internal
+  `ClinicSettings` document; it actually returns a projected view with no `_id`
+- `day` was assumed to be a weekday name; it is a 0–6 index
+- the patient directory was assumed to include `role`; its projection omits it
+
+Each was caught by parsing a real response rather than by reading the code,
+which is the argument for verifying response schemas instead of trusting them
+because they look right.
+
+## Types shared with the frontend
+
+The published document is also the source of the frontend's API types:
+
+```
+cd backend && npm run generate:types
+```
+
+writes `frontend/src/types/api.generated.ts`. Deriving them from the *published*
+contract means they cannot describe an endpoint the API does not serve.
+
+This replaces hand-written interfaces (`Review`, `ReportFile`, `Notification`,
+`ReviewSummary`). Those were mostly correct, but nothing connected them to the
+server, so a renamed field would keep compiling in the client and surface as
+`undefined` at runtime. Stale generated types compile perfectly too, so:
+
+- `tests/unit/generateTypes.test.ts` fails if the file is out of date, and says
+  which command to run
+- CI regenerates it and fails if the working tree changes
 
 ## Why the viewer is hand-written HTML
 

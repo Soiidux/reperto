@@ -73,11 +73,50 @@ describe("GET /api/v1/docs/openapi.json", () => {
     }
   });
 
-  it("reports full coverage rather than a partial-looking document", async () => {
+  it("reports coverage honestly rather than implying completeness", async () => {
     const res = await request(app).get("/api/v1/docs/openapi.json");
     const stats = res.body["x-documentation"];
+
+    expect(stats.generatedFrom).toBe("live Express route stack");
+    expect(stats.totalOperations).toBeGreaterThan(70);
+
+    // Every route has a written summary; not every route has a real response
+    // schema yet, and the document says so with the actual number rather than
+    // rounding up to look complete.
     expect(stats.withHumanSummary).toBe(stats.totalOperations);
-    expect(stats.withResponseSchema).toBe(stats.totalOperations);
+    expect(stats.withResponseSchema).toBeGreaterThan(0);
+    expect(stats.withResponseSchema).toBeLessThanOrEqual(stats.totalOperations);
+  });
+
+  it("flags each operation that lacks a real response schema", async () => {
+    const res = await request(app).get("/api/v1/docs/openapi.json");
+    const ops = Object.entries<Record<string, any>>(res.body.paths).flatMap(
+      ([, methods]) => Object.values(methods),
+    );
+    const pending = ops.filter((op: any) => op["x-response-schema-pending"]);
+    const schematised = ops.filter((op: any) => !op["x-response-schema-pending"]);
+
+    // The flag has to track reality exactly, or it is decoration.
+    expect(schematised.length).toBe(res.body["x-documentation"].withResponseSchema);
+    expect(pending.length).toBe(
+      res.body["x-documentation"].totalOperations - schematised.length,
+    );
+    // A schematised operation really does carry a schema in `data`: an object
+    // has `properties`, a list endpoint has `items`. A bare `{ description }`
+    // means the payload is only described in prose.
+    for (const op of schematised) {
+      const data = op.responses["200"].content["application/json"].schema.properties.data;
+      const isRealSchema = data && (data.properties || data.items);
+      expect(isRealSchema, `${op.operationId} should carry a real data schema`).toBeTruthy();
+    }
+
+    // And the inverse: an unflagged operation's payload really is prose-only.
+    for (const op of pending) {
+      expect(
+        op.responses["200"].content["application/json"].schema.properties.data,
+        op.operationId,
+      ).toHaveProperty("description");
+    }
   });
 
   it("carries no real secrets or host credentials", async () => {
