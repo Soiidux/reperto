@@ -2,11 +2,11 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 
 // Same-origin by default: in production the API server also serves the built
-// app, so "/api" resolves to the same host the page came from (no CORS, no
+// app, so "/api/v1" resolves to the same host the page came from (no CORS, no
 // second server). Set VITE_API_URL at build time to point at a remote API.
 const baseURL =
   (import.meta.env?.VITE_API_URL as string | undefined) ??
-  "/api";
+  "/api/v1";
 
 // Separate clean instance for token refreshing: no response interceptor,
 // so a failing refresh can never recurse into itself.

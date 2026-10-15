@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Router } from 'express';
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -16,9 +16,12 @@ import reportRoutes from "./routes/report.routes";
 import reviewRoutes from "./routes/review.routes";
 import notificationRoutes from "./routes/notification.routes";
 import clinicRoutes from "./routes/clinic.routes";
+import docsRoutes from "./routes/docs.routes";
+import { API_ROUTES } from "./routes";
 import { errorHandler } from "./middlewares/errorHandler";
 import { notFound } from "./middlewares/notFound";
 import { globalLimiter } from "./middlewares/rateLimiters";
+import logger from "./utils/logger";
 import config from "./config";
 const app = express();
 
@@ -47,17 +50,40 @@ app.use(express.urlencoded({ extended: true, limit: "50kb" }));
 app.use(cookieParser());
 
 
-//Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/appointment", appointmentRoutes);
-app.use("/api/consultation", consultationRoutes);
-app.use("/api/leave", leaveRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/report", reportRoutes);
-app.use("/api/review", reviewRoutes);
-app.use("/api/notification", notificationRoutes);
-app.use("/api/clinic", clinicRoutes);
+// ── Routes ───────────────────────────────────────────────────────────────────
+// Every route is mounted under a versioned prefix.
+//
+// API_VERSION is the single place the version is decided. It is read from the
+// URL rather than baked into each route's path, so publishing /api/v2 later is
+// a one-line change here instead of an edit across ten route files.
+const API_VERSION = process.env.API_VERSION || "v1";
+
+const v1Router = express.Router();
+for (const { prefix, router } of API_ROUTES) {
+  v1Router.use(prefix, router);
+}
+
+// The generated API reference. Mounted on the same version prefix as
+// everything else so it is discoverable at /api/v1/docs, and excluded from
+// API_ROUTES so the generator does not describe its own output.
+v1Router.use("/docs", docsRoutes);
+
+app.use(`/api/${API_VERSION}`, v1Router);
+
+// Clients pinned to the pre-versioning path (/api/...) keep working.
+//
+// This is a compatibility shim, not a permanent alias: it is logged loudly and
+// reports the header clients should adopt. Drop it once no client is on it.
+app.use("/api", (req, res, next) => {
+  if (req.path === "/" || req.path.startsWith("/v")) return next();
+  logger.warn("Unversioned API path used", {
+    path: req.path,
+    canonical: `/api/${API_VERSION}${req.path}`,
+  });
+  res.set("Deprecation", `true`);
+  res.set("Link", `</api/${API_VERSION}>; rel="successor-version"`);
+  v1Router(req, res, next);
+});
 
 // ── Health checks ────────────────────────────────────────────────────────────
 // Two distinct questions, deliberately kept apart:
@@ -124,7 +150,9 @@ if (fs.existsSync(distIndex)) {
   // SPA fallback: any non-API GET (deep links, refreshes) gets the app shell
   app.use((req, res, next) => {
     if (req.method !== "GET") return next();
-    if (req.path.startsWith("/api/")) return next();
+    // Never answer an API path with the SPA shell: an unknown /api/v1/... route
+    // must 404 as JSON, not return index.html.
+    if (req.path === "/api" || req.path.startsWith("/api/")) return next();
     res.sendFile(distIndex);
   });
 }
