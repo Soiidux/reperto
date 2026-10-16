@@ -1,14 +1,33 @@
 import { z } from "zod";
 import {
+  accessLogPageSchema,
+  adminAnalyticsSchema,
+  adminStatsSchema,
+  appointmentPageSchema,
+  appointmentQueueSchema,
+  appointmentSchema,
+  authSessionSchema,
+  checkInResultSchema,
   clinicBlockoutSchema,
-  publicClinicSettingsSchema,
+  consultationHistoryEntrySchema,
+  dataExportSchema,
+  doctorDirectoryEntrySchema,
   familyMemberSchema,
+  followUpSchema,
   leaveRecordSchema,
+  medicalHistorySchema,
   notificationListSchema,
+  notificationSchema,
+  ownProfileSchema,
+  patientDirectoryEntrySchema,
+  publicClinicSettingsSchema,
+  refreshedAccessTokenSchema,
+  reportListSchema,
   reportSchema,
   reviewListResponseSchema,
   reviewSchema,
-  patientDirectoryEntrySchema,
+  shareCodeSchema,
+  slotStateSchema,
   userSummarySchema,
 } from "./responseSchemas";
 
@@ -80,69 +99,69 @@ const ROUTES = {
     summary: "Register a patient account",
     description:
       "Creates a self account with a pending email. The user is issued access and refresh tokens immediately; email verification is a separate step so the app stays usable if mail is delayed.",
-    dataShape: "{ user, accessToken, refreshToken }",
+    response: z.null(),
   },
   "POST /api/v1/auth/login": {
     summary: "Exchange credentials for tokens",
     description:
       "Returns an access token (short-lived) and a refresh token. Refresh tokens rotate: using one invalidates it, so concurrent refreshes must be single-flighted by the client.",
-    dataShape: "{ user, accessToken, refreshToken }",
+    response: authSessionSchema,
   },
   "POST /api/v1/auth/refresh": {
     summary: "Rotate a refresh token",
     description:
       "Issues a new pair and revokes the presented refresh token. Reusing a rotated token fails with 401.",
-    dataShape: "{ accessToken, refreshToken }",
+    response: refreshedAccessTokenSchema,
   },
   "POST /api/v1/auth/logout": {
     summary: "Revoke the current session",
     description: "Revokes the refresh token and evicts the account from the auth cache.",
-    dataShape: "null",
+    response: z.null(),
   },
   "PATCH /api/v1/auth/email": {
     summary: "Change the signed-in user's email",
     description: "Sends a verification code to the new address; it takes effect once verified.",
-    dataShape: "{ email, verificationPending: true }",
+    response: z.null(),
   },
   "PATCH /api/v1/auth/phone": {
     summary: "Change the signed-in user's phone number",
-    dataShape: "{ phone }",
+    response: z.null(),
   },
   "PATCH /api/v1/auth/password": {
     summary: "Change the signed-in user's password",
     description: "Requires the current password. Revokes other sessions so a stolen token cannot outlive the change.",
-    dataShape: "null",
+    response: z.null(),
   },
   "POST /api/v1/auth/verify-email": {
     summary: "Verify an email address with a code",
-    dataShape: "{ email, emailVerified: true }",
+    response: z.null(),
   },
   "POST /api/v1/auth/resend-verification": {
     summary: "Send another verification email",
-    dataShape: "null",
+    response: z.null(),
   },
   "POST /api/v1/auth/forgot-password": {
     summary: "Request a password reset email",
     description:
       "Always reports success, whether or not the address exists: a differing response would turn the endpoint into an account-enumeration oracle.",
-    dataShape: "null",
+    response: z.null(),
   },
   "POST /api/v1/auth/reset-password": {
     summary: "Set a new password with a reset token",
     description: "Consumes the token and revokes existing sessions.",
-    dataShape: "null",
+    response: z.null(),
   },
 
   // ── Users ─────────────────────────────────────────────────────────────────
   "GET /api/v1/user/me": {
     summary: "Get the signed-in user's profile",
-    dataShape: "The user document without credentials.",
+    response: ownProfileSchema,
   },
   "GET /api/v1/user/me/export": {
     summary: "Export the signed-in user's record as JSON",
+    response: dataExportSchema,
     description:
       "A portability endpoint: everything the account holds about itself. Writes an audit row, because exporting a chart is exactly the event an access log exists to capture.",
-    dataShape: "{ user, dependents, appointments, consultations, reports }",
   },
   "PATCH /api/v1/user/me/profile-image": {
     summary: "Upload or replace a profile photo",
@@ -151,16 +170,14 @@ const ROUTES = {
   },
   "GET /api/v1/user/me/family": {
     summary: "List dependents the user may act for",
-    response: z.array(familyMemberSchema),
+    response: familyMemberSchema.array(),
     description:
       "Returns family members this account is a guardian of. This is the scope that `canActForPatient` checks, so it defines who a parent can book for.",
-    dataShape: "Dependent user documents.",
   },
   "POST /api/v1/user/me/family": {
     summary: "Create a dependent",
     response: familyMemberSchema,
     description: "Dependents have no login of their own and no email address.",
-    dataShape: "The created dependent.",
   },
   "POST /api/v1/user/me/family/add-by-code": {
     summary: "Claim a dependent with a share code",
@@ -172,7 +189,7 @@ const ROUTES = {
       specialization: z.string().optional().describe("Specialty to filter by."),
       name: z.string().optional().describe("Case-insensitive prefix of the doctor's name."),
     }),
-    dataShape: "Doctor profiles with their average rating.",
+    response: doctorDirectoryEntrySchema.array(),
   },
   "GET /api/v1/user/patients": {
     summary: "List the patient directory",
@@ -186,7 +203,6 @@ const ROUTES = {
         .optional()
         .describe("Prefix of name, email or phone. A term with '@' or 3+ digits matches anywhere, since identifiers are pasted whole."),
     }),
-    dataShape: "Active patient profiles (no credentials).",
   },
 
   // ── Appointments ──────────────────────────────────────────────────────────
@@ -208,7 +224,7 @@ const ROUTES = {
       from: isoDate.optional().describe("Earliest appointment date to include."),
       to: isoDate.optional().describe("Latest appointment date to include."),
     }),
-    dataShape: "{ appointments, pagination }",
+    response: appointmentPageSchema,
   },
   "POST /api/v1/appointment/hold": {
     summary: "Reserve a slot temporarily",
@@ -228,23 +244,23 @@ const ROUTES = {
   "GET /api/v1/appointment/slots": {
     summary: "Get the clinic's configured time slots",
     description: "The slots come from clinic settings, so they are clinic data rather than a hardcoded list.",
-    dataShape: "The configured slot labels.",
+    response: slotStateSchema.array(),
   },
   "GET /api/v1/appointment/available-slots": {
     summary: "List bookable slots for a doctor on a date",
+    response: z.array(z.string()),
     query: z.object({
       doctorId: z.string().describe("Doctor whose calendar to read."),
       date: isoDate.describe("Date to check."),
       durationInMinutes: durationQuery,
     }),
-    dataShape: "Slot labels with availability, or the reason a slot is unavailable.",
   },
   "GET /api/v1/appointment/active": {
     summary: "List the front desk's active queue",
     query: z.object({
       limit: z.coerce.number().int().positive().optional().describe("Cap the queue size."),
     }),
-    dataShape: "{ appointments, count }",
+    response: appointmentQueueSchema,
   },
   "GET /api/v1/appointment/arrived": {
     summary: "List arrived patients waiting to be seen",
@@ -255,14 +271,14 @@ const ROUTES = {
         .describe("Restrict to today, or include every waiting patient."),
       limit: z.coerce.number().int().positive().optional(),
     }),
-    dataShape: "{ appointments, count }",
+    response: appointmentQueueSchema,
   },
   "GET /api/v1/appointment/today": {
     summary: "Get today's schedule",
     query: z.object({
       limit: z.coerce.number().int().positive().optional(),
     }),
-    dataShape: "{ appointments, count }",
+    response: appointmentQueueSchema,
   },
   "PATCH /api/v1/appointment/{id}/status": {
     summary: "Change an appointment's status",
@@ -283,8 +299,8 @@ const ROUTES = {
   "POST /api/v1/appointment/check-in": {
     summary: "Check a patient in by ticket",
     description:
-      "Front desk only. Rate limited separately from booking, because it is the endpoint an attacker would target to fake arrival.",
-    dataShape: "The appointment, now arrived.",
+      "Front desk only. Rate limited separately from booking, because it is the endpoint an attacker would target to fake arrival.\n\nIdempotent: scanning the same ticket twice succeeds with `alreadyCheckedIn: true` rather than an error, because a patient standing at the desk twice should not look like a fault.\n\nAlso writes an access-log entry, so \"what did this staff member do today?\" covers check-ins and not only chart reads.",
+    response: checkInResultSchema,
   },
 
   // ── Consultations ─────────────────────────────────────────────────────────
@@ -300,17 +316,17 @@ const ROUTES = {
       patientId: z.string().optional().describe("Filter to one patient."),
       appointmentId: z.string().optional().describe("Filter to one appointment."),
     }),
-    dataShape: "{ consultations, count }",
+    response: consultationHistoryEntrySchema.array(),
   },
   "GET /api/v1/consultation/history/{patientId}": {
     summary: "Get a patient's medical history",
     description:
       "Owner or treating clinician only. Reading a chart writes an access-log row.",
-    dataShape: "{ history, count }",
+    response: medicalHistorySchema,
   },
   "GET /api/v1/consultation/latest/{patientId}": {
     summary: "Get a patient's most recent consultation",
-    dataShape: "{ consultation } or null",
+    response: consultationHistoryEntrySchema.nullable(),
   },
   "GET /api/v1/consultation/follow-ups": {
     summary: "List consultations with follow-ups outstanding",
@@ -322,7 +338,7 @@ const ROUTES = {
         .describe("Filter by follow-up state."),
       doctorId: z.string().optional().describe("Restrict to one doctor's patients."),
     }),
-    dataShape: "{ followUps, count }",
+    response: followUpSchema.array(),
   },
   "PATCH /api/v1/consultation/{id}/follow-up": {
     summary: "Mark a follow-up complete or missed",
@@ -344,15 +360,13 @@ const ROUTES = {
         .array(z.any())
         .describe("One or more files as multipart/form-data parts named `files`."),
     }),
-    dataShape: "The created report, including per-file storage references.",
   },
   "GET /api/v1/report": {
     summary: "List reports",
-    response: z.array(reportSchema),
+    response: reportListSchema,
     query: z.object({
       patientId: z.string().optional().describe("Filter to one patient."),
     }),
-    dataShape: "{ reports, count }",
   },
   "GET /api/v1/report/{id}/file/{index}": {
     summary: "Download or stream one file of a report",
@@ -367,7 +381,6 @@ const ROUTES = {
     response: reviewSchema,
     description:
       "Upsert, one review per patient per doctor. Eligibility requires a completed consultation, so reviews track real visits rather than anyone who can reach the endpoint.",
-    dataShape: "The saved review.",
   },
   "DELETE /api/v1/review/{doctorId}": {
     summary: "Delete your review of a doctor",
@@ -379,7 +392,6 @@ const ROUTES = {
     query: z.object({
       doctorId: z.string().optional().describe("Filter to one doctor."),
     }),
-    dataShape: "{ reviews, averageRating, count }",
   },
 
   // ── Doctor leave ──────────────────────────────────────────────────────────
@@ -391,7 +403,6 @@ const ROUTES = {
   "GET /api/v1/leave/my": {
     summary: "List your own leave requests",
     response: z.array(leaveRecordSchema),
-    dataShape: "Leave records for the signed-in doctor.",
   },
   "DELETE /api/v1/leave/remove/{leaveId}": {
     summary: "Withdraw a leave request",
@@ -410,32 +421,30 @@ const ROUTES = {
         .default(30)
         .describe("Page size, capped server-side."),
     }),
-    dataShape: "An array of notifications.",
   },
   "GET /api/v1/notification/unread-count": {
     summary: "Get the unread notification count",
     description:
       "Returns `{ unread }`. The field is named `unread`, not `count` — the response schema pins it so a client cannot guess.",
     response: z.object({ unread: z.number().int().nonnegative() }),
-    dataShape: "{ unread }",
   },
   "PATCH /api/v1/notification/read-all": {
     summary: "Mark every notification read",
-    dataShape: "{ updated }",
+    response: z.null(),
   },
   "PATCH /api/v1/notification/{id}/read": {
     summary: "Mark one notification read",
-    dataShape: "The updated notification.",
+    response: notificationSchema,
   },
 
   // ── Administration ────────────────────────────────────────────────────────
   "GET /api/v1/admin/stats": {
     summary: "Dashboard counters",
-    dataShape: "Aggregate counts for the admin dashboard.",
+    response: adminStatsSchema,
   },
   "GET /api/v1/admin/analytics": {
     summary: "Clinic analytics",
-    dataShape: "Time series and breakdowns for the analytics view.",
+    response: adminAnalyticsSchema,
   },
   "GET /api/v1/admin/users": {
     summary: "List all users of every role",
@@ -455,7 +464,6 @@ const ROUTES = {
         .optional()
         .describe("Filter by account status."),
     }),
-    dataShape: "{ users, pagination }",
   },
   "PATCH /api/v1/admin/users/{id}/activate": {
     summary: "Activate or deactivate an account",
@@ -491,18 +499,18 @@ const ROUTES = {
       action: z.string().optional().describe("Filter by action, e.g. 'read'."),
       limit: z.coerce.number().int().positive().default(100).describe("Max 500."),
     }),
-    dataShape: "{ logs, count }",
+    response: accessLogPageSchema,
   },
   "GET /api/v1/admin/audit/patient/{patientId}": {
     summary: "Read who has accessed one patient's record",
     query: z.object({
       limit: z.coerce.number().int().positive().default(100).describe("Max 500."),
     }),
-    dataShape: "{ logs, count }",
+    response: accessLogPageSchema,
   },
   "GET /api/v1/admin/audit/patient/{patientId}/by-staff": {
     summary: "Access log for one patient, restricted to staff activity",
-    dataShape: "{ logs, count }",
+    response: accessLogPageSchema,
   },
   "PUT /api/v1/admin/clinic-settings": {
     summary: "Update clinic settings",
@@ -517,7 +525,6 @@ const ROUTES = {
       from: isoDate.optional(),
       to: isoDate.optional(),
     }),
-    dataShape: "{ blockouts, count }",
   },
   "POST /api/v1/admin/clinic-blockouts": {
     summary: "Block out a date or range",
@@ -535,14 +542,13 @@ const ROUTES = {
     response: publicClinicSettingsSchema,
     description:
       "Unauthenticated: the booking screen needs the slot list and opening hours before anyone can log in.",
-    dataShape: "Clinic name, slots, durations and working hours.",
   },
 
   // ── Remaining routes ──────────────────────────────────────────────────────
   "GET /api/v1/appointment/{id}": {
     summary: "Get one appointment",
     description: "Owner, the assigned doctor, or front desk.",
-    dataShape: "The appointment.",
+    response: appointmentSchema,
   },
   "DELETE /api/v1/report/{id}": {
     summary: "Delete a report",
@@ -577,13 +583,13 @@ const ROUTES = {
     summary: "Regenerate a dependent's share code",
     description:
       "Rotating the code revokes the old one, so it doubles as the way to undo a code that leaked.",
-    dataShape: "{ shareCode }",
+    response: shareCodeSchema,
   },
   "GET /api/v1/user/me/share-code": {
     summary: "Get the signed-in user's family share code",
+    response: shareCodeSchema,
     description:
       "Generates one on first read, so accounts created before the feature still work.",
-    dataShape: "{ shareCode }",
   },
 } satisfies Record<string, RouteDoc>;
 

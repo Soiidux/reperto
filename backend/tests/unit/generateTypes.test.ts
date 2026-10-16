@@ -115,13 +115,16 @@ describe("type generator", () => {
   });
 
   it("does not leak a role into the patient directory", () => {
-    // getPatients projects without `role`; typing it as present would make
-    // every consumer read a field that never arrives.
-    const block = emitted.slice(
-      emitted.indexOf("export type GetUserPatientsData = "),
-      emitted.indexOf("export type PostReviewData = "),
-    );
-    expect(block.length).toBeGreaterThan(0);
-    expect(block).not.toMatch(/\brole: "patient"/);
+    // getPatients projects without `role`; typing it as present would make every
+    // consumer read a field that never arrives. Sliced to the single declaration
+    // rather than a fixed offset, so adding types cannot quietly turn this into
+    // a check of something else.
+    const start = emitted.indexOf("export type GetUserPatientsData = ");
+    expect(start).toBeGreaterThan(-1);
+    const next = emitted.indexOf("\nexport type ", start + 1);
+    const block = emitted.slice(start, next === -1 ? undefined : next);
+
+    expect(block).toContain("GetUserPatientsData");
+    expect(block).not.toMatch(/\brole:/);
   });
 });

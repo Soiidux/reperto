@@ -101,13 +101,24 @@ describe("GET /api/v1/docs/openapi.json", () => {
     expect(pending.length).toBe(
       res.body["x-documentation"].totalOperations - schematised.length,
     );
-    // A schematised operation really does carry a schema in `data`: an object
-    // has `properties`, a list endpoint has `items`. A bare `{ description }`
-    // means the payload is only described in prose.
+    // A schematised operation really does carry a schema in `data`. The shapes that
+    // count as real: an object (`properties`), a list (`items`), an explicit
+    // null (an endpoint that returns nothing) and a union (`anyOf`, which is
+    // how Zod renders `.nullable()`). A bare `{ description }` means the
+    // payload is only described in prose.
+    const isRealSchema = (data: any) =>
+      Boolean(
+        data &&
+          (data.properties ||
+            data.items ||
+            data.type === "null" ||
+            data.anyOf ||
+            data.oneOf),
+      );
+
     for (const op of schematised) {
       const data = op.responses["200"].content["application/json"].schema.properties.data;
-      const isRealSchema = data && (data.properties || data.items);
-      expect(isRealSchema, `${op.operationId} should carry a real data schema`).toBeTruthy();
+      expect(isRealSchema(data), `${op.operationId} should carry a real data schema`).toBe(true);
     }
 
     // And the inverse: an unflagged operation's payload really is prose-only.

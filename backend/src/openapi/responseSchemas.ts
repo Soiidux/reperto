@@ -32,7 +32,12 @@ export const isoDateTime = z.string().describe("ISO 8601 timestamp");
 
 // ── Shared sub-documents ────────────────────────────────────────────────────
 
-/** A user as embedded in another entity's response (never the full document). */
+/**
+ * A user as embedded in another entity's response (never the full document).
+ *
+ * Note the id: a populated reference exposes `_id`, while `loginUser` returns
+ * `id`. Both exist in this API, which is why the auth schema below is separate.
+ */
 export const userRefSchema = z
   .object({
     _id: objectId,
@@ -43,6 +48,64 @@ export const userRefSchema = z
     email: z.string().optional(),
   })
   .passthrough();
+
+/**
+ * A doctor profile as the directory returns it.
+ *
+ * Every name here is plural where the intuitive guess would be singular —
+ * `specializations`, `qualifications`, `languagesSpoken`, `experienceYears` —
+ * verified against a live response rather than read off, because the first
+ * draft used `specialization`, `qualification` and `experience` and would have
+ * been wrong on all three.
+ */
+export const doctorProfileSchema = z
+  .object({
+    specializations: z.array(z.string()).optional(),
+    qualifications: z.array(z.string()).optional(),
+    languagesSpoken: z.array(z.string()).optional(),
+    experienceYears: z.number().optional(),
+    consultationFee: z.number().optional(),
+  })
+  .passthrough();
+
+/** An entry in `GET /user/doctors`. */
+export const doctorDirectoryEntrySchema = z
+  .object({
+    _id: objectId,
+    name: z.string(),
+    profileImageUrl: z.string().optional(),
+    doctorProfile: doctorProfileSchema.optional(),
+    totalReviews: z.number().int().nonnegative().optional(),
+    avgRating: z.number().min(0).max(5).optional(),
+    /** Review count keyed by star, 1..5. */
+    ratingDistribution: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  })
+  .passthrough();
+
+// ── Authentication ──────────────────────────────────────────────────────────
+
+/**
+ * What login returns.
+ *
+ * Note `id`, not `_id`, and no `email`: login deliberately returns the minimum
+ * the app shell needs. There is also no `refreshToken` in the body — it is an
+ * httpOnly cookie, so JavaScript cannot read it.
+ */
+export const authSessionSchema = z.object({
+  accessToken: z.string(),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    role: z.enum(["patient", "doctor", "staff", "admin"]),
+    profileImageUrl: z.string(),
+    emailVerified: z.boolean(),
+  }),
+});
+
+/** What `POST /auth/refresh` returns — the access token, and nothing else. */
+export const refreshedAccessTokenSchema = z.object({
+  accessToken: z.string(),
+});
 
 // ── Review ──────────────────────────────────────────────────────────────────
 
@@ -133,8 +196,18 @@ export const reportSchema = z
   })
   .passthrough();
 
-/** `GET /report` returns the reports array directly, not a wrapper object. */
-export const reportListSchema = z.array(reportSchema);
+/**
+ * `GET /report` returns `{ count, reports }`.
+ *
+ * This was previously declared as a bare array, which was wrong — and wrong in
+ * the way that hides itself, because nothing ever parsed a real response
+ * against it. That is the reason every schema here is checked against a live
+ * call rather than trusted because it looks right.
+ */
+export const reportListSchema = z.object({
+  count: z.number().int().nonnegative(),
+  reports: z.array(reportSchema),
+});
 
 // ── Notification ────────────────────────────────────────────────────────────
 
@@ -250,18 +323,8 @@ export const userSummarySchema = z
     bloodGroup: z.string().optional(),
     profileImageUrl: z.string().optional(),
     isActive: z.boolean().optional(),
-    /** Present on doctor profiles only. */
-    doctorProfile: z
-      .object({
-        specialization: z.string().optional(),
-        qualification: z.string().optional(),
-        experience: z.number().optional(),
-        consultationFee: z.number().optional(),
-        averageRating: z.number().optional(),
-        totalReviews: z.number().optional(),
-      })
-      .passthrough()
-      .optional(),
+    /** Present on doctor profiles only. Plural field names — see doctorProfileSchema. */
+    doctorProfile: doctorProfileSchema.optional(),
   })
   .passthrough();
 
@@ -319,21 +382,306 @@ export const appointmentStatusSchema = z.enum([
 export const appointmentSchema = z
   .object({
     _id: objectId,
-    patientId: userRefSchema.optional(),
-    doctorId: userRefSchema.optional(),
+    /**
+     * References are populated on some endpoints and left as bare ids on others
+     * (the data export, for instance). Both are accepted deliberately rather
+     * than pretending the shape is uniform.
+     */
+    patientId: z.union([objectId, userRefSchema]).optional(),
+    doctorId: z.union([objectId, userRefSchema]).optional(),
     appointmentDate: z.string(),
     timeSlot: z.string(),
     durationInMinutes: z.number().optional(),
     status: appointmentStatusSchema,
     consultationType: z.string().optional(),
-    checkedInAt: isoDateTime.optional(),
+    /** Null until the patient is checked in — present, not merely optional. */
+    checkedInAt: z.string().nullable().optional(),
+    checkedInBy: z.union([objectId, userRefSchema]).nullable().optional(),
+    cancellationReason: z.string().optional(),
+    needsReschedule: z.boolean().optional(),
+    rescheduleSuggestions: z.array(z.unknown()).optional(),
+    reminderEmailAt: z.string().nullable().optional(),
     intakeDetails: z.record(z.string(), z.unknown()).optional(),
+    createdAt: isoDateTime.optional(),
+    updatedAt: isoDateTime.optional(),
+  })
+  .passthrough();
+
+// ── Check-in ────────────────────────────────────────────────────────────────
+
+/**
+ * What `POST /appointment/check-in` returns.
+ *
+ * Three fields here are not guessable and were previously hand-declared on the
+ * frontend, where nothing could catch them drifting:
+ *
+ *   - `alreadyCheckedIn` — the endpoint is idempotent, so scanning the same
+ *     ticket twice is success with a different message, not an error.
+ *   - `staleDate` / `slotMismatch` — a ticket printed before a reschedule still
+ *     checks the patient in, flagged so the desk knows it is reading old paper.
+ */
+export const checkInResultSchema = z.object({
+  appointment: z
+    .object({
+      _id: objectId,
+      /** UTC-midnight anchor, ISO 8601. */
+      appointmentDate: z.string(),
+      timeSlot: z.string(),
+      consultationType: z.string().optional(),
+      status: appointmentStatusSchema,
+      /** Null when the appointment had already arrived. */
+      checkedInAt: z.string().nullable(),
+      patient: z.object({ _id: objectId, name: z.string() }).passthrough(),
+      doctor: z.object({ _id: objectId, name: z.string() }).passthrough(),
+    })
+    .passthrough(),
+  /** True when the ticket was scanned again after the patient was already in. */
+  alreadyCheckedIn: z.boolean(),
+  /** The printed date is not the appointment's current date. */
+  staleDate: z.boolean(),
+  /** The printed slot is not the appointment's current slot. */
+  slotMismatch: z.boolean(),
+});
+
+// ── Envelope helpers ────────────────────────────────────────────────────────
+
+/**
+ * Wrap a payload in the `{ success, message, data }` envelope.
+ *
+ * `message` is deliberately NOT required. The envelope is near-universal rather
+ * than universal: `GET /notification/unread-count` returns only
+ * `{ success, data }`, and a handful of older handlers skip `success` too.
+ * Marking `message` required would publish a guarantee the API does not make,
+ * which is exactly what these schemas exist to avoid.
+ */
+export const envelope = <T extends z.ZodTypeAny>(data: T) =>
+  z.object({ success: z.boolean(), message: z.string().optional(), data });
+
+/** Pagination block, as the paginated list endpoints return it. */
+export const paginationSchema = z.object({
+  totalItems: z.number().int().nonnegative(),
+  currentPage: z.number().int().positive(),
+  totalPages: z.number().int().nonnegative(),
+  hasNextPage: z.boolean(),
+  hasPrevPage: z.boolean(),
+});
+
+/** `{ count, appointments }` — the queue-shaped list endpoints. */
+export const appointmentQueueSchema = z.object({
+  count: z.number().int().nonnegative(),
+  appointments: z.array(appointmentSchema),
+});
+
+/** `GET /appointment` adds pagination to the queue shape. */
+export const appointmentPageSchema = appointmentQueueSchema.extend({
+  pagination: paginationSchema,
+});
+
+/**
+ * `GET /appointment/slots` returns slot *states*, not bare slot labels.
+ *
+ * `GET /appointment/available-slots` returns plain strings. Two adjacent
+ * endpoints with different payload shapes and similar names — another thing a
+ * guess would have got wrong.
+ */
+export const slotStateSchema = z.object({
+  timeSlot: z.string(),
+  /** e.g. "free" | "held" | "held-by-you" | "taken". */
+  state: z.string(),
+});
+
+/** `{ shareCode }`. */
+export const shareCodeSchema = z.object({ shareCode: z.string() });
+
+// ── Consultation ────────────────────────────────────────────────────────────
+
+/**
+ * A prescription line.
+ *
+ * The remedy field is `remedyName`, not `drug` — homeopathic prescriptions name
+ * a remedy, and this schema originally guessed `drug` and would have been wrong.
+ * Caught because the fixture failed to save, not because anyone read the model.
+ *
+ * `potency` defaults to null, so it is present but nullable.
+ */
+export const prescriptionSchema = z
+  .object({
+    _id: objectId.optional(),
+    remedyName: z.string(),
+    potency: z.string().nullable().optional(),
+    dosage: z.string(),
+    durationInDays: z.number(),
+  })
+  .passthrough();
+
+/**
+ * A consultation as `GET /consultation/history/:patientId` returns it, where
+ * `appointmentId` is populated to `{ _id, appointmentDate, consultationType }`.
+ * The "latest" endpoint returns the same record with bare string ids, so this
+ * schema stays permissive on those two fields.
+ */
+/**
+ * A populated reference of unknown shape.
+ *
+ * Consultations populate `appointmentId` to `{ _id, appointmentDate,
+ * consultationType }`, which is neither a bare id nor a user reference, so the
+ * specific schemas cannot describe it. `userRefSchema` rejected it outright
+ * when it was tried here.
+ */
+const populatedRefSchema = z.object({ _id: objectId }).passthrough();
+
+export const consultationHistoryEntrySchema = z
+  .object({
+    _id: objectId,
+    appointmentId: z.union([objectId, populatedRefSchema]).optional(),
+    patientId: z.union([objectId, userRefSchema]).optional(),
+    doctorId: z.union([objectId, userRefSchema]).optional(),
+    chiefComplaintDetails: z.record(z.string(), z.unknown()).optional(),
+    physicalGenerals: z.record(z.string(), z.unknown()).optional(),
+    mentalGenerals: z.string().optional(),
+    pastMedicalHistory: z.string().optional(),
+    diagnosis: z.string().optional(),
+    prescriptions: z.array(prescriptionSchema).optional(),
+    doctorNotes: z.string().optional(),
+    followUpDate: z.string().optional(),
+    followUpStatus: z.string().optional(),
+    followUpReminderSentAt: z.string().nullable().optional(),
+    createdAt: isoDateTime,
+    updatedAt: isoDateTime,
+  })
+  .passthrough();
+
+export const medicalHistorySchema = z.object({
+  count: z.number().int().nonnegative(),
+  history: z.array(consultationHistoryEntrySchema),
+});
+
+/** An entry in `GET /consultation/follow-ups`. */
+export const followUpSchema = z
+  .object({
+    _id: objectId,
+    appointmentId: objectId,
+    doctorId: userRefSchema.optional(),
+    patientId: userRefSchema.optional(),
+    diagnosis: z.string().optional(),
+    followUpDate: z.string().optional(),
+    followUpStatus: z.string().optional(),
     createdAt: isoDateTime.optional(),
   })
   .passthrough();
 
-// ── Envelope helpers ────────────────────────────────────────────────────────
+// ── User self-service ───────────────────────────────────────────────────────
 
-/** Wrap a payload in the `{ success, message, data }` envelope every route returns. */
-export const envelope = <T extends z.ZodTypeAny>(data: T) =>
-  z.object({ success: z.boolean(), message: z.string(), data });
+/**
+ * `GET /user/me` — the signed-in user's own document, credentials stripped.
+ *
+ * Broader than `userSummarySchema` because a user reading their own record gets
+ * the real profile, not the directory projection.
+ */
+export const ownProfileSchema = z
+  .object({
+    _id: objectId,
+    name: z.string(),
+    email: z.string(),
+    phone: z.string(),
+    role: z.enum(["patient", "doctor", "staff", "admin"]),
+    accountType: z.string().optional(),
+    gender: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    bloodGroup: z.string().optional(),
+    profileImageUrl: z.string().optional(),
+    shareCode: z.string().optional(),
+    guardians: z.array(objectId).optional(),
+    isActive: z.boolean().optional(),
+    emailVerified: z.boolean().optional(),
+    doctorProfile: doctorProfileSchema.optional(),
+    createdAt: isoDateTime.optional(),
+    updatedAt: isoDateTime.optional(),
+  })
+  .passthrough();
+
+/** `GET /user/me/export` — a portability bundle of everything held about you. */
+export const dataExportSchema = z.object({
+  exportedAt: isoDateTime,
+  exportedBy: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    role: z.string(),
+  }),
+  profile: ownProfileSchema,
+  familyMembers: z.array(familyMemberSchema).optional(),
+  appointments: z.array(appointmentSchema).optional(),
+  consultations: z.array(consultationHistoryEntrySchema).optional(),
+  notifications: z.array(notificationSchema).optional(),
+  reviews: z.array(reviewSchema).optional(),
+});
+
+// ── Administration ──────────────────────────────────────────────────────────
+
+/** `GET /admin/stats` — dashboard counters. */
+export const adminStatsSchema = z.object({
+  totalPatients: z.number().int().nonnegative(),
+  totalDoctors: z.number().int().nonnegative(),
+  totalStaff: z.number().int().nonnegative(),
+  totalAppointments: z.number().int().nonnegative(),
+  todaysAppointments: z.number().int().nonnegative(),
+  pendingAppointments: z.number().int().nonnegative(),
+  completedConsultations: z.number().int().nonnegative(),
+});
+
+/** `GET /admin/analytics`. */
+export const adminAnalyticsSchema = z.object({
+  appointmentsByDoctor: z
+    .array(
+      z.object({
+        doctorId: objectId,
+        doctorName: z.string(),
+        total: z.number().int().nonnegative(),
+        statuses: z.record(z.string(), z.number().int().nonnegative()),
+      }),
+    )
+    .optional(),
+  statusRates: z
+    .array(z.object({ status: z.string(), count: z.number().int().nonnegative() }))
+    .optional(),
+  totalAppointments30d: z.number().int().nonnegative().optional(),
+  newPatientsByMonth: z
+    .array(
+      z.object({
+        month: z.string(),
+        label: z.string(),
+        count: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
+});
+
+/** One row of the PHI access log. */
+export const accessLogEntrySchema = z
+  .object({
+    _id: objectId,
+    actorId: objectId,
+    actorRole: z.string(),
+    actorName: z.string().optional(),
+    patientId: objectId,
+    resource: z.enum([
+      "consultation",
+      "report",
+      "medical-history",
+      "appointment",
+      "patient-profile",
+    ]),
+    resourceId: objectId.optional(),
+    action: z.enum(["read", "create", "update", "delete", "export"]),
+    route: z.string().optional(),
+    ip: z.string().optional(),
+    createdAt: isoDateTime,
+  })
+  .passthrough();
+
+/** The two audit list endpoints share one shape. */
+export const accessLogPageSchema = z.object({
+  count: z.number().int().nonnegative(),
+  entries: z.array(accessLogEntrySchema),
+});

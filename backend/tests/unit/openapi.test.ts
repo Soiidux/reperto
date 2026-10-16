@@ -246,10 +246,21 @@ describe("documentation completeness", () => {
   });
 
   it("describes the response payload for every route", () => {
-    const pending = routes
-      .filter((r) => !r.doc?.dataShape)
+    // Either a real schema or prose — but never neither. A route with neither
+    // tells a consumer nothing about what comes back.
+    const undescribed = routes
+      .filter((r) => !r.doc?.response && !r.doc?.dataShape)
       .map((r) => `${r.method} ${r.openApiPath}`);
-    expect(pending, `response shape missing: ${pending.join(", ")}`).toEqual([]);
+    expect(undescribed, `response not described: ${undescribed.join(", ")}`).toEqual([]);
+  });
+
+  it("prefers a schema over prose, never both", () => {
+    // Having both is not wrong, but it is a second thing to keep in sync, and
+    // the two can disagree without anything noticing.
+    const both = routes
+      .filter((r) => r.doc?.response && r.doc?.dataShape)
+      .map((r) => `${r.method} ${r.openApiPath}`);
+    expect(both, `both schema and prose: ${both.join(", ")}`).toEqual([]);
   });
 
   it("reports coverage in the document itself", () => {

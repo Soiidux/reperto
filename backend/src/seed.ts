@@ -58,10 +58,13 @@ const seedDemoActivity = async (doctor: any, patient: any, patient2: any) => {
       // Pending follow-up so the doctor's follow-up tracker has something real.
       prescriptions: [
         {
-          drug: "Alumina 30",
+          // `remedyName`, not `drug` — the field the Consultation model
+          // requires. `findOneAndUpdate` does not run validators by default, so
+          // a wrong field name here writes a malformed prescription straight
+          // past the schema instead of failing.
+          remedyName: "Alumina 30",
           dosage: "10 drops, twice daily",
           durationInDays: 14,
-          instructions: "Take after food",
         },
       ],
       followUpDate: new Date(),

@@ -12,27 +12,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { checkInByTicket } from "@/api/appointment";
+import type { PostAppointmentCheckInData } from "@/types/api.generated";
 import { getErrorMessage } from "@/lib/utils";
 import { normalizeTicketCode } from "@/lib/ticket";
 
 type Mode = "camera" | "manual";
 
-type CheckedInAppointment = {
-  _id: string;
-  appointmentDate: string;
-  timeSlot: string;
-  consultationType: string;
-  status: string;
-  patient: { _id: string; name: string };
-  doctor: { _id: string; name: string };
-};
-
-type CheckInData = {
-  appointment: CheckedInAppointment;
-  alreadyCheckedIn: boolean;
-  staleDate: boolean;
-  slotMismatch: boolean;
-};
+/**
+ * The check-in response type comes from the server's schema, not from here.
+ *
+ * These were hand-declared below until the endpoint gained a response schema.
+ * The fields are not guessable — `alreadyCheckedIn` makes a repeat scan a
+ * success rather than an error, and `staleDate`/`slotMismatch` tell the desk a
+ * ticket was printed before a reschedule — so a locally-invented version would
+ * have compiled happily and misread every one of them.
+ */
+type CheckInData = PostAppointmentCheckInData;
+type CheckedInAppointment = CheckInData["appointment"];
 
 type Result =
   | { kind: "ok"; payload: CheckInData }

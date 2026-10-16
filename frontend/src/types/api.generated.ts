@@ -8,7 +8,7 @@
  * endpoint the API does not actually serve.
  *
  * Coverage when generated: 75 operations,
- * 8 with a named response type.
+ * 31 with a named response type.
  *
  * Hand-written interfaces that mirror server payloads are the thing this file
  * replaces. A field renamed on the server should be a compile error here rather
@@ -22,6 +22,315 @@
 export type ApiVersion = "v1";
 
 // ── Response payload types ──────────────────────────────────────────────
+export type GetAdminAnalyticsData = {
+  appointmentsByDoctor?: {
+    doctorId: string;
+    doctorName: string;
+    total: number;
+    statuses: Record<string, number>;
+  }[];
+  statusRates?: {
+    status: string;
+    count: number;
+  }[];
+  totalAppointments30d?: number;
+  newPatientsByMonth?: {
+    month: string;
+    label: string;
+    count: number;
+  }[];
+};
+
+export type GetAdminAuditActivityData = {
+  count: number;
+  entries: ({
+    _id: string;
+    actorId: string;
+    actorRole: string;
+    actorName?: string;
+    patientId: string;
+    resource: "consultation" | "report" | "medical-history" | "appointment" | "patient-profile";
+    resourceId?: string;
+    action: "read" | "create" | "update" | "delete" | "export";
+    route?: string;
+    ip?: string;
+    createdAt: string;
+  })[];
+};
+
+export type GetAdminAuditPatientPatientIdByStaffData = {
+  count: number;
+  entries: ({
+    _id: string;
+    actorId: string;
+    actorRole: string;
+    actorName?: string;
+    patientId: string;
+    resource: "consultation" | "report" | "medical-history" | "appointment" | "patient-profile";
+    resourceId?: string;
+    action: "read" | "create" | "update" | "delete" | "export";
+    route?: string;
+    ip?: string;
+    createdAt: string;
+  })[];
+};
+
+export type GetAdminAuditPatientPatientIdData = {
+  count: number;
+  entries: ({
+    _id: string;
+    actorId: string;
+    actorRole: string;
+    actorName?: string;
+    patientId: string;
+    resource: "consultation" | "report" | "medical-history" | "appointment" | "patient-profile";
+    resourceId?: string;
+    action: "read" | "create" | "update" | "delete" | "export";
+    route?: string;
+    ip?: string;
+    createdAt: string;
+  })[];
+};
+
+export type GetAdminStatsData = {
+  totalPatients: number;
+  totalDoctors: number;
+  totalStaff: number;
+  totalAppointments: number;
+  todaysAppointments: number;
+  pendingAppointments: number;
+  completedConsultations: number;
+};
+
+export type GetAppointmentActiveData = {
+  count: number;
+  appointments: ({
+    _id: string;
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    appointmentDate: string;
+    timeSlot: string;
+    durationInMinutes?: number;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    consultationType?: string;
+    checkedInAt?: string | null;
+    checkedInBy?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    } | null;
+    cancellationReason?: string;
+    needsReschedule?: boolean;
+    rescheduleSuggestions?: unknown[];
+    reminderEmailAt?: string | null;
+    intakeDetails?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+};
+
+export type GetAppointmentArrivedData = {
+  count: number;
+  appointments: ({
+    _id: string;
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    appointmentDate: string;
+    timeSlot: string;
+    durationInMinutes?: number;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    consultationType?: string;
+    checkedInAt?: string | null;
+    checkedInBy?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    } | null;
+    cancellationReason?: string;
+    needsReschedule?: boolean;
+    rescheduleSuggestions?: unknown[];
+    reminderEmailAt?: string | null;
+    intakeDetails?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+};
+
+export type GetAppointmentData = {
+  count: number;
+  appointments: ({
+    _id: string;
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    appointmentDate: string;
+    timeSlot: string;
+    durationInMinutes?: number;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    consultationType?: string;
+    checkedInAt?: string | null;
+    checkedInBy?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    } | null;
+    cancellationReason?: string;
+    needsReschedule?: boolean;
+    rescheduleSuggestions?: unknown[];
+    reminderEmailAt?: string | null;
+    intakeDetails?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+  pagination: {
+    totalItems: number;
+    currentPage: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+};
+
+export type GetAppointmentIdData = {
+  _id: string;
+  patientId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  doctorId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  appointmentDate: string;
+  timeSlot: string;
+  durationInMinutes?: number;
+  status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+  consultationType?: string;
+  checkedInAt?: string | null;
+  checkedInBy?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  } | null;
+  cancellationReason?: string;
+  needsReschedule?: boolean;
+  rescheduleSuggestions?: unknown[];
+  reminderEmailAt?: string | null;
+  intakeDetails?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type GetAppointmentSlotsData = {
+  timeSlot: string;
+  state: string;
+}[];
+
+export type GetAppointmentTodayData = {
+  count: number;
+  appointments: ({
+    _id: string;
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    appointmentDate: string;
+    timeSlot: string;
+    durationInMinutes?: number;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    consultationType?: string;
+    checkedInAt?: string | null;
+    checkedInBy?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    } | null;
+    cancellationReason?: string;
+    needsReschedule?: boolean;
+    rescheduleSuggestions?: unknown[];
+    reminderEmailAt?: string | null;
+    intakeDetails?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+};
+
 export type GetClinicSettingsData = {
   clinicName: string;
   address: string;
@@ -45,8 +354,132 @@ export type GetClinicSettingsData = {
   };
 };
 
+export type GetConsultationHistoryPatientIdData = {
+  count: number;
+  history: ({
+    _id: string;
+    appointmentId?: string | {
+      _id: string;
+    };
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    chiefComplaintDetails?: Record<string, unknown>;
+    physicalGenerals?: Record<string, unknown>;
+    mentalGenerals?: string;
+    pastMedicalHistory?: string;
+    diagnosis?: string;
+    prescriptions?: ({
+      _id?: string;
+      remedyName: string;
+      potency?: string | null;
+      dosage: string;
+      durationInDays: number;
+    })[];
+    doctorNotes?: string;
+    followUpDate?: string;
+    followUpStatus?: string;
+    followUpReminderSentAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  })[];
+};
+
+export type GetConsultationLatestPatientIdData = {
+  _id: string;
+  appointmentId?: string | {
+    _id: string;
+  };
+  patientId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  doctorId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  chiefComplaintDetails?: Record<string, unknown>;
+  physicalGenerals?: Record<string, unknown>;
+  mentalGenerals?: string;
+  pastMedicalHistory?: string;
+  diagnosis?: string;
+  prescriptions?: ({
+    _id?: string;
+    remedyName: string;
+    potency?: string | null;
+    dosage: string;
+    durationInDays: number;
+  })[];
+  doctorNotes?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  followUpReminderSentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+} | null;
+
 export type GetNotificationUnreadCountData = {
   unread: number;
+};
+
+export type GetReportData = {
+  count: number;
+  reports: ({
+    _id: string;
+    patientId: {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    uploadedBy: {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    title: string;
+    category: "lab" | "imaging" | "test" | "other";
+    description?: string;
+    consultationId?: string;
+    files: ({
+      url?: string;
+      publicId?: string;
+      storageId?: string;
+      storage?: "cloudinary" | "gridfs";
+      name: string;
+      mimeType: string;
+      size: number;
+      resourceType?: string;
+    })[];
+    createdAt: string;
+    updatedAt: string;
+  })[];
 };
 
 export type GetReviewData = {
@@ -84,6 +517,198 @@ export type GetReviewData = {
   } | null;
 };
 
+export type GetUserDoctorsData = {
+  _id: string;
+  name: string;
+  profileImageUrl?: string;
+  doctorProfile?: {
+    specializations?: string[];
+    qualifications?: string[];
+    languagesSpoken?: string[];
+    experienceYears?: number;
+    consultationFee?: number;
+  };
+  totalReviews?: number;
+  avgRating?: number;
+  ratingDistribution?: Record<string, number>;
+}[];
+
+export type GetUserMeData = {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: "patient" | "doctor" | "staff" | "admin";
+  accountType?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  bloodGroup?: string;
+  profileImageUrl?: string;
+  shareCode?: string;
+  guardians?: string[];
+  isActive?: boolean;
+  emailVerified?: boolean;
+  doctorProfile?: {
+    specializations?: string[];
+    qualifications?: string[];
+    languagesSpoken?: string[];
+    experienceYears?: number;
+    consultationFee?: number;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type GetUserMeExportData = {
+  exportedAt: string;
+  exportedBy: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  profile: {
+    _id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: "patient" | "doctor" | "staff" | "admin";
+    accountType?: string;
+    gender?: string;
+    dateOfBirth?: string;
+    bloodGroup?: string;
+    profileImageUrl?: string;
+    shareCode?: string;
+    guardians?: string[];
+    isActive?: boolean;
+    emailVerified?: boolean;
+    doctorProfile?: {
+      specializations?: string[];
+      qualifications?: string[];
+      languagesSpoken?: string[];
+      experienceYears?: number;
+      consultationFee?: number;
+    };
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  familyMembers?: {
+    _id: string;
+    name: string;
+    phone: string;
+    gender?: string;
+    dateOfBirth?: string;
+    bloodGroup?: string;
+    accountType?: "dependent";
+    shareCode?: string;
+    guardians?: string[];
+  }[];
+  appointments?: ({
+    _id: string;
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    appointmentDate: string;
+    timeSlot: string;
+    durationInMinutes?: number;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    consultationType?: string;
+    checkedInAt?: string | null;
+    checkedInBy?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    } | null;
+    cancellationReason?: string;
+    needsReschedule?: boolean;
+    rescheduleSuggestions?: unknown[];
+    reminderEmailAt?: string | null;
+    intakeDetails?: Record<string, unknown>;
+    createdAt?: string;
+    updatedAt?: string;
+  })[];
+  consultations?: ({
+    _id: string;
+    appointmentId?: string | {
+      _id: string;
+    };
+    patientId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    doctorId?: string | {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+      role?: "patient" | "doctor" | "staff" | "admin";
+      phone?: string;
+      email?: string;
+    };
+    chiefComplaintDetails?: Record<string, unknown>;
+    physicalGenerals?: Record<string, unknown>;
+    mentalGenerals?: string;
+    pastMedicalHistory?: string;
+    diagnosis?: string;
+    prescriptions?: ({
+      _id?: string;
+      remedyName: string;
+      potency?: string | null;
+      dosage: string;
+      durationInDays: number;
+    })[];
+    doctorNotes?: string;
+    followUpDate?: string;
+    followUpStatus?: string;
+    followUpReminderSentAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  })[];
+  notifications?: ({
+    _id: string;
+    recipientId: string;
+    type: "leave-conflict" | "appointment-status" | "appointment-rescheduled" | "follow-up-due";
+    title: string;
+    body: string;
+    link?: string;
+    appointmentId?: string;
+    readAt: string | null;
+    createdAt: string;
+  })[];
+  reviews?: {
+    _id: string;
+    patientId: {
+      _id: string;
+      name: string;
+      profileImageUrl?: string;
+    };
+    doctorId: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+};
+
 export type GetUserMeFamilyData = {
   _id: string;
   name: string;
@@ -96,6 +721,10 @@ export type GetUserMeFamilyData = {
   guardians?: string[];
 }[];
 
+export type GetUserMeShareCodeData = {
+  shareCode: string;
+};
+
 export type GetUserPatientsData = {
   _id: string;
   name: string;
@@ -106,14 +735,62 @@ export type GetUserPatientsData = {
   bloodGroup?: string;
   profileImageUrl?: string;
   doctorProfile?: {
-    specialization?: string;
-    qualification?: string;
-    experience?: number;
+    specializations?: string[];
+    qualifications?: string[];
+    languagesSpoken?: string[];
+    experienceYears?: number;
     consultationFee?: number;
-    averageRating?: number;
-    totalReviews?: number;
   };
 }[];
+
+export type PatchNotificationIdReadData = {
+  _id: string;
+  recipientId: string;
+  type: "leave-conflict" | "appointment-status" | "appointment-rescheduled" | "follow-up-due";
+  title: string;
+  body: string;
+  link?: string;
+  appointmentId?: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type PostAppointmentCheckInData = {
+  appointment: {
+    _id: string;
+    appointmentDate: string;
+    timeSlot: string;
+    consultationType?: string;
+    status: "pending" | "arrived" | "completed" | "cancelled" | "no-show";
+    checkedInAt: string | null;
+    patient: {
+      _id: string;
+      name: string;
+    };
+    doctor: {
+      _id: string;
+      name: string;
+    };
+  };
+  alreadyCheckedIn: boolean;
+  staleDate: boolean;
+  slotMismatch: boolean;
+};
+
+export type PostAuthLoginData = {
+  accessToken: string;
+  user: {
+    id: string;
+    name: string;
+    role: "patient" | "doctor" | "staff" | "admin";
+    profileImageUrl: string;
+    emailVerified: boolean;
+  };
+};
+
+export type PostAuthRefreshData = {
+  accessToken: string;
+};
 
 export type PostReportData = {
   _id: string;
@@ -177,6 +854,10 @@ export type PostUserMeFamilyData = {
   guardians?: string[];
 };
 
+export type PostUserMeFamilyIdShareCodeData = {
+  shareCode: string;
+};
+
 // ── Per-operation aliases ───────────────────────────────────────────────
 /** `DELETE /api/v1/admin/clinic-blockouts/{date}` */
 export type DeleteAdminClinicBlockoutsDate = Record<string, unknown>;
@@ -200,16 +881,16 @@ export type DeleteUserMeFamilyId = Record<string, unknown>;
 export type DeleteUserMeFamilyIdGuardiansGuardianId = Record<string, unknown>;
 
 /** `GET /api/v1/admin/analytics` */
-export type GetAdminAnalytics = Record<string, unknown>;
+export type GetAdminAnalytics = GetAdminAnalyticsData;
 
 /** `GET /api/v1/admin/audit/activity` */
-export type GetAdminAuditActivity = Record<string, unknown>;
+export type GetAdminAuditActivity = GetAdminAuditActivityData;
 
 /** `GET /api/v1/admin/audit/patient/{patientId}` */
-export type GetAdminAuditPatientPatientId = Record<string, unknown>;
+export type GetAdminAuditPatientPatientId = GetAdminAuditPatientPatientIdData;
 
 /** `GET /api/v1/admin/audit/patient/{patientId}/by-staff` */
-export type GetAdminAuditPatientPatientIdByStaff = Record<string, unknown>;
+export type GetAdminAuditPatientPatientIdByStaff = GetAdminAuditPatientPatientIdByStaffData;
 
 /** `GET /api/v1/admin/clinic-blockouts` */
 export type GetAdminClinicBlockouts = ({
@@ -229,7 +910,7 @@ export type GetAdminExportAppointments = Record<string, unknown>;
 export type GetAdminExportPatients = Record<string, unknown>;
 
 /** `GET /api/v1/admin/stats` */
-export type GetAdminStats = Record<string, unknown>;
+export type GetAdminStats = GetAdminStatsData;
 
 /** `GET /api/v1/admin/users` */
 export type GetAdminUsers = ({
@@ -244,53 +925,114 @@ export type GetAdminUsers = ({
   profileImageUrl?: string;
   isActive?: boolean;
   doctorProfile?: {
-    specialization?: string;
-    qualification?: string;
-    experience?: number;
+    specializations?: string[];
+    qualifications?: string[];
+    languagesSpoken?: string[];
+    experienceYears?: number;
     consultationFee?: number;
-    averageRating?: number;
-    totalReviews?: number;
   };
 })[];
 
 /** `GET /api/v1/appointment` */
-export type GetAppointment = Record<string, unknown>;
+export type GetAppointment = GetAppointmentData;
 
 /** `GET /api/v1/appointment/active` */
-export type GetAppointmentActive = Record<string, unknown>;
+export type GetAppointmentActive = GetAppointmentActiveData;
 
 /** `GET /api/v1/appointment/arrived` */
-export type GetAppointmentArrived = Record<string, unknown>;
+export type GetAppointmentArrived = GetAppointmentArrivedData;
 
 /** `GET /api/v1/appointment/available-slots` */
-export type GetAppointmentAvailableSlots = Record<string, unknown>;
+export type GetAppointmentAvailableSlots = string[];
 
 /** `GET /api/v1/appointment/{id}` */
-export type GetAppointmentId = Record<string, unknown>;
+export type GetAppointmentId = GetAppointmentIdData;
 
 /** `GET /api/v1/appointment/{id}/ticket/qr` */
 export type GetAppointmentIdTicketQr = Record<string, unknown>;
 
 /** `GET /api/v1/appointment/slots` */
-export type GetAppointmentSlots = Record<string, unknown>;
+export type GetAppointmentSlots = GetAppointmentSlotsData;
 
 /** `GET /api/v1/appointment/today` */
-export type GetAppointmentToday = Record<string, unknown>;
+export type GetAppointmentToday = GetAppointmentTodayData;
 
 /** `GET /api/v1/clinic/settings` */
 export type GetClinicSettings = GetClinicSettingsData;
 
 /** `GET /api/v1/consultation` */
-export type GetConsultation = Record<string, unknown>;
+export type GetConsultation = ({
+  _id: string;
+  appointmentId?: string | {
+    _id: string;
+  };
+  patientId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  doctorId?: string | {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  chiefComplaintDetails?: Record<string, unknown>;
+  physicalGenerals?: Record<string, unknown>;
+  mentalGenerals?: string;
+  pastMedicalHistory?: string;
+  diagnosis?: string;
+  prescriptions?: ({
+    _id?: string;
+    remedyName: string;
+    potency?: string | null;
+    dosage: string;
+    durationInDays: number;
+  })[];
+  doctorNotes?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  followUpReminderSentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+})[];
 
 /** `GET /api/v1/consultation/follow-ups` */
-export type GetConsultationFollowUps = Record<string, unknown>;
+export type GetConsultationFollowUps = ({
+  _id: string;
+  appointmentId: string;
+  doctorId?: {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  patientId?: {
+    _id: string;
+    name: string;
+    profileImageUrl?: string;
+    role?: "patient" | "doctor" | "staff" | "admin";
+    phone?: string;
+    email?: string;
+  };
+  diagnosis?: string;
+  followUpDate?: string;
+  followUpStatus?: string;
+  createdAt?: string;
+})[];
 
 /** `GET /api/v1/consultation/history/{patientId}` */
-export type GetConsultationHistoryPatientId = Record<string, unknown>;
+export type GetConsultationHistoryPatientId = GetConsultationHistoryPatientIdData;
 
 /** `GET /api/v1/consultation/latest/{patientId}` */
-export type GetConsultationLatestPatientId = Record<string, unknown>;
+export type GetConsultationLatestPatientId = GetConsultationLatestPatientIdData;
 
 /** `GET /api/v1/leave/my` */
 export type GetLeaveMy = ({
@@ -320,41 +1062,7 @@ export type GetNotification = ({
 export type GetNotificationUnreadCount = GetNotificationUnreadCountData;
 
 /** `GET /api/v1/report` */
-export type GetReport = ({
-  _id: string;
-  patientId: {
-    _id: string;
-    name: string;
-    profileImageUrl?: string;
-    role?: "patient" | "doctor" | "staff" | "admin";
-    phone?: string;
-    email?: string;
-  };
-  uploadedBy: {
-    _id: string;
-    name: string;
-    profileImageUrl?: string;
-    role?: "patient" | "doctor" | "staff" | "admin";
-    phone?: string;
-    email?: string;
-  };
-  title: string;
-  category: "lab" | "imaging" | "test" | "other";
-  description?: string;
-  consultationId?: string;
-  files: ({
-    url?: string;
-    publicId?: string;
-    storageId?: string;
-    storage?: "cloudinary" | "gridfs";
-    name: string;
-    mimeType: string;
-    size: number;
-    resourceType?: string;
-  })[];
-  createdAt: string;
-  updatedAt: string;
-})[];
+export type GetReport = GetReportData;
 
 /** `GET /api/v1/report/{id}/file/{index}` */
 export type GetReportIdFileIndex = Record<string, unknown>;
@@ -363,19 +1071,19 @@ export type GetReportIdFileIndex = Record<string, unknown>;
 export type GetReview = GetReviewData;
 
 /** `GET /api/v1/user/doctors` */
-export type GetUserDoctors = Record<string, unknown>;
+export type GetUserDoctors = GetUserDoctorsData;
 
 /** `GET /api/v1/user/me` */
-export type GetUserMe = Record<string, unknown>;
+export type GetUserMe = GetUserMeData;
 
 /** `GET /api/v1/user/me/export` */
-export type GetUserMeExport = Record<string, unknown>;
+export type GetUserMeExport = GetUserMeExportData;
 
 /** `GET /api/v1/user/me/family` */
 export type GetUserMeFamily = GetUserMeFamilyData;
 
 /** `GET /api/v1/user/me/share-code` */
-export type GetUserMeShareCode = Record<string, unknown>;
+export type GetUserMeShareCode = GetUserMeShareCodeData;
 
 /** `GET /api/v1/user/patients` */
 export type GetUserPatients = GetUserPatientsData;
@@ -390,22 +1098,22 @@ export type PatchAppointmentIdReschedule = Record<string, unknown>;
 export type PatchAppointmentIdStatus = Record<string, unknown>;
 
 /** `PATCH /api/v1/auth/email` */
-export type PatchAuthEmail = Record<string, unknown>;
+export type PatchAuthEmail = null;
 
 /** `PATCH /api/v1/auth/password` */
-export type PatchAuthPassword = Record<string, unknown>;
+export type PatchAuthPassword = null;
 
 /** `PATCH /api/v1/auth/phone` */
-export type PatchAuthPhone = Record<string, unknown>;
+export type PatchAuthPhone = null;
 
 /** `PATCH /api/v1/consultation/{id}/follow-up` */
 export type PatchConsultationIdFollowUp = Record<string, unknown>;
 
 /** `PATCH /api/v1/notification/{id}/read` */
-export type PatchNotificationIdRead = Record<string, unknown>;
+export type PatchNotificationIdRead = PatchNotificationIdReadData;
 
 /** `PATCH /api/v1/notification/read-all` */
-export type PatchNotificationReadAll = Record<string, unknown>;
+export type PatchNotificationReadAll = null;
 
 /** `PATCH /api/v1/user/me/family/{id}` */
 export type PatchUserMeFamilyId = Record<string, unknown>;
@@ -423,7 +1131,7 @@ export type PostAdminTeam = Record<string, unknown>;
 export type PostAppointment = Record<string, unknown>;
 
 /** `POST /api/v1/appointment/check-in` */
-export type PostAppointmentCheckIn = Record<string, unknown>;
+export type PostAppointmentCheckIn = PostAppointmentCheckInData;
 
 /** `POST /api/v1/appointment/hold` */
 export type PostAppointmentHold = Record<string, unknown>;
@@ -432,28 +1140,28 @@ export type PostAppointmentHold = Record<string, unknown>;
 export type PostAppointmentHoldIdBook = Record<string, unknown>;
 
 /** `POST /api/v1/auth/forgot-password` */
-export type PostAuthForgotPassword = Record<string, unknown>;
+export type PostAuthForgotPassword = null;
 
 /** `POST /api/v1/auth/login` */
-export type PostAuthLogin = Record<string, unknown>;
+export type PostAuthLogin = PostAuthLoginData;
 
 /** `POST /api/v1/auth/logout` */
-export type PostAuthLogout = Record<string, unknown>;
+export type PostAuthLogout = null;
 
 /** `POST /api/v1/auth/refresh` */
-export type PostAuthRefresh = Record<string, unknown>;
+export type PostAuthRefresh = PostAuthRefreshData;
 
 /** `POST /api/v1/auth/register` */
-export type PostAuthRegister = Record<string, unknown>;
+export type PostAuthRegister = null;
 
 /** `POST /api/v1/auth/resend-verification` */
-export type PostAuthResendVerification = Record<string, unknown>;
+export type PostAuthResendVerification = null;
 
 /** `POST /api/v1/auth/reset-password` */
-export type PostAuthResetPassword = Record<string, unknown>;
+export type PostAuthResetPassword = null;
 
 /** `POST /api/v1/auth/verify-email` */
-export type PostAuthVerifyEmail = Record<string, unknown>;
+export type PostAuthVerifyEmail = null;
 
 /** `POST /api/v1/consultation` */
 export type PostConsultation = Record<string, unknown>;
@@ -477,7 +1185,7 @@ export type PostUserMeFamilyAddByCode = Record<string, unknown>;
 export type PostUserMeFamilyIdLeave = Record<string, unknown>;
 
 /** `POST /api/v1/user/me/family/{id}/share-code` */
-export type PostUserMeFamilyIdShareCode = Record<string, unknown>;
+export type PostUserMeFamilyIdShareCode = PostUserMeFamilyIdShareCodeData;
 
 /** `PUT /api/v1/admin/clinic-settings` */
 export type PutAdminClinicSettings = Record<string, unknown>;

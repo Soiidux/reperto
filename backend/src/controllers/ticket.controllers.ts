@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import QRCode from "qrcode";
 import Appointment from "../db/models/appointment.model";
+import { recordAccess } from "../db/models/accessLog.model";
 import { canActForPatient } from "../utils/patientScope";
 import { getClinicTodayAnchor, formatDateLabel } from "../utils/clinicDate";
 import { notifyPatientArrived } from "../utils/notifications";
@@ -118,6 +119,29 @@ export const checkInByTicket = async (req: Request, res: Response) => {
     appointment.checkedInAt = new Date();
     appointment.checkedInBy = new mongoose.Types.ObjectId(req.user.id);
     await appointment.save();
+
+    // Audit the check-in, not just the stamp on the appointment.
+    //
+    // `checkedInAt`/`checkedInBy` already record who let this one patient in,
+    // but they cannot answer the other question the audit endpoints exist for —
+    // "what did this staff member do today?" — because check-ins never reached
+    // the log. A busy reception desk is exactly where that question comes from.
+    //
+    // `appointment.patientId` is *populated* here (to pick up the name for the
+    // response), so it is an object, not an id. Stringifying it directly yields
+    // "[object Object]", which recordAccess silently discards as an invalid
+    // ObjectId — the audit row would simply never appear.
+    await recordAccess({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      patientId: toId(appointment.patientId),
+      resource: "appointment",
+      resourceId: toId(appointment._id),
+      action: "update",
+      route: "POST /api/appointment/check-in",
+      ip: req.ip,
+    });
+
     try {
       await notifyPatientArrived(appointment);
     } catch (error) {
