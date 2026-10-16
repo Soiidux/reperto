@@ -8,6 +8,16 @@ import {
 import { protect, requirePermission } from "../middlewares/auth.middlewares";
 import { reportUpload } from "../utils/reportMulter";
 
+import { type ValidateOptions, validate } from '../middlewares/validate';
+import { reportsQuerySchema } from '../zodQuerySchemas';
+
+/**
+ * Named so the intent reads at the call site: this validates the query
+ * string, not the body. See zodQuerySchemas.ts for why these exist and
+ * how they are shaped to stay behaviour-compatible.
+ */
+const QUERY: ValidateOptions = { source: 'query' };
+
 const router = express.Router();
 
 // Patients attach their own/family reports; staff/admin do front-desk intake.
@@ -19,7 +29,7 @@ router.post(
   reportUpload.array("files", 5),
   uploadReport,
 );
-router.get("/", protect, requirePermission("reports:read"), listReports);
+router.get("/", protect, requirePermission("reports:read"), validate(reportsQuerySchema, QUERY), listReports);
 // Streams/redirects a single file. Registered before "/:id" so the static
 // segment isn't read as a report id.
 router.get("/:id/file/:index", protect, requirePermission("reports:read"), getReportFile);

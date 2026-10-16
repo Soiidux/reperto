@@ -200,12 +200,10 @@ describe("request bodies come from the real validate() middleware", () => {
     expect(login.op["x-validated-request-parts"]).toContain("body");
   });
 
-  it("never claims a query string is validated when it is not", () => {
-    // validate() only covered req.body historically. The document has to say so
-    // rather than implying a guarantee the server does not make.
+  it("records that the query string is now genuinely validated", () => {
     const users = findOp("GET", "/api/v1/admin/users")!;
-    expect(users.op["x-query-params-documented-only"]).toBe(true);
-    expect(users.op["x-validated-request-parts"]).not.toContain("query");
+    expect(users.op["x-query-params-documented-only"]).toBeUndefined();
+    expect(users.op["x-validated-request-parts"]).toContain("query");
   });
 
   it("documents the query parameters the controllers actually read", () => {
@@ -221,6 +219,24 @@ describe("request bodies come from the real validate() middleware", () => {
       "search",
     ]);
     for (const param of users.op.parameters) expect(param.in).toBe("query");
+  });
+
+  it("marks a query string as validated only when a schema really enforces it", () => {
+    // The flag used to be set on 17 operations: the query string was described
+    // in the spec but never checked. Now every documented query parameter comes
+    // from the same schema the route validates with, so the two cannot drift —
+    // and the marker should be gone entirely.
+    const documented = ops().filter((o) =>
+      (o.op.parameters ?? []).some((p: any) => p.in === "query"),
+    );
+    const stillUnvalidated = documented
+      .filter((o) => o.op["x-query-params-documented-only"])
+      .map((o) => `${o.method} ${o.path}`);
+
+    expect(
+      stillUnvalidated,
+      "query documented but not enforced",
+    ).toEqual([]);
   });
 
   it("marks path parameters required and typed", () => {

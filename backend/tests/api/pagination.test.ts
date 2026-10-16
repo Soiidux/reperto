@@ -186,11 +186,22 @@ describe("GET /appointment pagination", () => {
     expect(res.body.data.pagination.totalPages).toBe(1);
   });
 
-  it("rejects a nonsensical page rather than returning nonsense", async () => {
+  it("rejects a nonsensical page instead of silently serving the first one", async () => {
     await seed(5);
     const res = await list("limit=25&page=0");
+    // Previously clamped to page 1: the client asked for page 0 and received a
+    // 200 with a result nobody selected. The query schema now rejects it, which
+    // is the honest answer, and names the query string in the error.
+    expect(res.status).toBe(400);
+    expect(res.body.source).toBe("query");
+    expect(res.body.errors.page).toBeDefined();
+  });
+
+  it("still accepts a limit of 0, which controllers read as 'use the default'", async () => {
+    // Deliberately preserved: `Number(limit) || 50` treats 0 as "default", and
+    // tightening that would break callers that send it today.
+    await seed(3);
+    const res = await list("limit=0");
     expect(res.status).toBe(200);
-    // page=0 would compute a negative skip; it is clamped to the first page.
-    expect(res.body.data.pagination.currentPage).toBe(1);
   });
 });

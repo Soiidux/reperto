@@ -30,6 +30,24 @@ import {
   slotStateSchema,
   userSummarySchema,
 } from "./responseSchemas";
+import {
+  adminUsersQuerySchema,
+  appointmentsQuerySchema,
+  arrivedQuerySchema,
+  auditActivityQuerySchema,
+  auditPatientQuerySchema,
+  clinicBlockoutsQuerySchema,
+  consultationsQuerySchema,
+  doctorsQuerySchema,
+  exportAppointmentsQuerySchema,
+  followUpsQuerySchema,
+  notificationsQuerySchema,
+  patientDirectoryQuerySchema,
+  queueQuerySchema,
+  reportsQuerySchema,
+  reviewsQuerySchema,
+  slotStatesQuerySchema,
+} from "../zodQuerySchemas";
 
 /**
  * Documentation the route itself cannot declare.
@@ -185,10 +203,7 @@ const ROUTES = {
   },
   "GET /api/v1/user/doctors": {
     summary: "List doctors, optionally filtered",
-    query: z.object({
-      specialization: z.string().optional().describe("Specialty to filter by."),
-      name: z.string().optional().describe("Case-insensitive prefix of the doctor's name."),
-    }),
+    query: doctorsQuerySchema,
     response: doctorDirectoryEntrySchema.array(),
   },
   "GET /api/v1/user/patients": {
@@ -196,13 +211,7 @@ const ROUTES = {
     response: patientDirectoryEntrySchema.array(),
     description:
       "Paginated and searchable by prefix on name, email or phone. Served from a collation index, so it does not scan the collection.",
-    query: z.object({
-      ...pagination,
-      search: z
-        .string()
-        .optional()
-        .describe("Prefix of name, email or phone. A term with '@' or 3+ digits matches anywhere, since identifiers are pasted whole."),
-    }),
+    query: patientDirectoryQuerySchema,
   },
 
   // ── Appointments ──────────────────────────────────────────────────────────
@@ -214,16 +223,7 @@ const ROUTES = {
   },
   "GET /api/v1/appointment": {
     summary: "List appointments",
-    query: z.object({
-      ...pagination,
-      status: z
-        .enum(["pending", "arrived", "completed", "cancelled", "no-show"])
-        .optional()
-        .describe("Filter by appointment status."),
-      search: z.string().optional().describe("Filter by patient name or phone."),
-      from: isoDate.optional().describe("Earliest appointment date to include."),
-      to: isoDate.optional().describe("Latest appointment date to include."),
-    }),
+    query: appointmentsQuerySchema,
     response: appointmentPageSchema,
   },
   "POST /api/v1/appointment/hold": {
@@ -249,35 +249,21 @@ const ROUTES = {
   "GET /api/v1/appointment/available-slots": {
     summary: "List bookable slots for a doctor on a date",
     response: z.array(z.string()),
-    query: z.object({
-      doctorId: z.string().describe("Doctor whose calendar to read."),
-      date: isoDate.describe("Date to check."),
-      durationInMinutes: durationQuery,
-    }),
+    query: slotStatesQuerySchema,
   },
   "GET /api/v1/appointment/active": {
     summary: "List the front desk's active queue",
-    query: z.object({
-      limit: z.coerce.number().int().positive().optional().describe("Cap the queue size."),
-    }),
+    query: queueQuerySchema,
     response: appointmentQueueSchema,
   },
   "GET /api/v1/appointment/arrived": {
     summary: "List arrived patients waiting to be seen",
-    query: z.object({
-      scope: z
-        .enum(["today", "all"])
-        .optional()
-        .describe("Restrict to today, or include every waiting patient."),
-      limit: z.coerce.number().int().positive().optional(),
-    }),
+    query: arrivedQuerySchema,
     response: appointmentQueueSchema,
   },
   "GET /api/v1/appointment/today": {
     summary: "Get today's schedule",
-    query: z.object({
-      limit: z.coerce.number().int().positive().optional(),
-    }),
+    query: queueQuerySchema,
     response: appointmentQueueSchema,
   },
   "PATCH /api/v1/appointment/{id}/status": {
@@ -312,10 +298,7 @@ const ROUTES = {
   },
   "GET /api/v1/consultation": {
     summary: "List consultations",
-    query: z.object({
-      patientId: z.string().optional().describe("Filter to one patient."),
-      appointmentId: z.string().optional().describe("Filter to one appointment."),
-    }),
+    query: consultationsQuerySchema,
     response: consultationHistoryEntrySchema.array(),
   },
   "GET /api/v1/consultation/history/{patientId}": {
@@ -331,13 +314,7 @@ const ROUTES = {
   "GET /api/v1/consultation/follow-ups": {
     summary: "List consultations with follow-ups outstanding",
     description: "The worklist behind the reminder job.",
-    query: z.object({
-      status: z
-        .enum(["pending", "completed", "missed"])
-        .optional()
-        .describe("Filter by follow-up state."),
-      doctorId: z.string().optional().describe("Restrict to one doctor's patients."),
-    }),
+    query: followUpsQuerySchema,
     response: followUpSchema.array(),
   },
   "PATCH /api/v1/consultation/{id}/follow-up": {
@@ -364,9 +341,7 @@ const ROUTES = {
   "GET /api/v1/report": {
     summary: "List reports",
     response: reportListSchema,
-    query: z.object({
-      patientId: z.string().optional().describe("Filter to one patient."),
-    }),
+    query: reportsQuerySchema,
   },
   "GET /api/v1/report/{id}/file/{index}": {
     summary: "Download or stream one file of a report",
@@ -389,9 +364,7 @@ const ROUTES = {
   "GET /api/v1/review": {
     summary: "List reviews",
     response: reviewListResponseSchema,
-    query: z.object({
-      doctorId: z.string().optional().describe("Filter to one doctor."),
-    }),
+    query: reviewsQuerySchema,
   },
 
   // ── Doctor leave ──────────────────────────────────────────────────────────
@@ -413,14 +386,7 @@ const ROUTES = {
   "GET /api/v1/notification": {
     summary: "List your notifications",
     response: notificationListSchema,
-    query: z.object({
-      limit: z.coerce
-        .number()
-        .int()
-        .positive()
-        .default(30)
-        .describe("Page size, capped server-side."),
-    }),
+    query: notificationsQuerySchema,
   },
   "GET /api/v1/notification/unread-count": {
     summary: "Get the unread notification count",
@@ -449,21 +415,7 @@ const ROUTES = {
   "GET /api/v1/admin/users": {
     summary: "List all users of every role",
     response: z.array(userSummarySchema),
-    query: z.object({
-      ...pagination,
-      search: z
-        .string()
-        .optional()
-        .describe("Prefix of name, email or phone, matched on a collation index."),
-      role: z
-        .enum(["all", "patient", "doctor", "staff", "admin"])
-        .optional()
-        .describe("Filter by role."),
-      isActive: z
-        .enum(["true", "false", "all"])
-        .optional()
-        .describe("Filter by account status."),
-    }),
+    query: adminUsersQuerySchema,
   },
   "PATCH /api/v1/admin/users/{id}/activate": {
     summary: "Activate or deactivate an account",
@@ -478,11 +430,7 @@ const ROUTES = {
   },
   "GET /api/v1/admin/export/appointments": {
     summary: "Export appointments as CSV",
-    query: z.object({
-      from: isoDate.optional(),
-      to: isoDate.optional(),
-      status: z.enum(["pending", "arrived", "completed", "cancelled", "no-show"]).optional(),
-    }),
+    query: exportAppointmentsQuerySchema,
     dataShape: "A CSV attachment.",
   },
   "GET /api/v1/admin/export/patients": {
@@ -493,19 +441,12 @@ const ROUTES = {
     summary: "Read the PHI access log",
     description:
       "Admin only, and deliberately not available to staff: the log records which clinician read which patient, which is itself sensitive.",
-    query: z.object({
-      actorId: z.string().optional().describe("Filter to one user id."),
-      resource: z.string().optional().describe("Filter by resource type."),
-      action: z.string().optional().describe("Filter by action, e.g. 'read'."),
-      limit: z.coerce.number().int().positive().default(100).describe("Max 500."),
-    }),
+    query: auditActivityQuerySchema,
     response: accessLogPageSchema,
   },
   "GET /api/v1/admin/audit/patient/{patientId}": {
     summary: "Read who has accessed one patient's record",
-    query: z.object({
-      limit: z.coerce.number().int().positive().default(100).describe("Max 500."),
-    }),
+    query: auditPatientQuerySchema,
     response: accessLogPageSchema,
   },
   "GET /api/v1/admin/audit/patient/{patientId}/by-staff": {
@@ -521,10 +462,7 @@ const ROUTES = {
   "GET /api/v1/admin/clinic-blockouts": {
     summary: "List clinic-wide blackout dates",
     response: z.array(clinicBlockoutSchema),
-    query: z.object({
-      from: isoDate.optional(),
-      to: isoDate.optional(),
-    }),
+    query: clinicBlockoutsQuerySchema,
   },
   "POST /api/v1/admin/clinic-blockouts": {
     summary: "Block out a date or range",

@@ -48,12 +48,8 @@ path-less layers, which is what Express itself does at runtime.
 A specification that overstates its own coverage is worse than none, so the
 generated document declares its limits in two ways:
 
-- **`x-query-params-documented-only`** — the query string is described here but
-  **not validated** at runtime. `validate()` historically checked only
-  `req.body`; it now supports `query` and `params` sources, but most routes have
-  not opted in yet.
 - **`x-response-schema-pending`** — the success payload is described in prose
-  rather than as a schema. 13 of 75 operations have a real response schema
+  rather than as a schema. 48 of 75 operations have a real response schema
   today; the rest are marked.
 
 `x-validated-request-parts` lists the parts a Zod schema genuinely guards, and
@@ -68,26 +64,56 @@ from the same `PERMISSIONS` matrix the server enforces. They cannot disagree.
 See [authorization.md](./authorization.md) for what the matrix deliberately
 cannot express.
 
+## Request validation
+
+Body and query are both schema-validated, from **one definition each**:
+
+| Part | Schema | Enforced by |
+|---|---|---|
+| Body | `src/zodSchemas.ts` | `validate(schema)` |
+| Query | `src/zodQuerySchemas.ts` | `validate(schema, { source: "query" })` |
+
+`openapi/routeDocs.ts` references those same schemas rather than restating them,
+so a documented parameter and an enforced one cannot drift apart — which is the
+failure that made the earlier version of this document worthless.
+
+All 17 query-string endpoints are now validated. Previously the document
+carried `x-query-params-documented-only` on each: an honest admission that the
+parameters were described and never checked. That marker is gone.
+
+Switching validation on changes which requests succeed, so the compatibility
+cases are pinned in `tests/api/queryValidation.test.ts`:
+
+- `limit=0` still accepted — controllers read it as "use the default"
+- `?search=` still accepted — it means "no filter"
+- `?status=all` still accepted — the sentinel controllers already handled.
+  Excluding it from the enum was a regression, caught by those tests
+- an absent query string still works everywhere
+
+Two inputs are now **stricter**, deliberately:
+
+- `?page=0` returns 400. It used to be silently clamped to page 1, so a client
+  asking for page 0 received a 200 with a result nobody selected.
+- `?isActive=yes` returns 400. It used to fail every `=== "true"` comparison
+  and return only deactivated accounts, which looked like an empty directory.
+
 ## Response schemas, and why they are verified
 
 `backend/src/openapi/responseSchemas.ts` describes what the API returns for the
 core entities. These are **verified against live responses** in
-`tests/api/responseSchemas.test.ts`, and that is not ceremony.
+`tests/api/responseSchemas.live.test.ts`, and that is not ceremony.
 
 The first draft of that file described notifications with `userId`, `message` and
 `read`, and a nine-value type enum. It looked entirely plausible and typechecked
 cleanly. The real model has always used `recipientId`, `body` and `readAt` with
-four types — so the schema would have rejected every genuine notification. Three
-more of the same kind turned up while writing the rest:
+four types — so the schema would have rejected every genuine notification. Every
+guess it has caught is listed at the top of that test file, and the count now
+runs to eight, including `GET /report` returning `{ count, reports }` rather than
+a bare array — a mistake already committed to the file that nothing had caught.
 
-- the public clinic settings endpoint was described as the internal
-  `ClinicSettings` document; it actually returns a projected view with no `_id`
-- `day` was assumed to be a weekday name; it is a 0–6 index
-- the patient directory was assumed to include `role`; its projection omits it
-
-Each was caught by parsing a real response rather than by reading the code,
-which is the argument for verifying response schemas instead of trusting them
-because they look right.
+Each was found by parsing a real response rather than reading the code, which is
+the argument for verifying response schemas instead of trusting them because
+they look right.
 
 ## Types shared with the frontend
 

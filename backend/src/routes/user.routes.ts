@@ -18,6 +18,16 @@ import {
 import { protect, requirePermission } from "../middlewares/auth.middlewares";
 import { upload } from "../utils/multer";
 
+import { type ValidateOptions, validate } from '../middlewares/validate';
+import { doctorsQuerySchema, patientDirectoryQuerySchema } from '../zodQuerySchemas';
+
+/**
+ * Named so the intent reads at the call site: this validates the query
+ * string, not the body. See zodQuerySchemas.ts for why these exist and
+ * how they are shaped to stay behaviour-compatible.
+ */
+const QUERY: ValidateOptions = { source: 'query' };
+
 const router = Router();
 
 router.get("/me", protect, getMe);
@@ -45,6 +55,6 @@ router.get("/me/share-code", protect, getMyShareCode);
 router.delete("/me/family/:id/guardians/:guardianId", protect, removeGuardian);
 router.post("/me/family/:id/leave", protect, leaveFamilyMember);
 
-router.get("/doctors", getDoctors);
-router.get("/patients", protect, requirePermission("patients:list"), getPatients);
+router.get("/doctors", validate(doctorsQuerySchema, QUERY), getDoctors);
+router.get("/patients", protect, requirePermission("patients:list"), validate(patientDirectoryQuerySchema, QUERY), getPatients);
 export default router;
