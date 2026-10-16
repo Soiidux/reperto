@@ -12,13 +12,9 @@
  * after a reschedule (the printed ticket simply predates the new slot).
  */
 
-export const TICKET_PREFIX = "REPERTO_TICKET:";
+import { toId } from "./ids";
 
-const toId = (value: unknown): string => {
-  const asDoc = value as { _id?: unknown } | null;
-  if (asDoc && typeof asDoc === "object" && "_id" in asDoc) return String(asDoc._id);
-  return String(value);
-};
+export const TICKET_PREFIX = "REPERTO_TICKET:";
 
 /** "21-Sep-2026" — the display date a ticket prints for a UTC-midnight appointment date. */
 const ticketDateLabel = (date: Date): string =>

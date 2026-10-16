@@ -1,4 +1,6 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
+import logger from "../../utils/logger";
+import { toId } from "../../utils/ids";
 
 /**
  * Read-access audit trail for protected health information.
@@ -84,20 +86,44 @@ export type AccessLogInput = {
 /**
  * Record an access event. Never throws and never rejects — a failure to audit
  * must not deny a clinician access to records.
+ *
+ * But "never throws" must not stretch to "never tells you". An audit row dropped
+ * in silence is worse than one loudly missing, because the silence looks exactly
+ * like a complete trail. That happened here once: the check-in caller passed a
+ * *populated* patient, whose String() is "[object Object]", so every check-in
+ * row vanished without a single symptom.
+ *
+ * So an unusable id is counted and logged rather than discarded quietly.
  */
 export const recordAccess = async (input: AccessLogInput): Promise<void> => {
   try {
-    const actorId = input.actorId && mongoose.isValidObjectId(input.actorId)
-      ? new mongoose.Types.ObjectId(input.actorId)
+    // toId, not String: it accepts a populated document, a raw ObjectId or a
+    // string, so adding a .populate() to the caller's query later cannot silently
+    // turn this audit into a no-op.
+    const actorRaw = toId(input.actorId);
+    const patientRaw = toId(input.patientId);
+    const actorId = actorRaw && mongoose.isValidObjectId(actorRaw)
+      ? new mongoose.Types.ObjectId(actorRaw)
       : null;
-    const patientId = input.patientId && mongoose.isValidObjectId(input.patientId)
-      ? new mongoose.Types.ObjectId(input.patientId)
+    const patientId = patientRaw && mongoose.isValidObjectId(patientRaw)
+      ? new mongoose.Types.ObjectId(patientRaw)
       : null;
 
     // Without both parties the entry would be meaningless, so skip rather than
-    // write a half-empty row.
-    if (!actorId || !patientId) return;
+    // write a half-empty row — but say that it was skipped.
+    if (!actorId || !patientId) {
+      recordAccess.dropped += 1;
+      logger.warn("Audit entry dropped: unusable id", {
+        resource: input.resource,
+        action: input.action,
+        route: input.route,
+        hasActor: Boolean(actorId),
+        hasPatient: Boolean(patientId),
+      });
+      return;
+    }
 
+    const resourceRaw = toId(input.resourceId);
     await AccessLog.create({
       actorId,
       actorRole: input.actorRole ?? "unknown",
@@ -105,16 +131,25 @@ export const recordAccess = async (input: AccessLogInput): Promise<void> => {
       patientId,
       resource: input.resource,
       resourceId:
-        input.resourceId && mongoose.isValidObjectId(input.resourceId)
-          ? new mongoose.Types.ObjectId(input.resourceId)
+        resourceRaw && mongoose.isValidObjectId(resourceRaw)
+          ? new mongoose.Types.ObjectId(resourceRaw)
           : undefined,
       action: input.action,
       route: input.route,
       ip: input.ip,
     });
   } catch {
-    // Intentionally silent: see the note above. Swallowed on purpose.
+    // Still silent for *storage* failures: auditing must not break the request.
+    // Counted, so a systematically failing audit is visible rather than assumed.
+    recordAccess.dropped += 1;
   }
 };
+
+/**
+ * How many audit entries were dropped. Exposed so a test can assert the count
+ * does not creep up — the failure this file guards against is invisible from
+ * the database alone, since nothing is written when it happens.
+ */
+recordAccess.dropped = 0;
 
 export default AccessLog;

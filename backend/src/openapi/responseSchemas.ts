@@ -446,16 +446,15 @@ export const checkInResultSchema = z.object({
 // ── Envelope helpers ────────────────────────────────────────────────────────
 
 /**
- * Wrap a payload in the `{ success, message, data }` envelope.
+ * NOTE: the `{ success, message, data }` envelope is assembled in
+ * openapi/generate.ts rather than here.
  *
- * `message` is deliberately NOT required. The envelope is near-universal rather
- * than universal: `GET /notification/unread-count` returns only
- * `{ success, data }`, and a handful of older handlers skip `success` too.
- * Marking `message` required would publish a guarantee the API does not make,
- * which is exactly what these schemas exist to avoid.
+ * It was briefly duplicated here as `envelope()`, and nothing ever used it —
+ * the generator wraps each payload in its own `responseEnvelope`, which also
+ * has to know about the optional `message`. Dead code that reads like a live
+ * abstraction is worse than no abstraction, so it is gone rather than left for
+ * someone to pick up and wire to the wrong half.
  */
-export const envelope = <T extends z.ZodTypeAny>(data: T) =>
-  z.object({ success: z.boolean(), message: z.string().optional(), data });
 
 /** Pagination block, as the paginated list endpoints return it. */
 export const paginationSchema = z.object({

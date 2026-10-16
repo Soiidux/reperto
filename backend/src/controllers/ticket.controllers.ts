@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import QRCode from "qrcode";
 import Appointment from "../db/models/appointment.model";
 import { recordAccess } from "../db/models/accessLog.model";
+import { toId } from "../utils/ids";
 import { canActForPatient } from "../utils/patientScope";
 import { getClinicTodayAnchor, formatDateLabel } from "../utils/clinicDate";
 import { notifyPatientArrived } from "../utils/notifications";
@@ -13,12 +14,6 @@ import { parseTicketReference, ticketRef, verifyTicket } from "../utils/ticket";
  * (rendered as a PNG for the confirmation screen) that the clinic can scan
  * at check-in. Access is scoped the same way as appointment views.
  */
-
-const toId = (value: unknown): string => {
-  const asDoc = value as { _id?: unknown } | null;
-  if (asDoc && typeof asDoc === "object" && "_id" in asDoc) return String(asDoc._id);
-  return String(value);
-};
 
 // Loads the appointment (populated for display) or sends an error and returns null.
 const loadScopedAppointment = async (req: Request, res: Response) => {

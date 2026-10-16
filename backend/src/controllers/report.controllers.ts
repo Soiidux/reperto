@@ -5,6 +5,7 @@ import Report from "../db/models/report.model";
 import User from "../db/models/user.model";
 import { ApiError } from "../errors";
 import { readFile } from "fs/promises";
+import { toId } from "../utils/ids";
 import { canActForPatient } from "../utils/patientScope";
 import { uploadToCloudinary } from "../utils/cloudinary";
 import {
@@ -240,7 +241,7 @@ export const getReportFile = async (req: Request, res: Response) => {
   // Same access rule as listing reports: patients only their own/family,
   // clinical staff anyone.
   if (req.user.role === "patient") {
-    if (!(await canActForPatient(req.user.id, String(report.patientId)))) {
+    if (!(await canActForPatient(req.user.id, toId(report.patientId)))) {
       throw new ApiError(403, forbiddenResponse.message);
     }
   }
@@ -250,7 +251,7 @@ export const getReportFile = async (req: Request, res: Response) => {
   await recordAccess({
     actorId: req.user.id,
     actorRole: req.user.role,
-    patientId: String(report.patientId),
+    patientId: toId(report.patientId),
     resource: "report",
     resourceId: report._id.toString(),
     action: "read",
@@ -303,7 +304,7 @@ export const deleteReport = async (req: Request, res: Response) => {
   if (req.user.role === "patient") {
     const authorized = await canActForPatient(
       req.user.id,
-      String(report.patientId),
+      toId(report.patientId),
     );
     if (!authorized) {
       throw new ApiError(403, forbiddenResponse.message);

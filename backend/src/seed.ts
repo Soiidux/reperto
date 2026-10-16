@@ -21,10 +21,27 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Note the two patients rather than one: the schema enforces ONE live booking
  * (pending/arrived) per patient, so a clinic day with two live slots needs two
  * people.
+ *
+ * Re-seeding RESETS the demo data for these two accounts. That is deliberate,
+ * and it fixes a real defect: the past visit is dated relative to today, so
+ * every day the seed created another appointment 14 days back and left the
+ * previous day's consultation orphaned in place. Re-running the seed over a
+ * fortnight accumulated a duplicate history per patient, and a malformed record
+ * written by an earlier version of this script stayed orphaned forever, because
+ * the upsert could no longer reach it.
+ *
+ * Clearing first makes the seed idempotent over time rather than only on a
+ * pristine database.
  */
 const seedDemoActivity = async (doctor: any, patient: any, patient2: any) => {
   const today = getClinicTodayAnchor();
   const [firstSlot, secondSlot, thirdSlot] = DEFAULT_DAY_SLOTS;
+
+  // Clear prior demo history for these two patients before rebuilding it.
+  const demoPatients = [patient._id, patient2._id];
+  await Consultation.deleteMany({ patientId: { $in: demoPatients } });
+  await Appointment.deleteMany({ patientId: { $in: demoPatients } });
+  await Review.deleteMany({ patientId: { $in: demoPatients } });
 
   // Past visit, already completed, with a consultation and a review attached.
   const pastDate = new Date(today.getTime() - 14 * DAY_MS);
@@ -98,26 +115,54 @@ const seedDemoActivity = async (doctor: any, patient: any, patient2: any) => {
   ];
 
   for (const { person, slot, status } of todaysBookings) {
-    await Appointment.findOneAndUpdate(
-      { patientId: person._id, doctorId: doctor._id, appointmentDate: today, timeSlot: slot },
-      {
-        patientId: person._id,
-        doctorId: doctor._id,
-        appointmentDate: today,
-        timeSlot: slot,
-        durationInMinutes: 15,
-        status,
-        consultationType: "Follow-up",
-        ...(status === "arrived" ? { checkedInAt: new Date() } : {}),
-        intakeDetails: {
-          primaryComplaint: "Follow-up on allergy treatment",
-          duration: "2 weeks",
-          currentMedication: "Alumina 30",
-          pastMedicalHistory: "Nil significant",
-        },
+    const filter = {
+      patientId: person._id,
+      doctorId: doctor._id,
+      appointmentDate: today,
+      timeSlot: slot,
+    };
+    const update = {
+      patientId: person._id,
+      doctorId: doctor._id,
+      appointmentDate: today,
+      timeSlot: slot,
+      durationInMinutes: 15,
+      status,
+      consultationType: "Follow-up",
+      ...(status === "arrived" ? { checkedInAt: new Date() } : {}),
+      intakeDetails: {
+        primaryComplaint: "Follow-up on allergy treatment",
+        duration: "2 weeks",
+        currentMedication: "Alumina 30",
+        pastMedicalHistory: "Nil significant",
       },
-      { upsert: true, returnDocument: "after" },
-    );
+    };
+
+    // The schema allows one live booking (pending/arrived) per patient, enforced
+    // by a partial unique index. A database that is not pristine — one this seed
+    // has already run against, or one where a patient used the app — can hold a
+    // live booking on a different slot, and the insert then fails with E11000.
+    //
+    // Previously that aborted the whole seed, leaving the database half-seeded:
+    // a seed that only works on an empty database is not idempotent in any sense
+    // a reviewer would recognise. Retire the stale booking and try again.
+    try {
+      await Appointment.findOneAndUpdate(filter, update, {
+        upsert: true,
+        returnDocument: "after",
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code !== 11000) throw error;
+      await Appointment.deleteMany({
+        patientId: person._id,
+        status: { $in: ["pending", "arrived"] },
+        $nor: [filter],
+      });
+      await Appointment.findOneAndUpdate(filter, update, {
+        upsert: true,
+        returnDocument: "after",
+      });
+    }
   }
 };
 
