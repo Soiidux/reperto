@@ -25,6 +25,8 @@ jobs:
       CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
       CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
       CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_EXPIRY: ${{ secrets.JWT_EXPIRY }}
 
     defaults:
       run:
